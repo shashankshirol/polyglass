@@ -24,50 +24,125 @@ See [CHECKLIST.md](./CHECKLIST.md) for progress.
 | [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | How the code is organized |
 | [PRIVACY.md](./PRIVACY.md) | What data goes where |
 
-## Building (developers)
+## Build and run locally
 
-Requirements: Rust (stable, 1.90+), Node 20+, and the
-[Tauri 2 prerequisites](https://v2.tauri.app/start/prerequisites/) for your OS (WebView2 on
-Windows; webkit2gtk 4.1 on Linux).
+Only Windows runs the full app today (live capture, OCR and translation). On macOS and Linux the
+core crates build and test, and the app runs in demo mode only.
 
-```
-cargo test --workspace
-cargo run --release -p pg-bench -- --fixture tests/fixtures/ui-dialog-sv
-```
+### 1. Prerequisites
 
-Desktop app (lens window). On Windows it captures and recognizes the text under the lens by
-default. Demo mode (`POLYGLASS_DEMO=1`, or the `--demo` argument on the built binary) swaps in
-mock capture/OCR/translation and never reads the screen:
+- **Rust** stable, 1.90 or newer, via [rustup](https://rustup.rs). On Windows use the MSVC
+  toolchain (`x86_64-pc-windows-msvc`).
+- **Node.js** 20 or newer (npm comes with it).
+- **The [Tauri 2 prerequisites](https://v2.tauri.app/start/prerequisites/) for your OS:**
+  - Windows: the Microsoft C++ Build Tools ("Desktop development with C++") and the WebView2
+    runtime, which Windows 11 already has.
+  - Linux: `libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev`.
+  - macOS: the Xcode command-line tools.
+- **Swedish text recognition (Windows, optional):** Settings → Time & language → Language &
+  region → add Swedish → Language options → install its optical character recognition feature.
+  Without it the lens reads English only and shows ⚠ SV in the toolbar.
+
+### 2. Run the app in development mode
+
+From the repository root:
 
 ```
 cd apps/desktop
 npm install
-npm run tauri dev                      # live capture + Windows OCR
-POLYGLASS_DEMO=1 npm run tauri dev     # mocks only
+npm run tauri dev
 ```
 
-Translation models aren't bundled (MDL-06). On first use the lens says they're missing and the
-toolbar shows ⬇; it downloads both directions (about 30 MB, from Mozilla's model storage, SHA-256
-checked) into `%LOCALAPPDATA%\org.polyglass.desktop\models` and starts translating.
+The first run compiles the whole workspace, which takes a few minutes. After that the UI reloads
+when you save a change, and Rust changes trigger a rebuild. The lens opens centred on the
+monitor your cursor is on, and a tray icon appears.
 
-Swedish text recognition on Windows needs the optional Swedish OCR feature (Settings → Time &
-language → Language & region → Swedish → Language options); without it the lens reads English
-only and says so.
+To run demo mode, which uses mock capture, OCR and translation and never reads the screen:
 
-On Windows, if the Tauri CLI reports
-`cargo metadata ... program not found`, your `cargo.exe` is probably a rustup symlink that child
-processes can't start; put `$(rustc --print sysroot)\bin` first on `PATH`.
+```
+# PowerShell
+$env:POLYGLASS_DEMO = "1"; npm run tauri dev
+# bash/zsh
+POLYGLASS_DEMO=1 npm run tauri dev
+```
 
-`pg-bench` runs the pipeline on a fixture and prints per-stage latency percentiles. Until the
-fixture images exist it renders the fixture text with a system font. `--ocr mock` (default)
-measures pipeline overhead only; `--ocr windows` runs Windows OCR. Translation in `pg-bench` is
-still a mock.
+In PowerShell, run `Remove-Item Env:POLYGLASS_DEMO` to go back to live mode in the same terminal.
 
-Tests against the real translation models download them first, so they are ignored by default:
+### 3. First run: download the translation models
+
+The translation models aren't bundled with the app. On first launch the lens says they're
+missing, and the toolbar shows ⬇. Click it to download both directions:
+- about 30 MB in total, from Mozilla's model storage;
+- each file is checked against its SHA-256;
+- they're saved to `%LOCALAPPDATA%\org.polyglass.desktop\models`;
+- translation starts as soon as the download finishes.
+
+Later launches load the models from disk in under a second, and nothing else goes online.
+
+### 4. Use the lens
+
+- Drag the toolbar to move the lens, or drag any edge or corner to resize it. With the lens
+  focused, the arrow keys move it by 1 px, and Shift+arrow moves it by 10 px.
+- Put the lens over Swedish text. The translation is drawn in place once the lens stops
+  moving.
+- The toolbar buttons:
+  - ❚❚ pauses translation;
+  - ⇲ turns click-through on or off, so clicks reach the window underneath;
+  - ✕ hides the lens.
+- The tray icon menu has **Show/hide lens** and **Quit Polyglass**. While the lens is hidden,
+  nothing is captured.
+
+### 5. Release build
+
+```
+cd apps/desktop
+npm run tauri build -- --no-bundle
+```
+
+This builds the UI and an optimized app binary, `target\release\polyglass.exe` at the
+repository root, which runs on its own: double-click it, or run it from a terminal. Add `--demo`
+for demo mode. Running `npm run tauri build` without `--no-bundle` also creates the MSI and NSIS
+installers under `target\release\bundle\`. The Tauri CLI downloads WiX and NSIS for that step,
+which hasn't been tested yet.
+
+### 6. Tests and benchmarks
+
+From the repository root:
+
+```
+cargo test --workspace
+cargo clippy --workspace --all-targets -- -D warnings
+cargo run --release -p pg-bench -- --fixture tests/fixtures/ui-dialog-sv
+```
+
+`pg-bench` runs the pipeline on a fixture and prints latency percentiles for each stage:
+- the default, `--ocr mock`, measures only the pipeline's own overhead;
+- `--ocr windows` runs Windows OCR;
+- translation in `pg-bench` is still a mock;
+- until the fixture images exist, it renders the fixture text with a system font.
+
+Tests against the real translation models download those models first, so they're ignored by
+default:
 
 ```
 cargo test -p pg-bergamot --release --test real_models -- --ignored --test-threads 1
 ```
+
+### Troubleshooting
+
+- **`cargo metadata ... program not found` from the Tauri CLI (Windows):** your `cargo.exe` is
+  probably a rustup symlink that child processes can't start. Put the toolchain's own `bin` first
+  on `PATH`, then retry:
+
+  ```
+  $env:PATH = "$(rustc --print sysroot)\bin;$env:PATH"
+  ```
+
+- **"The lens can't hide itself from screen capture … live capture is off":** live mode starts
+  only when Windows can exclude the lens window from its own capture, which needs Windows 10
+  version 2004 or newer. Use demo mode on older systems.
+- **⚠ SV in the toolbar:** the Swedish OCR feature isn't installed (see step 1). Click ⚠ SV to
+  open the Windows language settings.
 
 ## Repository layout
 
