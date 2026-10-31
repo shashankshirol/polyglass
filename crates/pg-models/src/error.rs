@@ -8,6 +8,10 @@ pub enum ModelError {
     #[error("unknown model: {0}")]
     UnknownModel(String),
 
+    /// The manifest lists the model without download URLs; install it by import (MDL-04).
+    #[error("{0} has no download URL yet; import it from local files")]
+    NotHosted(String),
+
     #[error("refusing non-HTTPS download URL")]
     InsecureUrl,
 

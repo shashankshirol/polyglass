@@ -102,15 +102,16 @@ mod tests {
     fn model() -> ModelEntry {
         ModelEntry {
             id: "m".into(),
-            engine: "bergamot".into(),
+            engine: "ctranslate2".into(),
             source: pg_core::LangTag::sv(),
             target: pg_core::LangTag::en(),
             version: "1".into(),
-            license: "MPL-2.0".into(),
+            license: "MIT".into(),
+            attribution: None,
             source_url: "https://example.org".into(),
             files: vec![ModelFile {
                 name: "model.bin".into(),
-                url: "https://example.org/model.bin".into(),
+                url: None,
                 size: 4,
                 sha256: HASH.into(),
             }],

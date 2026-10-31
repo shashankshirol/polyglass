@@ -260,7 +260,7 @@ mod tests {
             std::fs::write(&path, b"not a model").unwrap();
             files.push(ModelFile {
                 name: name.into(),
-                url: format!("https://example.org/{name}"),
+                url: Some(format!("https://example.org/{name}")),
                 size: 11,
                 sha256: sha256_file(&path).unwrap(),
             });
@@ -272,6 +272,7 @@ mod tests {
             target: pg_core::LangTag::en(),
             version: "1".into(),
             license: "MPL-2.0".into(),
+            attribution: None,
             source_url: "https://example.org".into(),
             files,
         };

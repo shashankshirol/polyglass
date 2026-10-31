@@ -101,18 +101,19 @@ fn sha(data: &[u8]) -> String {
 
 fn entry(base: &str, files: &[(&str, &[u8])]) -> ModelEntry {
     ModelEntry {
-        id: "bergamot-sv-en".into(),
-        engine: "bergamot".into(),
+        id: "test-sv-en".into(),
+        engine: "ctranslate2".into(),
         source: LangTag::sv(),
         target: LangTag::en(),
         version: "1".into(),
-        license: "MPL-2.0".into(),
+        license: "MIT".into(),
+        attribution: None,
         source_url: "https://example.org".into(),
         files: files
             .iter()
             .map(|(name, data)| ModelFile {
                 name: (*name).into(),
-                url: format!("{base}/{name}"),
+                url: Some(format!("{base}/{name}")),
                 size: data.len() as u64,
                 sha256: sha(data),
             })
@@ -232,7 +233,7 @@ async fn mdl02_hash_mismatch_deletes_file() {
     assert!(matches!(err, ModelError::HashMismatch { ref file } if file == "model.bin"));
     assert!(!store.is_installed(&model));
     assert!(!store.file_path(&model, "model.bin").exists());
-    assert!(!dir.path().join("bergamot-sv-en/model.bin.part").exists());
+    assert!(!dir.path().join("test-sv-en/model.bin.part").exists());
 }
 
 #[tokio::test]
@@ -259,7 +260,7 @@ async fn mdl03_cancel_keeps_partial_file() {
         .await
         .unwrap_err();
     assert!(matches!(err, ModelError::Cancelled), "{err:?}");
-    let part = dir.path().join("bergamot-sv-en/model.bin.part");
+    let part = dir.path().join("test-sv-en/model.bin.part");
     assert_eq!(std::fs::metadata(part).unwrap().len(), 10_000);
 }
 
@@ -279,4 +280,32 @@ async fn http_errors_are_reported() {
         .await
         .unwrap_err();
     assert!(matches!(err, ModelError::Http(404)));
+}
+
+#[tokio::test]
+async fn mdl04_import_only_model_is_not_downloaded() {
+    let a = payload(1_000, 7);
+    let mut model = entry("https://example.invalid", &[("model.bin", &a)]);
+    for f in &mut model.files {
+        f.url = None;
+    }
+    assert!(!model.is_downloadable());
+    let dir = tempfile::tempdir().unwrap();
+    let store = ModelStore::new(dir.path());
+    let err = Downloader::new()
+        .unwrap()
+        .download(&store, &model, &CancellationToken::new(), |_| {})
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(err, ModelError::NotHosted(ref id) if id == "test-sv-en"),
+        "{err}"
+    );
+    assert!(!store.model_dir(&model).exists(), "nothing written");
+
+    // It installs by import instead, verified the same way.
+    let src = tempfile::tempdir().unwrap();
+    std::fs::write(src.path().join("model.bin"), &a).unwrap();
+    store.import_from_dir(&model, src.path()).unwrap();
+    assert!(store.is_installed(&model));
 }

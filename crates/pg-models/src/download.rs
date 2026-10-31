@@ -40,7 +40,8 @@ impl Downloader {
     /// Download every missing file of `model` into `store`.
     ///
     /// Interrupted downloads leave a `.part` file and resume from it with an HTTP Range request
-    /// next time. A file that fails verification is deleted and reported (MDL-02).
+    /// next time. A file that fails verification is deleted and reported (MDL-02). An
+    /// import-only model (no URLs) is [`ModelError::NotHosted`].
     pub async fn download(
         &self,
         store: &ModelStore,
@@ -48,11 +49,15 @@ impl Downloader {
         cancel: &CancellationToken,
         mut on_progress: impl FnMut(Progress) + Send,
     ) -> Result<()> {
+        if !model.is_downloadable() {
+            return Err(ModelError::NotHosted(model.id.clone()));
+        }
         fs::create_dir_all(store.model_dir(model)).await?;
         let total = model.download_size();
         let mut done_before = 0u64;
         for file in &model.files {
-            check_url(&file.url)?;
+            let url = file.url.as_deref().ok_or(ModelError::InsecureUrl)?;
+            check_url(url)?;
             let final_path = store.file_path(model, &file.name);
             if file_ok(&final_path, file.size, &file.sha256).await? {
                 done_before += file.size;
@@ -63,7 +68,7 @@ impl Downloader {
                 continue;
             }
             let part = store.part_path(model, &file.name);
-            self.fetch(&file.url, &part, file.size, cancel, |n| {
+            self.fetch(url, &part, file.size, cancel, |n| {
                 on_progress(Progress {
                     downloaded: done_before + n,
                     total,
