@@ -1,7 +1,5 @@
 # Polyglass
 
-> Working name — see [CHECKLIST.md](./CHECKLIST.md) decision D-1.
-
 Polyglass shows a movable lens over your desktop. Text under the lens is recognized and
 translated in near real time, and the translation is drawn inside the lens. Everything can run
 **on your device**; online translation backends are opt-in. Swedish ↔ English is the primary
@@ -165,4 +163,6 @@ docs/                architecture notes and ADRs
 
 ## License
 
-Intended: MIT OR Apache-2.0 (pending decision D-2). Fixtures under `tests/fixtures` are CC0-1.0.
+[Apache-2.0](./LICENSE). Fixtures under `tests/fixtures` are CC0-1.0. Translation models are
+downloaded at runtime, not bundled, and carry their own licenses (listed in
+`models/manifest.toml`; Mozilla's sv↔en models are MPL-2.0).

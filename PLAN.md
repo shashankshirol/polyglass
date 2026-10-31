@@ -167,7 +167,7 @@ Rough sizing assumes one or two part-time contributors. Each milestone ends with
 
 ## 8. Open-source and release setup
 
-**Licensing.** Recommended: dual **MIT OR Apache-2.0** (Rust ecosystem norm). Third-party: Bergamot is MPL-2.0 (file-level copyleft, compatible), Tesseract is Apache-2.0. Translation models carry their own licenses and are downloaded at runtime, not bundled; each model's license is shown in the model manager and recorded in `models/manifest.toml`. Generate `THIRD_PARTY_NOTICES` with `cargo-about`.
+**Licensing.** **Apache-2.0** (owner decision D-2, 2026-11-01; see `LICENSE`). Third-party: Bergamot is MPL-2.0 (file-level copyleft, compatible), Tesseract is Apache-2.0. Translation models carry their own licenses and are downloaded at runtime, not bundled; each model's license is shown in the model manager and recorded in `models/manifest.toml`. Generate `THIRD_PARTY_NOTICES` with `cargo-about`.
 
 **Repository files.** README (quick start under 5 minutes), CONTRIBUTING, CODE_OF_CONDUCT (Contributor Covenant), SECURITY.md (private disclosure channel), GOVERNANCE.md (lightweight maintainer model), **PRIVACY.md** (plain-language data flow, linked from the app), DCO sign-off on commits (no CLA).
 
@@ -203,8 +203,10 @@ Rough sizing assumes one or two part-time contributors. Each milestone ends with
 
 ## 11. Decisions needed from the project owner
 
-1. Final project name.
-2. License choice (recommended: MIT OR Apache-2.0).
-3. ~~Language pairs for v1~~ Resolved: Swedish ↔ English is primary (SPEC §3). Remaining language questions are in SPEC §10.
-4. Minimum OS versions (proposed: Windows 10 2004, macOS 13, Ubuntu 22.04).
-5. Budget for code signing (Apple Developer Program fee; SignPath application for Windows).
+Answered by the owner on 2026-11-01 (tracked as D-1..D-5 in `CHECKLIST.md`):
+
+1. ~~Final project name~~ **Polyglass** (D-1).
+2. ~~License choice~~ **Apache-2.0** (D-2).
+3. ~~Language pairs for v1~~ Swedish ↔ English is primary (SPEC §3); the SPEC §10 language questions are answered there (D-5).
+4. ~~Minimum OS versions~~ **Windows 10 2004, macOS 13, Ubuntu 22.04** as proposed; no support for older systems (D-3).
+5. Budget for code signing (Apple Developer Program fee; SignPath application for Windows): **deferred** until before the first public beta (D-4).
