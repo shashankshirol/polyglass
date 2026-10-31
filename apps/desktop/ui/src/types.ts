@@ -53,10 +53,18 @@ export interface Timings {
 /** `commands::LensConfig`. */
 export interface LensConfig {
   layout: { frame: number; toolbar: number };
-  /** demo: all mocks; live: real capture + OCR, mock translation (until M1-TR-1). */
+  /** demo: all mocks; live: real capture, OCR and on-device translation. */
   mode: "demo" | "live" | "none";
   clickThrough: boolean;
   pipeline: boolean;
   /** Fluent message ID if the pipeline failed to start. */
   pipelineError: string | null;
+  /** Bytes of Swedish ↔ English models still to download (0 = installed). */
+  modelsMissingBytes: number;
 }
+
+/** `models::ModelEvent`: progress of the toolbar's model download. */
+export type ModelEvent =
+  | { state: "downloading"; downloaded: number; total: number }
+  | { state: "ready" }
+  | { state: "error"; message_id: string };

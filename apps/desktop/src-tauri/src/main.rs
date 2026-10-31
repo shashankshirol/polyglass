@@ -10,17 +10,20 @@ mod commands;
 mod demo;
 mod lens;
 mod live;
+mod models;
 mod state;
 mod tray;
 
 use std::sync::Arc;
 
 use pg_core::PhysRect;
+use pg_models::ModelStore;
 use pg_pipeline::{LensUpdate, Pipeline, SchedulerConfig, driver};
 use tauri::{AppHandle, Emitter, Manager, RunEvent, WebviewWindow, WindowEvent};
 use tokio::sync::mpsc;
 use tracing_subscriber::EnvFilter;
 
+use crate::models::Models;
 use crate::state::{Lens, Mode};
 
 /// Event the lens UI listens to for pipeline results.
@@ -54,9 +57,12 @@ fn main() {
             commands::set_paused,
             commands::hide_lens,
             commands::open_ocr_language_settings,
+            commands::download_models,
         ])
         .setup(move |app| {
             let handle = app.handle().clone();
+            let store = ModelStore::new(handle.path().app_local_data_dir()?.join("models"));
+            handle.manage(Models::new(store.clone()));
             let window = lens::create(&handle)?;
             // Before the lens is first shown, so no capture ever contains it (CAP-02).
             let self_excluded = lens::exclude_from_capture(&window);
@@ -79,8 +85,8 @@ fn main() {
                     report_pipeline_error(&handle, live::SELF_EXCLUSION_ERROR);
                 }
                 Mode::Live => {
-                    tracing::warn!("live capture and OCR; translation is the mock (M1-TR-1)");
-                    start_pipeline(handle, live::pipeline);
+                    tracing::info!("live capture, OCR and on-device translation");
+                    start_pipeline(handle, move || live::pipeline(&store));
                 }
                 Mode::None => tracing::warn!("no capture backend on this platform yet"),
             }
@@ -156,8 +162,10 @@ fn start_pipeline(
                 return;
             }
         };
+        let pipeline = Arc::new(pipeline);
+        app.state::<Lens>().set_pipeline(pipeline.clone());
         let (tx, mut rx) = mpsc::unbounded_channel::<LensUpdate>();
-        let (handle, _task) = driver::spawn(Arc::new(pipeline), SchedulerConfig::default(), tx);
+        let (handle, _task) = driver::spawn(pipeline, SchedulerConfig::default(), tx);
         app.state::<Lens>().set_driver(handle);
         while let Some(update) = rx.recv().await {
             // LensUpdate's Debug is text-free, but don't log it at all (PRIV-07).

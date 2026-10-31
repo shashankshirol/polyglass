@@ -2,9 +2,10 @@
 //! allowed per window in `capabilities/lens.json`. All input is validated here, in Rust.
 
 use serde::Serialize;
-use tauri::{State, WebviewWindow};
+use tauri::{AppHandle, State, WebviewWindow};
 
 use crate::lens::{self, LAYOUT, Layout};
+use crate::models::{self, Models};
 use crate::state::{Lens, Mode};
 
 type CmdResult<T> = Result<T, String>;
@@ -22,10 +23,16 @@ pub struct LensConfig {
     pipeline: bool,
     /// Fluent message ID if the pipeline failed to start.
     pipeline_error: Option<&'static str>,
+    /// Bytes of Swedish ↔ English models still to download (0 = installed).
+    models_missing_bytes: u64,
 }
 
 #[tauri::command]
-pub fn lens_config(window: WebviewWindow, state: State<'_, Lens>) -> CmdResult<LensConfig> {
+pub fn lens_config(
+    window: WebviewWindow,
+    state: State<'_, Lens>,
+    models: State<'_, Models>,
+) -> CmdResult<LensConfig> {
     ensure_lens(&window)?;
     Ok(LensConfig {
         layout: LAYOUT,
@@ -33,7 +40,17 @@ pub fn lens_config(window: WebviewWindow, state: State<'_, Lens>) -> CmdResult<L
         click_through: state.click.is_enabled(),
         pipeline: state.has_pipeline() || state.mode != Mode::None,
         pipeline_error: state.pipeline_error(),
+        models_missing_bytes: models.missing_bytes(),
     })
+}
+
+/// Download the missing Swedish ↔ English models from the manifest URLs; progress arrives as
+/// `lens-models` events. Takes no input from the webview.
+#[tauri::command]
+pub fn download_models(window: WebviewWindow, app: AppHandle) -> CmdResult<()> {
+    ensure_lens(&window)?;
+    models::start_download(&app);
+    Ok(())
 }
 
 /// Open the Windows settings page where the Swedish OCR feature is added (SV-02). The target is

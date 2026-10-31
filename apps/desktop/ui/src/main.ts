@@ -4,7 +4,7 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import type { LensConfig, LensUpdate, RenderedBlock } from "./types";
+import type { LensConfig, LensUpdate, ModelEvent, RenderedBlock } from "./types";
 
 type ResizeDirection =
   | "North"
@@ -33,10 +33,15 @@ const cloudIcon = document.getElementById("icon-cloud") as unknown as SVGElement
 const pauseBtn = $<HTMLButtonElement>("pause");
 const clickBtn = $<HTMLButtonElement>("click-through");
 const ocrLangBtn = $<HTMLButtonElement>("ocr-lang");
+const modelsBtn = $<HTMLButtonElement>("models");
+const badge = $("mode-badge");
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
 let lastGeneration = -1;
 let paused = false;
+let mode: LensConfig["mode"] = "none";
+/** Progress text while the toolbar's model download runs. */
+let downloadProgress: string | null = null;
 
 // Fluent IDs from the pipeline; real localized strings arrive with M4-5.
 const MESSAGES: Record<string, string> = {
@@ -47,7 +52,13 @@ const MESSAGES: Record<string, string> = {
   "ocr-error-language-missing": "Text recognition language is not installed",
   "cap-error-self-exclusion":
     "The lens can't hide itself from screen capture (needs Windows 10 version 2004 or later), so live capture is off.",
+  "tr-error-model-missing":
+    "The Swedish ↔ English translation models aren't downloaded yet. Click ⬇ in the toolbar to get them from Mozilla (about 30 MB, once).",
+  "tr-error-backend": "Translation failed",
+  "mdl-error-download": "Downloading the translation models failed. Check the connection and click ⬇ to try again.",
 };
+
+const MB = (bytes: number): string => `${(bytes / 1e6).toFixed(1)} MB`;
 
 // SV-02: where to add Swedish OCR on Windows. The toolbar's ⚠ SV button opens the page.
 const SWEDISH_OCR_HELP =
@@ -111,9 +122,16 @@ function render(u: LensUpdate): void {
       showMessage(MESSAGES["no-text"] ?? "No text found");
       break;
     case "error":
-      showMessage(MESSAGES[u.status.message_id] ?? u.status.message_id);
+      if (u.status.message_id === "tr-error-model-missing") modelsBtn.hidden = false;
+      showMessage(
+        u.status.message_id === "tr-error-model-missing" && downloadProgress
+          ? downloadProgress
+          : (MESSAGES[u.status.message_id] ?? u.status.message_id),
+      );
       break;
   }
+  // Live mode only falls back to the mock if someone wires it; say so when it happens.
+  if (mode === "live") setBadge(u.backend.id === "mock" ? "mock" : null);
 
   const missing =
     u.notices.some((n) => n.kind === "ocr_language_missing") ||
@@ -127,22 +145,55 @@ function applyConfig(cfg: LensConfig): void {
   const root = document.documentElement.style;
   root.setProperty("--frame", `${cfg.layout.frame}px`);
   root.setProperty("--toolbar", `${cfg.layout.toolbar}px`);
-  const badge = $("mode-badge");
-  badge.hidden = cfg.mode === "none";
-  if (cfg.mode === "demo") {
-    badge.textContent = "DEMO";
-    badge.title = "Demo mode: mock capture, OCR and translation";
-  } else {
-    // Real capture and OCR; translation stays a placeholder until M1-TR-1.
-    badge.textContent = "MOCK MT";
-    badge.title = "Real screen capture and OCR. Translation is a placeholder ([en] + original) until the on-device translator lands.";
+  mode = cfg.mode;
+  setBadge(cfg.mode === "demo" ? "demo" : null);
+  if (cfg.mode === "live" && cfg.modelsMissingBytes > 0) {
+    modelsBtn.hidden = false;
+    const label = `Download the Swedish and English translation models (${MB(cfg.modelsMissingBytes)})`;
+    modelsBtn.title = label;
+    modelsBtn.setAttribute("aria-label", label);
   }
-  badge.setAttribute("aria-label", badge.title);
   setClickThroughUi(cfg.clickThrough);
   if (cfg.pipelineError) {
     showMessage(MESSAGES[cfg.pipelineError] ?? cfg.pipelineError);
   } else if (!cfg.pipeline) {
     showMessage("Live capture isn't available on this platform yet. Start with --demo for mock results.");
+  }
+}
+
+function setBadge(kind: "demo" | "mock" | null): void {
+  badge.hidden = kind === null;
+  if (kind === "demo") {
+    badge.textContent = "DEMO";
+    badge.title = "Demo mode: mock capture, OCR and translation";
+  } else if (kind === "mock") {
+    badge.textContent = "MOCK MT";
+    badge.title = "Translation is a placeholder ([en] + original), not the on-device translator.";
+  }
+  badge.setAttribute("aria-label", badge.title);
+}
+
+function onModelEvent(e: ModelEvent): void {
+  switch (e.state) {
+    case "downloading": {
+      const pct = Math.floor((e.downloaded * 100) / Math.max(e.total, 1));
+      modelsBtn.disabled = true;
+      modelsBtn.textContent = `⬇ ${pct}%`;
+      downloadProgress = `Downloading the translation models… ${pct}% of ${MB(e.total)}`;
+      showMessage(downloadProgress);
+      break;
+    }
+    case "ready":
+      downloadProgress = null;
+      modelsBtn.hidden = true;
+      showMessage(null);
+      break;
+    case "error":
+      downloadProgress = null;
+      modelsBtn.disabled = false;
+      modelsBtn.textContent = "⬇";
+      showMessage(MESSAGES[e.message_id] ?? e.message_id);
+      break;
   }
 }
 
@@ -199,6 +250,10 @@ clickBtn.addEventListener("click", () => {
 
 $("close").addEventListener("click", () => call("hide_lens"));
 ocrLangBtn.addEventListener("click", () => call("open_ocr_language_settings"));
+modelsBtn.addEventListener("click", () => {
+  modelsBtn.disabled = true;
+  call("download_models");
+});
 
 async function start(): Promise<void> {
   if (!isTauri()) {
@@ -209,12 +264,14 @@ async function start(): Promise<void> {
       clickThrough: true,
       pipeline: true,
       pipelineError: null,
+      modelsMissingBytes: 0,
     });
     render(sampleUpdate());
     return;
   }
   await listen<LensUpdate>("lens-update", (e) => render(e.payload));
   await listen<string>("lens-error", (e) => showMessage(MESSAGES[e.payload] ?? e.payload));
+  await listen<ModelEvent>("lens-models", (e) => onModelEvent(e.payload));
   applyConfig(await invoke<LensConfig>("lens_config"));
 }
 

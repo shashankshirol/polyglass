@@ -7,7 +7,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 
 use pg_core::PhysRect;
-use pg_pipeline::DriverHandle;
+use pg_pipeline::{DriverHandle, Pipeline};
+use pg_translate::Translator;
 use serde::Serialize;
 
 use crate::clickthrough::ClickThrough;
@@ -18,7 +19,7 @@ use crate::clickthrough::ClickThrough;
 pub enum Mode {
     /// `--demo`: mock capture, OCR and translation.
     Demo,
-    /// Real capture and OCR; translation is still the mock until M1-TR-1.
+    /// Real capture, OCR and on-device translation.
     Live,
     /// No capture backend on this platform yet.
     None,
@@ -29,6 +30,7 @@ pub struct Lens {
     pub click: Arc<ClickThrough>,
     pub mode: Mode,
     driver: OnceLock<DriverHandle>,
+    pipeline: OnceLock<Arc<Pipeline>>,
     /// Fluent message ID if the pipeline couldn't start.
     pipeline_error: OnceLock<&'static str>,
     visible: AtomicBool,
@@ -42,6 +44,7 @@ impl Lens {
             click: ClickThrough::new(true),
             mode,
             driver: OnceLock::new(),
+            pipeline: OnceLock::new(),
             pipeline_error: OnceLock::new(),
             visible: AtomicBool::new(false),
             paused: AtomicBool::new(false),
@@ -60,6 +63,22 @@ impl Lens {
 
     pub fn set_pipeline_error(&self, message_id: &'static str) {
         let _ = self.pipeline_error.set(message_id);
+    }
+
+    /// Keep the running pipeline so its translator can be swapped (`set_translator`).
+    pub fn set_pipeline(&self, pipeline: Arc<Pipeline>) {
+        let _ = self.pipeline.set(pipeline);
+    }
+
+    /// Switch the running pipeline's backend and redo what's under the lens. `false` if no
+    /// pipeline runs yet.
+    pub fn set_translator(&self, translator: Arc<dyn Translator>) -> bool {
+        let Some(pipeline) = self.pipeline.get() else {
+            return false;
+        };
+        pipeline.set_translator(translator);
+        self.with_driver(DriverHandle::invalidate);
+        true
     }
 
     /// Attach the driver and bring it up to date with the current lens state.

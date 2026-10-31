@@ -13,6 +13,7 @@
     "allow-set-click-through",
     "allow-set-paused",
     "allow-hide-lens",
-    "allow-open-ocr-language-settings"
+    "allow-open-ocr-language-settings",
+    "allow-download-models"
   ]
 }

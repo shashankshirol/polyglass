@@ -2,8 +2,9 @@
 # Opens a borderless window with known Swedish and English text at -X/-Y (physical px; put it
 # under the lens interior), waits -Seconds for the pipeline, then prints the lens webview's text
 # via UI Automation. The lens is excluded from screen capture, so screenshots can't show it.
-# Expected in live mode: "[en] Vill du spara ändringarna innan du stänger?" and the English line
-# unchanged. Saved with a BOM: Windows PowerShell 5.1 reads BOM-less UTF-8 as ANSI.
+# Expected in live mode with the models installed: "Do you want to save the changes before you
+# close?" and the English line unchanged; without models, the model-missing message and the ⬇
+# button. Saved with a BOM: Windows PowerShell 5.1 reads BOM-less UTF-8 as ANSI.
 param([int]$X, [int]$Y, [int]$W = 468, [int]$H = 164, [int]$Seconds = 3)
 Add-Type -AssemblyName System.Windows.Forms, System.Drawing, UIAutomationClient, UIAutomationTypes
 Add-Type @"
