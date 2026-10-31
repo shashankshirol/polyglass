@@ -1,10 +1,10 @@
 //! `pg-bench`: run the pipeline on a fixture and print latency percentiles (SPEC §5).
 //!
-//! Until the fixture images exist (M0-FIX-2), the fixture's ground-truth text is rendered into
-//! a synthetic desktop with a system font (`pg-testkit`). `--ocr mock` replays the ground truth
-//! so the pipeline overhead itself can be measured and regression-gated (QUAL-02); `--ocr
-//! windows` runs Windows OCR on the rendered pixels. The on-device translator plugs in with
-//! M1-TR-1.
+//! The lens sits at the top-left of the fixture image that `pg-testkit` renders from truth.json
+//! at `--scale` in `--theme` (M0-FIX-2), served by `FixtureCapturer`. `--ocr mock` replays the
+//! ground truth so the pipeline overhead itself can be measured and regression-gated (QUAL-02);
+//! `--ocr windows` runs Windows OCR on the pixels and also reports its accuracy on the whole lines
+//! inside the lens (CER, WER, å/ä/ö; M0-FIX-3). Translation is still `MockTranslator`.
 
 #![allow(clippy::print_stdout)]
 
@@ -14,21 +14,38 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use clap::{Parser, ValueEnum};
-use pg_capture::{FixtureCapturer, ScreenCapturer, StaticCapturer};
-use pg_core::{Frame, LangTag, Line, PhysRect, Rect, SourceLang};
+use pg_capture::{FixtureCapturer, ScreenCapturer};
+use pg_core::{LangTag, Line, SourceLang};
 use pg_ocr::{MockOcr, OcrEngine};
 use pg_pipeline::{CycleOutcome, Pipeline, PipelineConfig, Tick, Timings};
 use pg_testkit::TextRenderer;
+use pg_testkit::fixture::{FixtureImage, Theme, Truth};
+use pg_testkit::metrics::{Score, score};
 use pg_translate::MockTranslator;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 enum Ocr {
     /// Replay ground-truth text from truth.json.
     Mock,
-    /// Windows OCR (`Windows.Media.Ocr`) on the rendered or fixture pixels.
+    /// Windows OCR (`Windows.Media.Ocr`) on the fixture pixels.
     #[cfg(windows)]
     Windows,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+enum ThemeArg {
+    Light,
+    Dark,
+}
+
+impl From<ThemeArg> for Theme {
+    fn from(t: ThemeArg) -> Theme {
+        match t {
+            ThemeArg::Light => Theme::Light,
+            ThemeArg::Dark => Theme::Dark,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
@@ -42,7 +59,7 @@ enum Cache {
 #[derive(Debug, Parser)]
 #[command(name = "pg-bench", about = "Polyglass pipeline benchmark")]
 struct Args {
-    /// Fixture directory containing truth.json (and the image once generated).
+    /// Fixture directory containing truth.json.
     #[arg(long, default_value = "tests/fixtures/ui-dialog-sv")]
     fixture: PathBuf,
     /// Target language.
@@ -64,28 +81,15 @@ struct Args {
     width: u32,
     #[arg(long, default_value_t = 300)]
     height: u32,
+    /// Monitor scale the fixture is rendered at (1.0 = 100%).
     #[arg(long, default_value_t = 1.0)]
     scale: f64,
-    /// Font size in logical px for the rendered synthetic desktop (UI text is 12–16 px).
-    #[arg(long, default_value_t = 15.0)]
-    font_px: f32,
+    /// Colour theme of the fixture image.
+    #[arg(long, value_enum, default_value = "light")]
+    theme: ThemeArg,
     /// Print JSON instead of a table.
     #[arg(long)]
     json: bool,
-}
-
-#[derive(Debug, Deserialize)]
-struct Truth {
-    lang: LangTag,
-    image: Option<String>,
-    blocks: Vec<TruthBlock>,
-}
-
-#[derive(Debug, Deserialize)]
-struct TruthBlock {
-    text: String,
-    #[serde(default)]
-    bbox: Option<Rect>,
 }
 
 #[derive(Debug, Serialize)]
@@ -100,11 +104,16 @@ struct StageStats {
 #[derive(Debug, Serialize)]
 struct Report {
     fixture: String,
+    /// Which rendering, e.g. `ui-dialog-sv@100-light`.
+    image: String,
     pair: String,
     ocr: String,
     cache: String,
     runs: usize,
     stages: Vec<StageStats>,
+    /// OCR accuracy on the whole lines inside the lens; real OCR engines only.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    accuracy: Option<Score>,
 }
 
 /// Nearest-rank percentile of sorted values.
@@ -127,70 +136,6 @@ fn stats(stage: &'static str, mut v: Vec<f64>) -> StageStats {
     }
 }
 
-/// Lay truth blocks out top to bottom when they have no boxes yet (no images, M0-FIX-2).
-fn mock_lines(truth: &Truth, scale: f32) -> Vec<Line> {
-    let mut y = 10.0;
-    truth
-        .blocks
-        .iter()
-        .map(|b| {
-            let bbox = b.bbox.map(|r| r.scaled(scale)).unwrap_or_else(|| {
-                let r = Rect::new(10.0 * scale, y * scale, 400.0 * scale, 14.0 * scale);
-                y += 40.0;
-                r
-            });
-            Line::new(b.text.clone(), bbox, 0.95)
-        })
-        .collect()
-}
-
-/// Render the truth blocks as word-wrapped text, top to bottom, at `px` physical pixels.
-/// Returns the desktop and one ground-truth line per rendered line (lines that don't fit are
-/// dropped).
-fn rendered_desktop(
-    r: &TextRenderer,
-    truth: &Truth,
-    w: u32,
-    h: u32,
-    px: f32,
-) -> (Frame, Vec<Line>) {
-    let mut frame = Frame::solid(w, h, [250, 250, 250]);
-    let margin = px;
-    let line_h = r.line_height(px);
-    let mut top = margin;
-    let mut lines = Vec::new();
-    'blocks: for block in &truth.blocks {
-        for text in r.wrap(px, &block.text, w as f32 - 2.0 * margin) {
-            if top + line_h > h as f32 {
-                break 'blocks;
-            }
-            let bbox = r.draw(&mut frame, margin, top, px, &text, [30, 30, 30]);
-            lines.push(Line::new(text, bbox, 0.95));
-            top += line_h;
-        }
-        top += line_h * 0.8;
-    }
-    (frame, lines)
-}
-
-/// A synthetic desktop with dark bars where the lines are, so the frame isn't blank (used when
-/// no system font is found).
-fn bar_desktop(lines: &[Line], w: u32, h: u32) -> Frame {
-    let mut f = Frame::solid(w, h, [250, 250, 250]);
-    let stride = f.stride();
-    let data = f.data_mut();
-    for l in lines {
-        let (x0, y0) = (l.bbox.x as u32, l.bbox.y as u32);
-        for y in y0..(y0 + l.bbox.h as u32).min(h) {
-            for x in x0..(x0 + l.bbox.w as u32).min(w) {
-                let i = y as usize * stride + x as usize * 4;
-                data[i..i + 3].copy_from_slice(&[30, 30, 30]);
-            }
-        }
-    }
-    f
-}
-
 fn main() -> ExitCode {
     tracing_subscriber::fmt()
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
@@ -207,43 +152,53 @@ fn main() -> ExitCode {
 }
 
 fn run(args: &Args) -> Result<(), String> {
-    let truth_path = args.fixture.join("truth.json");
-    let truth: Truth = serde_json::from_str(
-        &std::fs::read_to_string(&truth_path)
-            .map_err(|e| format!("{}: {e}", truth_path.display()))?,
-    )
-    .map_err(|e| format!("{}: {e}", truth_path.display()))?;
+    let truth = Truth::load(&args.fixture).map_err(|e| e.to_string())?;
     let target = LangTag::parse(&args.target).map_err(|e| e.to_string())?;
 
     let region = pg_core::LogicalRect::new(0.0, 0.0, f64::from(args.width), f64::from(args.height))
         .to_physical(args.scale);
-    let (w, h) = (region.width, region.height);
-    let (desktop, lines) = match TextRenderer::system() {
-        Some(r) => rendered_desktop(&r, &truth, w, h, args.font_px * args.scale as f32),
-        None => {
-            let lines = mock_lines(&truth, args.scale as f32);
-            (bar_desktop(&lines, w, h), lines)
-        }
-    };
-    let capturer: Box<dyn ScreenCapturer> = match &truth.image {
-        Some(img) => Box::new(
-            FixtureCapturer::open(&args.fixture.join(img), args.scale)
-                .map_err(|e| e.to_string())?,
-        ),
-        None => Box::new(StaticCapturer::new(
-            desktop.with_origin(PhysRect::new(0, 0, w, h), args.scale),
-        )),
-    };
+    let r = TextRenderer::system().ok_or("no system UI font found to render the fixture")?;
+    let img = FixtureImage::render(&r, &truth, args.scale, args.theme.into());
+    let mut capturer =
+        FixtureCapturer::from_png(&img.png(), args.scale).map_err(|e| e.to_string())?;
+    // The whole lines inside the lens: what mock OCR replays and what accuracy is scored on.
+    let in_lens = img
+        .bands(region.height)
+        .into_iter()
+        .next()
+        .ok_or("the fixture has no text")?;
     let ocr: Arc<dyn OcrEngine> = match args.ocr {
         Ocr::Mock => {
+            let lines = img.lines[in_lens.lines.clone()]
+                .iter()
+                .map(|l| Line::new(l.text.clone(), l.bbox, 0.95))
+                .collect();
             Arc::new(MockOcr::fixed(lines).with_delay(Duration::from_millis(args.mock_ocr_ms)))
         }
         #[cfg(windows)]
         Ocr::Windows => Arc::new(pg_ocr::WindowsOcr::new().map_err(|e| e.to_string())?),
     };
+    let accuracy = if args.ocr == Ocr::Mock {
+        None
+    } else {
+        // Leave out a line cut by the lens's bottom edge; it isn't in the reference.
+        let lens = capturer.capture(region).map_err(|e| e.to_string())?;
+        let strip = lens.crop(0, 0, lens.width(), in_lens.height);
+        let got: Vec<String> = ocr
+            .recognize(&strip, Some(&truth.ocr_lang()))
+            .map_err(|e| e.to_string())?
+            .into_iter()
+            .map(|l| l.text)
+            .collect();
+        Some(score(&got.join("\n"), &img.text_of(in_lens.lines)))
+    };
+    let source = match &truth.lang {
+        Some(lang) => SourceLang::Fixed(lang.clone()),
+        None => SourceLang::AutoSvEn,
+    };
     let translator = MockTranslator::new();
-    let config = PipelineConfig::new(SourceLang::Fixed(truth.lang.clone()), target.clone());
-    let pipeline = Pipeline::new(capturer, ocr, Arc::new(translator), config);
+    let config = PipelineConfig::new(source, target.clone());
+    let pipeline = Pipeline::new(Box::new(capturer), ocr, Arc::new(translator), config);
 
     let rt = tokio::runtime::Builder::new_multi_thread()
         .enable_time()
@@ -277,7 +232,12 @@ fn run(args: &Args) -> Result<(), String> {
     };
     let report = Report {
         fixture: args.fixture.display().to_string(),
-        pair: format!("{}→{}", truth.lang, target),
+        image: img.stem(),
+        pair: format!(
+            "{}→{}",
+            truth.lang.as_ref().map_or("auto", LangTag::as_str),
+            target
+        ),
         ocr: format!("{:?}", args.ocr).to_lowercase(),
         cache: format!("{:?}", args.cache).to_lowercase(),
         runs: samples.len(),
@@ -289,6 +249,7 @@ fn run(args: &Args) -> Result<(), String> {
             stats("translate", ms(|t| t.translate)),
             stats("total", ms(|t| t.total)),
         ],
+        accuracy,
     };
 
     if args.json {
@@ -298,8 +259,8 @@ fn run(args: &Args) -> Result<(), String> {
         );
     } else {
         println!(
-            "{}  {}  ocr={}  cache={}  runs={}",
-            report.fixture, report.pair, report.ocr, report.cache, report.runs
+            "{} ({})  {}  ocr={}  cache={}  runs={}",
+            report.fixture, report.image, report.pair, report.ocr, report.cache, report.runs
         );
         println!(
             "{:<10} {:>9} {:>9} {:>9} {:>9}",
@@ -310,6 +271,9 @@ fn run(args: &Args) -> Result<(), String> {
                 "{:<10} {:>9.3} {:>9.3} {:>9.3} {:>9.3}",
                 s.stage, s.p50_ms, s.p95_ms, s.p99_ms, s.max_ms
             );
+        }
+        if let Some(a) = &report.accuracy {
+            println!("accuracy   {a}");
         }
     }
     Ok(())
