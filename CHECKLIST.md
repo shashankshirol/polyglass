@@ -48,12 +48,12 @@
   - Tauri is pinned to the 2.11 line (crate 2.11.6, npm `@tauri-apps/api` 2.11.1 / CLI 2.11.5), because Tauri 2.12 needs Rust 1.90 and the workspace MSRV is 1.85. Raise the MSRV to move on, and keep npm and crate on the same minor version (the CLI warns otherwise).
   - The click-through poller doesn't check mouse-button state (ADR-0002); a drag-selection that crosses into the interior flips to click-through mid-gesture.
   - Demo mode's synthetic desktop uses the starting monitor's scale for all monitors (mock only).
-  - **MSRV 1.85 isn't actually checkable:** with Cargo 1.85 the workspace fails to load because `crates/pg-pipeline/Cargo.toml` sets `default-features = false` on the workspace-inherited `pg-capture` ("cannot override workspace's `default-features`"; newer Cargo only warns). Pre-existing since session 3. The new dependencies (`fxtranslate` with the Windows features, `flate2`) were checked separately with `cargo +1.85` in a scratch crate.
+  - MSRV 1.85 is checkable again (session 5): the root `[workspace.dependencies]` entry for `pg-capture` now has `default-features = false` and `pg-bench` asks for `features = ["fixture"]`; the same features get built. `cargo +1.85 check --workspace --all-targets` passes. CI doesn't run it yet.
   - `fxtranslate` (ADR-0004) is young (first release 2026-07, one maintainer). Re-run `cargo test -p pg-bergamot --release --test real_models -- --ignored --test-threads 1` on every upgrade. Bergamot C++ (option A) is the documented fallback for the same model files and was **not built** (blocked in session 4).
   - Windows runs fxtranslate's scalar kernel (its AVX2 shim doesn't compile with MSVC): ≈ 7 ms per short string, ≈ 95 ms per two-sentence paragraph. Fix upstream if PERF-01 gets tight.
   - The toolbar ⬇ download has no cancel button or retry backoff (pg-models supports cancel), and a model that fails to load is logged and shown as "missing".
   - `pg-bench` still uses `MockTranslator`, so PERF-01/06 aren't measured end to end. The live app logged an uncached cycle of 31 ms (OCR 8.5 + translation 21.5 ms) for one Swedish sentence.
-  - **`cargo deny check` has never passed** (first local run in session 4, cargo-deny 0.20.2): `licenses` passes; `bans` fails on "wildcard" path dependencies in every crate (`[bans] wildcards = "deny"` without `allow-wildcard-paths = true`); `advisories` fails on Tauri/ab_glyph dependencies (quick-xml 0.38.4 via plist: RUSTSEC-2026-0194/0195; time 0.3.45 via cookie: RUSTSEC-2026-0009; unmaintained ttf-parser, unic-*, proc-macro-error). None come from the session-4 dependencies (fxtranslate, flate2, miniz_oxide 0.9, crc32fast, adler2); no openssl/native-tls.
+  - **`cargo deny check advisories` still fails** (cargo-deny 0.20.2, session 5); `bans`, `licenses` and `sources` pass (`allow-wildcard-paths = true`, since every crate is `publish = false`). The remaining advisories can't be fixed inside MSRV 1.85 + Tauri 2.11; the resolver keeps the fixed versions out because they need newer Rust. See D-6. None come from the session-4 dependencies; no openssl/native-tls.
 
 ## Owner decisions pending (PLAN §11, SPEC §10)
 
@@ -62,6 +62,13 @@
 - [ ] D-3 Minimum OS versions confirmed (proposed: Win10 2004, macOS 13, Ubuntu 22.04).
 - [ ] D-4 Code-signing budget (Apple Developer Program, SignPath).
 - [ ] D-5 SPEC §10 open questions 1–6 (default direction, pivot languages, UK/US English default, Linux default mode, online→on-device fallback, Apple Translation framework).
+- [ ] D-6 `cargo deny` advisories that MSRV 1.85 / Tauri 2.11 block (session 5). Raise the MSRV or add `[advisories] ignore` entries with reasons:
+  - RUSTSEC-2026-0194, RUSTSEC-2026-0195 (quick-xml 0.38.4, XML DoS) via `plist` 1.8.0 ← tauri-utils/tauri-macros/the app. `plist` ≥ 1.9 drops quick-xml but needs Rust 1.88. Tauri uses it to read our own config/Info.plist at build time; `tauri` itself depends on it only on macOS.
+  - RUSTSEC-2026-0009 (time 0.3.45, RFC 2822 parse stack exhaustion) via `cookie` and `plist`. Fixed in time 0.3.47, which needs Rust 1.88.
+  - RUSTSEC-2025-0075/0080/0081/0098/0100 (unmaintained `unic-*`) via `urlpattern` 0.3 ← tauri-utils 2.9. Tauri 2.12 (tauri-utils 2.10, urlpattern 0.6) drops them but needs Rust 1.90.
+  - RUSTSEC-2024-0370 (unmaintained `proc-macro-error`) via gtk-rs 0.18 ← tray-icon/wry/tauri, Linux only. No fix in Tauri 2.x (GTK 3 bindings).
+  - RUSTSEC-2026-0192 (unmaintained `ttf-parser` 0.25) via `ab_glyph` 0.2.32 (latest) ← `pg-testkit`, dev/bench only, never in the app. No fix upstream.
+  - Raising the MSRV to 1.88 clears the three vulnerabilities; 1.90 (Tauri 2.12, npm to 2.12.x too) also clears `unic-*`. The two unmaintained crates need ignores either way.
 
 ---
 
@@ -70,7 +77,7 @@
 ### Repository and tooling
 - [x] M0-REPO-1 Cargo workspace with `crates/pg-{core,capture,ocr,translate,pipeline,models,bench}`.
 - [x] M0-REPO-2 `.gitignore`, `rustfmt.toml`, workspace lints, `deny.toml`.
-- [~] M0-REPO-3 CI skeleton `.github/workflows/ci.yml`: fmt, clippy `-D warnings`, tests on Windows/macOS (arm64 + x86_64)/Ubuntu, `pg-bench` smoke run, `cargo deny` (QUAL-01, SEC-05 skeleton). *Written but never run: no remote yet. `deny.toml` not run locally (cargo-deny not installed).*
+- [~] M0-REPO-3 CI skeleton `.github/workflows/ci.yml`: fmt, clippy `-D warnings`, tests on Windows/macOS (arm64 + x86_64)/Ubuntu, `pg-bench` smoke run, `cargo deny` (QUAL-01, SEC-05 skeleton). *Written but never run: no remote yet. Locally (cargo-deny 0.20.2) `bans`/`licenses`/`sources` pass and `advisories` fails until D-6 is decided, so CI's deny job would fail.*
 - [x] M0-REPO-4 Docs skeleton: README, CONTRIBUTING, CODE_OF_CONDUCT, SECURITY, GOVERNANCE, PRIVACY, docs/ARCHITECTURE.md, docs/adr/0000-template + ADR-0001 (OSS-03 skeleton). *Contact e-mails are `.invalid` placeholders.*
 - [ ] M0-REPO-5 Add LICENSE-MIT / LICENSE-APACHE once D-2 is decided.
 - [~] M0-REPO-6 Repo history + public remote. *Done: local repo + initial commit `8cd14de`. Not done: remote, real contact addresses, `.gitattributes` (global `core.autocrlf` converts files to CRLF on Windows checkouts).*
@@ -227,6 +234,12 @@ These are verified with mocks. Each requirement is fully met only once real engi
 ## Session log
 
 Newest first. Keep each entry short: what changed, what's verified, what's next, gotchas.
+
+### 2026-10-31 — Session 5 (tooling: MSRV check, cargo deny)
+- MSRV fix: `pg-capture` is declared with `default-features = false` in `[workspace.dependencies]`; `pg-pipeline` and the app inherit it plainly, `pg-bench` adds `fixture`. `cargo tree` shows the same `pg-capture` features per package as before.
+- `deny.toml`: `allow-wildcard-paths = true` under `[bans]`.
+- Verified: `cargo +1.85 check --workspace --all-targets`, clippy `-D warnings`, 137 tests (4 ignored); `cargo deny check bans licenses sources` ok. `advisories` still fails: `cargo update` stays put because every fix needs Rust ≥ 1.88 (MSRV-aware resolver). Listed as D-6, no ignores added.
+- Next: owner decides D-6; consider a `cargo +1.85 check` job in CI.
 
 ### 2026-10-31 — Session 4 (M0-SPK-3 Windows, M1-TR-1..4)
 - ADR-0004: compared CTranslate2 (`ct2rs` 0.10.3 + OPUS-MT int8) with `fxtranslate` 0.5 (pure-Rust port of the Bergamot engine) + Mozilla's Firefox Translations models, measured on this machine. Picked the Mozilla models on `fxtranslate`: 30.5 MB for both directions vs ≈ 162 MB, MPL-2.0 vs CC-BY-4.0, no CMake and no `unsafe`, 7 ms short / 95 ms paragraph (scalar, 1 thread) vs 27 / 199 ms (ruy, 4 threads), 68 MB vs 200 MB RSS for both directions. Bergamot C++ via `cxx` was **not built** (see Gotchas).
