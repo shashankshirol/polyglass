@@ -25,21 +25,25 @@
 
 ## Current state
 
-- **Milestone:** M0 (foundations). Headless core done: 98 tests green, clippy `-D warnings` clean, fmt clean (Windows only so far). Platform spikes not started.
+- **Milestone:** M0/M1. Headless core done. Desktop shell `apps/desktop` (Tauri 2.11, TS + Vite, no framework) runs on Windows with a transparent click-through lens and the mock pipeline behind `--demo` / `POLYGLASS_DEMO=1`. 107 tests green, clippy `-D warnings` and fmt clean (Windows only so far). M0-SPK-1 is verified on Windows only (ADR-0002).
 - **Dev machine used so far:** Windows 11 x64, Rust 1.99, Node 24, Python 3.12 (no Pillow), no Tesseract. Windows OCR languages installed: `en-US`, `en-GB` (no `sv-SE`, which is useful for testing SV-02).
-- **Git:** local repo on `main`; initial commit `8cd14de` (M0 foundation); no remote yet.
+- **Monitors on this machine:** 2560×1440 at 100% (primary) and 2160×3840 at 150% (above-left, negative coordinates), which is useful for CAP-04 and mixed-DPI checks.
+- **Git:** local repo on `main`; no remote yet.
 - **Next up (suggested order, each ≈ one session):**
-  1. M0-SPK-1 + M1-APP-1: Tauri 2 scaffold in `apps/desktop` with a transparent click-through lens window.
-  2. M1-OCR-1/2: Windows OCR engine (`windows` crate) in `pg-ocr`, testable on this machine.
-  3. M1-CAP-1/2: WGC region capture + `WDA_EXCLUDEFROMCAPTURE`.
-  4. M0-FIX-2: fixture image generator (unblocks OCR accuracy gates and real `pg-bench` runs).
-  5. M0-SPK-3: Bergamot vs CTranslate2.
+  1. M1-OCR-1/2: Windows OCR engine (`windows` crate) in `pg-ocr`, testable on this machine.
+  2. M1-CAP-1/2: WGC region capture + `WDA_EXCLUDEFROMCAPTURE` on the lens HWND. Then make capture the default in `apps/desktop` (today it needs `--demo` to run a pipeline at all).
+  3. M0-FIX-2: fixture image generator (unblocks OCR accuracy gates and real `pg-bench` runs).
+  4. M0-SPK-3: Bergamot vs CTranslate2.
+  5. M0-SPK-1 on macOS/Linux (measure click-through there, see ADR-0002 "Not yet verified").
 - **Known follow-ups inside done work** (not separate tasks yet):
   - `ChangeConfig` thresholds (8 px cells, 6-level tolerance, 0.15% of cells) are only tested on synthetic frames. Tune on real captures (caret blink, ClearType).
   - `langid` scores 100% on `mixed-sv-en`, but it was tuned on that same fixture. Add a held-out set before trusting the SV-04 ≥ 90% gate.
   - `reqwest` uses rustls with the default **aws-lc-rs** provider. It built fine here, but check its binary size (SIZE-01) and build needs on macOS/Linux/arm64; switch to `ring` if needed.
   - An OCR call already running when the lens moves runs to completion and its result is discarded. OCR never *starts* while moving (ADR-0001).
   - The pipeline queries OCR languages through `recognize` errors on each cycle. Cache the language list if WinRT makes that slow.
+  - Tauri is pinned to the 2.11 line (crate 2.11.6, npm `@tauri-apps/api` 2.11.1 / CLI 2.11.5), because Tauri 2.12 needs Rust 1.90 and the workspace MSRV is 1.85. Raise the MSRV to move on, and keep npm and crate on the same minor version (the CLI warns otherwise).
+  - The click-through poller doesn't check mouse-button state (ADR-0002); a drag-selection that crosses into the interior flips to click-through mid-gesture.
+  - Demo mode's synthetic desktop uses the starting monitor's scale for all monitors (mock only).
 
 ## Owner decisions pending (PLAN §11, SPEC §10)
 
@@ -73,7 +77,7 @@ These are verified with mocks. Each requirement is fully met only once real engi
 - [x] M0-CORE-7 `pg-bench`: `--fixture/--target/--cache/--runs/--warmup/--scale/--json`, nearest-rank p50/p95/p99 per stage. Release build on this machine with the mock engines: total p50 0.47 ms; change detection 0.32 ms, within the 2 ms budget.
 
 ### Spikes (each ends with an ADR in `docs/adr/`)
-- [ ] M0-SPK-1 Transparent, frameless, always-on-top Tauri 2 window; click-through via cursor hit-testing at ~30 Hz (PLAN §5). Measure smoothness on Win/mac/Linux. → ADR-0002.
+- [~] M0-SPK-1 Transparent, frameless, always-on-top Tauri 2 window; click-through via cursor hit-testing at ~30 Hz (PLAN §5). Measure smoothness on Win/mac/Linux. → ADR-0002. *Windows done and measured (19–49 ms switch, ≈0.3% core while visible, 0 when hidden; debug build). macOS/Linux not run; release-build numbers not taken.*
 - [ ] M0-SPK-2 Self-excluding region capture: WGC + `WDA_EXCLUDEFROMCAPTURE` (Win), ScreenCaptureKit (mac); X11 hide/capture/show flicker timing. → ADR-0003.
 - [ ] M0-SPK-3 Bergamot (cxx FFI) vs CTranslate2 (`ct2rs`) with sv↔en models: build complexity, size, latency, memory on all OSes. → ADR-0004.
 - [ ] M0-SPK-4 Swedish fixtures + OCR accuracy/latency per engine incl. Vision vs Tesseract `swe` on macOS. → ADR-0005.
@@ -111,11 +115,45 @@ These are verified with mocks. Each requirement is fully met only once real engi
 - [ ] M1-TR-4 Preserved-token gate on `numbers-sv`/`numbers-en` with the real backend (SV-05).
 
 ### Desktop app (`apps/desktop`)
-- [ ] M1-APP-1 Tauri 2 scaffold, TS + Vite UI, strict CSP, least-privilege capabilities (SEC-01, SEC-02).
-- [ ] M1-APP-2 Lens window: launch/center/restore (LENS-01), drag + arrow keys (LENS-02), resize limits (LENS-03), click-through (LENS-04).
-- [ ] M1-APP-3 Toolbar with accessible controls + privacy indicator (LENS-05, PRIV-05).
-- [ ] M1-APP-4 Tray icon, no taskbar/Dock entry, show/hide hotkey parks the pipeline (LENS-01, LENS-06).
-- [ ] M1-APP-5 Wire `pg-pipeline` driver to lens events; render `LensUpdate` in Overlay mode (MODE-01, REN-01).
+- [x] M1-APP-1 Tauri 2 scaffold, TS + Vite UI, strict CSP, least-privilege capabilities (SEC-01, SEC-02). *Verified on Windows: the app runs in `tauri dev` and with embedded assets (`--features tauri/custom-protocol`) under the production CSP. The commands are declared in a `build.rs` app manifest, so each needs `allow-*` in `capabilities/lens.json`; no `core:default`. Validation tests: `sec01_nudge_accepts_only_arrow_key_steps`. CI `ui` job and Linux webkit deps added but never run; `tauri build` (bundling) not run yet.*
+- [~] M1-APP-2 Lens window: launch/center/restore (LENS-01), drag + arrow keys (LENS-02), resize limits (LENS-03), click-through (LENS-04). *Manually verified on Windows with `apps/desktop/scripts/lens-probe.ps1`:*
+  - *First launch is centred on the cursor's monitor at 480×200 and stays on top.*
+  - *The lens has no taskbar button.*
+  - *Toolbar drag, arrow keys (1 px) and Shift+arrow (10 px) work.*
+  - *Corner and edge resize work, and the 120×48 minimum holds.*
+  - *Click-through works over the interior only.*
+  - *Dragging onto the 150% monitor gives the correct 720×300 physical size and a fresh pipeline result.*
+
+  *Not done:*
+  - *Restore of last size/position/mode (needs SET-01).*
+  - *The max size (monitor work area) is set only at launch, not when the lens moves to another monitor.*
+  - *The click-through hotkey.*
+  - *The toolbar's click-through toggle is implemented, but its effect was not checked with input.*
+- [~] M1-APP-3 Toolbar with accessible controls + privacy indicator (LENS-05, PRIV-05). *Stub done:*
+  - *Every control is a `<button>` with an accessible name.*
+  - *The privacy indicator shows a lock or a cloud with the provider name, driven by `LensUpdate.backend.local`.*
+  - *Pause/resume parks the pipeline (verified: lens cleared, CPU drops).*
+  - *Close hides the lens to the tray.*
+
+  *Not done:*
+  - *Source/target/swap/mode/settings are `aria-disabled` placeholders.*
+  - *Keyboard Tab order and screen-reader output not tested.*
+- [~] M1-APP-4 Tray icon, no taskbar/Dock entry, show/hide hotkey parks the pipeline (LENS-01, LENS-06). *Done:*
+  - *Tray icon with Show/hide and Quit, plus left-click toggle.*
+  - *No taskbar entry (verified).*
+  - *Hiding (toolbar close or Alt+F4) parks both the pipeline and the click-through poller (verified 0 ms CPU over 10 s).*
+
+  *Not done:*
+  - *The tray menu wasn't clicked in testing.*
+  - *The global hotkey.*
+- [~] M1-APP-5 Wire `pg-pipeline` driver to lens events; render `LensUpdate` in Overlay mode (MODE-01, REN-01). *Done:*
+  - *Move/resize/scale/show/hide/pause events go through `state::Lens` into the `DriverHandle`.*
+  - *The interior region is computed with `LogicalRect::to_physical`.*
+  - *`lens-update` events are drawn as positioned DOM blocks with the sampled bg/fg (`#rrggbb` only) and `textContent` only.*
+  - *A basic 16→9 px shrink-to-fit (full REN-02 is M1-APP-6).*
+  - *Verified end to end with `--demo` (mock engines). Test: `demo_pipeline_translates_swedish_and_passes_english_through`.*
+
+  *Not done: real capture/OCR/translation.*
 - [ ] M1-APP-6 Font fitting down to 9 px + grow + tooltip (REN-02).
 - [ ] M1-APP-7 Hold Alt/Option to show original (REN-04); copy hotkey (REN-05, UTF-8 round-trip test).
 - [ ] M1-APP-8 Settings TOML in config dir (SET-01); model manager UI (MDL-01/03/05); first-run wizard (MDL-06, SV-01).
@@ -169,6 +207,21 @@ These are verified with mocks. Each requirement is fully met only once real engi
 ## Session log
 
 Newest first. Keep each entry short: what changed, what's verified, what's next, gotchas.
+
+### 2026-10-31 — Session 2 (M0-SPK-1 + M1-APP-1)
+- Added `apps/desktop`: Tauri 2 shell (`src-tauri`, now a workspace member) and the lens UI (`ui/`, TS + Vite 8, no framework), with a strict CSP and least-privilege capabilities. Modules: lens geometry, click-through poller, shared state → `DriverHandle`, IPC commands, `--demo` mock pipeline, tray.
+- ADR-0002 (click-through by ~30 Hz cursor polling) accepted for Windows, with measurements. `apps/desktop/scripts/lens-probe.ps1` is the Win32 probe used for the manual checks.
+- CI: Linux webkit/appindicator packages for the workspace build, and a `ui` job (npm ci/build/audit). Neither has run (no remote).
+- Verified: fmt, clippy, 107 tests (9 new in `polyglass-desktop`). The app launches here in dev mode and with embedded assets under the production CSP. Manual window checks are listed under M1-APP-2..5.
+- Not verified: macOS/Linux, release build/bundling, the tray menu by click, keyboard Tab order and screen readers.
+- Gotchas:
+  - **`npx tauri dev` fails with `cargo metadata ... program not found`** on this machine. `~/.cargo/bin/cargo.exe` is a zero-byte symlink to `rustup.exe` that child processes started by Node/cmd can't start. Fix: prepend `C:\Users\Shash\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin` to `PATH` for that shell.
+  - Tauri 2.12 needs Rust 1.90 > MSRV 1.85; `cargo update` silently stays on 2.11. The npm packages are pinned to 2.11.x to match (see Known follow-ups).
+  - Plain `cargo build`/`test` compiles the app in dev mode (it loads `devUrl`, nothing embedded), so workspace checks don't need `npm run build` first. To test the production CSP without `tauri build`, use `npm run build` then `cargo build -p polyglass-desktop --features tauri/custom-protocol` and run `target/debug/polyglass.exe --demo`.
+  - macOS transparency needs both the `macos-private-api` crate feature and `app.macOSPrivateApi: true`; tauri-build errors if they disagree. Both are set, but this was never compiled on a Mac.
+  - On Windows, tao removes `WS_EX_LAYERED` along with `WS_EX_TRANSPARENT` when click-through turns off. Transparency still works (WebView2 composition).
+  - Mock OCR lines must be more than 0.9 line-heights apart, or block grouping merges them into one mixed-language block.
+  - PowerShell P/Invoke turns `$null` string arguments into `""`. Use `[NullString]::Value` (e.g. `FindWindow`).
 
 ### 2026-10-31 — Session 1
 - Created this checklist. Scaffolded the workspace (edition 2024, resolver 3, workspace lints incl. `unsafe_code = "deny"`; platform crates will need a module-level `allow`), docs, ADR-0001, CI and `deny.toml`.

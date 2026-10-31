@@ -8,7 +8,7 @@ the target.
 ```
 pg-core ◄── pg-capture ◄──┐
    ▲   ◄── pg-ocr     ◄──┼── pg-pipeline ◄── pg-bench
-   │   ◄── pg-translate ◄┘                   (apps/desktop, later)
+   │   ◄── pg-translate ◄┘                   apps/desktop
    └────── pg-models
 ```
 
@@ -42,6 +42,29 @@ scheduler deadline. Any command that bumps the generation drops the in-flight cy
 results are compared with the current generation before being emitted, so results for an old
 lens position are never drawn. When hidden, the scheduler has no deadline and the loop only
 waits on its channel (LENS-06, RES-01).
+
+## Desktop shell (`apps/desktop`)
+
+A thin Tauri 2 layer; no pipeline logic lives here or in JS.
+
+| Module (`src-tauri/src`) | Role |
+|---|---|
+| `lens.rs` | Creates the frameless, transparent, always-on-top, no-taskbar window; centres it on the cursor's monitor (LENS-01); `Layout` (frame/toolbar insets) and `interior_region` (logical → `LogicalRect::to_physical`, CAP-04); arrow-key nudge (LENS-02) |
+| `state.rs` | `Lens`: visibility, pause and interior region in one place; forwards them to the `DriverHandle` (`show`/`hide`/`lens_moved`) and to the click-through poller |
+| `clickthrough.rs` | ~30 Hz cursor poll toggling `set_ignore_cursor_events` over the interior only; parked while hidden (ADR-0002) |
+| `commands.rs` | The only IPC commands (`lens_config`, `nudge_lens`, `set_click_through`, `set_paused`, `hide_lens`); input validated in Rust (SEC-01) |
+| `demo.rs` | `--demo`: `StaticCapturer` over a synthetic desktop + `MockOcr` + `MockTranslator` |
+| `tray.rs` | Tray icon: show/hide lens, quit |
+
+Security: `build.rs` declares the commands in an app manifest so each needs an explicit
+`allow-*` permission; `capabilities/lens.json` grants the lens window only event listen/unlisten,
+start-dragging/resize-dragging and those five commands — no `core:default`. The CSP in
+`tauri.conf.json` allows bundled scripts/styles only, no frames, objects or remote connections
+besides Tauri IPC (SEC-02). The UI renders recognized text with `textContent` only and accepts
+colours only as `#rrggbb`.
+
+Events: the driver's `LensUpdate`s are emitted to the lens window as `lens-update` (JSON as in
+`pg_pipeline::update`) and drawn as absolutely positioned DOM blocks in the interior.
 
 ## Privacy invariants in code
 
