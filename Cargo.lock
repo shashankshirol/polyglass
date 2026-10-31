@@ -2509,6 +2509,8 @@ version = "0.1.0"
 dependencies = [
  "image",
  "pg-core",
+ "pg-ocr",
+ "windows",
 ]
 
 [[package]]
@@ -2704,6 +2706,7 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
+ "windows",
 ]
 
 [[package]]

@@ -126,6 +126,12 @@ impl Pipeline {
     }
 
     /// Drop all cached translations (pg-bench uncached runs; language model changes).
+    /// Let the capturer free OS capture resources while the lens is hidden (LENS-06). Waits
+    /// for a capture in progress to finish.
+    pub fn release_capture(&self) {
+        self.capturer.lock().expect("capturer lock").release();
+    }
+
     pub fn clear_cache(&self) {
         self.cache.lock().expect("cache lock").clear();
     }

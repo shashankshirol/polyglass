@@ -31,11 +31,17 @@ impl ScreenCapturer for Shared {
     fn excludes_self(&self) -> bool {
         true
     }
+    fn release(&mut self) {
+        self.0.lock().unwrap().release();
+    }
 }
 
 impl Shared {
     fn captures(&self) -> usize {
         self.0.lock().unwrap().captures()
+    }
+    fn releases(&self) -> usize {
+        self.0.lock().unwrap().releases()
     }
     fn set_desktop(&self, f: Frame) {
         self.0.lock().unwrap().set_desktop(f);
@@ -364,11 +370,17 @@ async fn lens06_hide_parks_the_pipeline() {
     h.lens_moved(LEFT);
     h.show();
     next_update(&mut rx).await;
+    assert_eq!(r.capturer.releases(), 0);
     h.hide();
     sleep(Duration::from_millis(50)).await;
     let captures = r.capturer.captures();
     sleep(Duration::from_secs(10)).await;
     assert_eq!(r.capturer.captures(), captures, "no capture while hidden");
+    assert_eq!(
+        r.capturer.releases(),
+        1,
+        "hiding releases capture resources"
+    );
     h.shutdown();
     j.await.unwrap();
 }

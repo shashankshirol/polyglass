@@ -1,7 +1,8 @@
 //! Screen capture for Polyglass.
 //!
-//! Only the lens interior is captured (CAP-01). Platform implementations (Windows Graphics
-//! Capture, ScreenCaptureKit, X11, xdg-desktop-portal) are added per CHECKLIST M1-CAP-* / M2-1.
+//! Only the lens interior is captured (CAP-01). Platform implementations: [`WgcCapturer`]
+//! (Windows Graphics Capture); ScreenCaptureKit, X11 and xdg-desktop-portal follow per
+//! CHECKLIST M1-CAP-3 / M2-1.
 
 use pg_core::{Frame, PhysRect, Result};
 
@@ -10,12 +11,24 @@ mod fixture;
 #[cfg(feature = "fixture")]
 pub use fixture::FixtureCapturer;
 
+// Direct3D 11 / DXGI interop and the monitor APIs are `unsafe fn` in windows-rs; there is no
+// safe way to read WGC frames. The allowance is limited to this module.
+#[cfg(windows)]
+#[allow(unsafe_code)]
+mod wgc;
+#[cfg(windows)]
+pub use wgc::{MonitorInfo, WgcCapturer, monitors};
+
 pub trait ScreenCapturer: Send {
     /// Capture `region` (physical pixels), excluding Polyglass's own windows where the OS allows.
     fn capture(&mut self, region: PhysRect) -> Result<Frame>;
 
     /// Whether frames are guaranteed not to contain Polyglass windows (CAP-02).
     fn excludes_self(&self) -> bool;
+
+    /// Free OS capture resources while the lens is hidden (LENS-06). The next `capture`
+    /// acquires them again.
+    fn release(&mut self) {}
 }
 
 impl<T: ScreenCapturer + ?Sized> ScreenCapturer for Box<T> {
@@ -26,6 +39,10 @@ impl<T: ScreenCapturer + ?Sized> ScreenCapturer for Box<T> {
     fn excludes_self(&self) -> bool {
         (**self).excludes_self()
     }
+
+    fn release(&mut self) {
+        (**self).release();
+    }
 }
 
 /// A capturer backed by a fixed in-memory "desktop" frame. Regions outside the desktop are
@@ -34,6 +51,7 @@ impl<T: ScreenCapturer + ?Sized> ScreenCapturer for Box<T> {
 pub struct StaticCapturer {
     desktop: Frame,
     captures: usize,
+    releases: usize,
 }
 
 impl StaticCapturer {
@@ -42,6 +60,7 @@ impl StaticCapturer {
         Self {
             desktop,
             captures: 0,
+            releases: 0,
         }
     }
 
@@ -58,6 +77,11 @@ impl StaticCapturer {
     /// Number of successful `capture` calls (used to assert parking, LENS-06).
     pub fn captures(&self) -> usize {
         self.captures
+    }
+
+    /// Number of `release` calls (used to assert that hiding frees capture resources).
+    pub fn releases(&self) -> usize {
+        self.releases
     }
 }
 
@@ -77,6 +101,10 @@ impl ScreenCapturer for StaticCapturer {
 
     fn excludes_self(&self) -> bool {
         true
+    }
+
+    fn release(&mut self) {
+        self.releases += 1;
     }
 }
 

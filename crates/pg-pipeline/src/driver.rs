@@ -2,7 +2,8 @@
 //!
 //! A new lens position drops the in-flight cycle and bumps the generation, and every result is
 //! checked against the current generation before it is emitted, so results for an old
-//! position are never drawn (CAP-03). While hidden the loop just waits on its command channel.
+//! position are never drawn (CAP-03). While hidden the loop just waits on its command channel,
+//! and hiding releases the capturer's OS resources (LENS-06).
 
 use std::future::Future;
 use std::pin::Pin;
@@ -110,7 +111,12 @@ async fn run(
                 let now = Instant::now();
                 match cmd {
                     Command::Show => sched.show(now),
-                    Command::Hide => sched.hide(),
+                    Command::Hide => {
+                        sched.hide();
+                        // Close OS capture sessions off the async runtime (WGC teardown blocks).
+                        let p = pipeline.clone();
+                        tokio::task::spawn_blocking(move || p.release_capture());
+                    }
                     Command::LensMoved(r) => sched.lens_moved(r, now),
                     Command::Invalidate => sched.invalidate(now),
                     Command::Shutdown => break,
