@@ -1,0 +1,17 @@
+[package]
+name = "pg-ocr"
+description = "OCR engine trait and implementations (WinRT, Vision, Tesseract) for Polyglass."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+pg-core.workspace = true
+
+[dev-dependencies]
+
+[lints]
+workspace = true

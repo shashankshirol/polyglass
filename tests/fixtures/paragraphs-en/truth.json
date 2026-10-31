@@ -1,0 +1,14 @@
+{
+  "fixture": "paragraphs-en",
+  "license": "CC0-1.0",
+  "description": "English counterpart of paragraphs-sv (OCR-02).",
+  "lang": "en",
+  "image": null,
+  "blocks": [
+    { "text": "How backups work" },
+    { "text": "The backup runs every night at two o'clock. All files in the Documents folder are copied to an encrypted storage location, and the latest thirty versions are kept." },
+    { "text": "If the computer is switched off at that time, the backup starts the next time you sign in. You can also start it manually from the settings." },
+    { "text": "Restoring a file" },
+    { "text": "Right-click the file, choose Previous versions and select the version you want to restore. Then click Restore." }
+  ]
+}

@@ -1,0 +1,53 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+# Tentative pending owner decision D-2 (see CHECKLIST.md).
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/polyglass/polyglass"
+publish = false
+
+[workspace.dependencies]
+pg-core = { path = "crates/pg-core" }
+pg-capture = { path = "crates/pg-capture" }
+pg-ocr = { path = "crates/pg-ocr" }
+pg-translate = { path = "crates/pg-translate" }
+pg-pipeline = { path = "crates/pg-pipeline" }
+pg-models = { path = "crates/pg-models" }
+
+async-trait = "0.1"
+clap = { version = "4", features = ["derive"] }
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
+hex = "0.4"
+image = { version = "0.25", default-features = false, features = ["png"] }
+lru = "0.19"
+reqwest = { version = "0.13", default-features = false, features = ["rustls", "stream"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.11"
+tempfile = "3"
+thiserror = "2"
+tokio = { version = "1", features = ["rt", "sync", "time", "macros"] }
+tokio-util = "0.7"
+toml = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+unicode-normalization = "0.1"
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+missing_debug_implementations = "warn"
+
+[workspace.lints.clippy]
+dbg_macro = "warn"
+todo = "warn"
+print_stdout = "warn"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = "symbols"

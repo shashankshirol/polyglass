@@ -1,0 +1,30 @@
+# Polyglass model manifest (MDL-02).
+#
+# The app downloads models ONLY from URLs listed here, and verifies every file against its
+# SHA-256 before use. Changes to this file are reviewed via PR; each entry must record the
+# model's license and where it comes from (PLAN §8).
+#
+# Rules enforced by pg-models (Manifest::parse):
+#   - https URLs only; source_url is https
+#   - file names are plain (no paths), unique per model; sizes > 0
+#   - sha256 is 64 lowercase hex characters
+#   - model ids are unique and filesystem-safe
+#
+# The sv→en and en→sv entries are added in CHECKLIST task M1-TR-2, after the M0-SPK-3 ADR picks
+# the on-device engine. Shape of an entry:
+#
+# [[model]]
+# id = "bergamot-sv-en"
+# engine = "bergamot"
+# source = "sv"
+# target = "en"
+# version = "..."
+# license = "..."            # SPDX expression, shown in the model manager (MDL-01)
+# source_url = "https://..."  # project page
+# files = [
+#   { name = "model.sven.intgemm.alphas.bin", url = "https://...", size = 0, sha256 = "..." },
+#   { name = "lex.sven.s2t.bin", url = "https://...", size = 0, sha256 = "..." },
+#   { name = "vocab.sven.spm", url = "https://...", size = 0, sha256 = "..." },
+# ]
+
+schema_version = 1

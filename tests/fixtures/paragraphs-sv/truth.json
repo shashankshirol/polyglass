@@ -1,0 +1,14 @@
+{
+  "fixture": "paragraphs-sv",
+  "license": "CC0-1.0",
+  "description": "Swedish article text for block grouping (OCR-02). Each block is one paragraph or heading; line boxes are added when images are generated (M0-FIX-2).",
+  "lang": "sv",
+  "image": null,
+  "blocks": [
+    { "text": "Så fungerar säkerhetskopiering" },
+    { "text": "Säkerhetskopieringen körs varje natt klockan två. Alla filer i mappen Dokument kopieras till en krypterad lagringsplats, och de senaste trettio versionerna sparas." },
+    { "text": "Om datorn är avstängd vid den tidpunkten startar säkerhetskopieringen nästa gång du loggar in. Du kan även starta den manuellt från inställningarna." },
+    { "text": "Återställa en fil" },
+    { "text": "Högerklicka på filen, välj Tidigare versioner och markera den version du vill återställa. Klicka sedan på Återställ." }
+  ]
+}

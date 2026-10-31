@@ -1,0 +1,17 @@
+{
+  "fixture": "ui-dialog-sv",
+  "license": "CC0-1.0",
+  "description": "Swedish save-changes dialog, ≈ 40 words. Primary PERF-01 measurement (sv→en).",
+  "lang": "sv",
+  "image": null,
+  "blocks": [
+    { "text": "Spara ändringar?" },
+    { "text": "Du har osparade ändringar i dokumentet Budget 2026.xlsx. Vill du spara dem innan du stänger?" },
+    { "text": "Om du inte sparar försvinner ändringarna permanent." },
+    { "text": "Ändringar sparas automatiskt i OneDrive var femte minut." },
+    { "text": "Kom ihåg mitt val" },
+    { "text": "Spara" },
+    { "text": "Spara inte" },
+    { "text": "Avbryt" }
+  ]
+}

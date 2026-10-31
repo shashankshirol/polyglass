@@ -1,0 +1,28 @@
+[package]
+name = "pg-pipeline"
+description = "Scheduler, change detection, block grouping and translation cache for Polyglass."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+pg-core.workspace = true
+pg-capture = { workspace = true, default-features = false }
+pg-ocr.workspace = true
+pg-translate.workspace = true
+lru.workspace = true
+serde.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+unicode-normalization.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt", "macros", "test-util"] }
+async-trait.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

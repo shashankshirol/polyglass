@@ -1,0 +1,17 @@
+{
+  "fixture": "ui-dialog-en",
+  "license": "CC0-1.0",
+  "description": "English save-changes dialog, ≈ 40 words. PERF-06 measurement (en→sv).",
+  "lang": "en",
+  "image": null,
+  "blocks": [
+    { "text": "Save changes?" },
+    { "text": "You have unsaved changes in the document Budget 2026.xlsx. Do you want to save them before closing?" },
+    { "text": "If you don't save, your changes will be lost permanently." },
+    { "text": "Changes are saved automatically to OneDrive every five minutes." },
+    { "text": "Remember my choice" },
+    { "text": "Save" },
+    { "text": "Don't save" },
+    { "text": "Cancel" }
+  ]
+}

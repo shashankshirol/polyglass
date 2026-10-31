@@ -1,0 +1,15 @@
+{
+  "fixture": "long-compounds-en",
+  "license": "CC0-1.0",
+  "description": "English UI labels whose Swedish translations are long compound words (SV-06, REN-02). Boxes are sized for the English text.",
+  "lang": "en",
+  "image": null,
+  "blocks": [
+    { "text": "Two-factor authentication settings", "expected_sv_hint": "Inställningar för tvåfaktorsautentisering" },
+    { "text": "Password reset confirmation email", "expected_sv_hint": "Bekräftelsemejl för lösenordsåterställning" },
+    { "text": "Vehicle registration certificate", "expected_sv_hint": "Fordonsregistreringsbevis" },
+    { "text": "Fire safety inspection requirements", "expected_sv_hint": "Brandsäkerhetsinspektionskrav" },
+    { "text": "Employee health insurance contribution", "expected_sv_hint": "Anställdas sjukförsäkringsavgift" },
+    { "text": "Customer service training program", "expected_sv_hint": "Kundtjänstutbildningsprogram" }
+  ]
+}

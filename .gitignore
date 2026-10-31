@@ -1,0 +1,10 @@
+/target/
+**/node_modules/
+**/dist/
+apps/desktop/src-tauri/gen/
+*.part
+*.log
+.DS_Store
+Thumbs.db
+# Frames must never be persisted (PRIV-02); debug dumps go here and are never committed.
+/debug-frames/

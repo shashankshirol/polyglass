@@ -1,0 +1,19 @@
+{
+  "fixture": "numbers-en",
+  "license": "CC0-1.0",
+  "description": "English translation of numbers-sv, block by block (SV-05 pairwise test), also the en→sv source.",
+  "lang": "en",
+  "image": null,
+  "blocks": [
+    { "text": "Total amount due: SEK 1,234.50" },
+    { "text": "Including 25% VAT: SEK 246.90" },
+    { "text": "Due date: 30 Oct 2026" },
+    { "text": "Invoice date 2026-10-30" },
+    { "text": "The 12.5% discount is valid until 23:59" },
+    { "text": "Contact us at support@exempel.se or 08-123 456 78" },
+    { "text": "Order number: 4471-2026-0093" },
+    { "text": "Read the terms at https://exempel.se/villkor" },
+    { "text": "In stock: 12,500 units" },
+    { "text": "Version 4.2.1 was released on 1 November" }
+  ]
+}

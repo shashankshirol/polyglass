@@ -1,0 +1,19 @@
+{
+  "fixture": "numbers-sv",
+  "license": "CC0-1.0",
+  "description": "Swedish amounts, percentages, dates, times, IDs, e-mail and URL (SV-05).",
+  "lang": "sv",
+  "image": null,
+  "blocks": [
+    { "text": "Totalt att betala: 1 234,50 kr" },
+    { "text": "Varav moms 25 %: 246,90 kr" },
+    { "text": "Förfallodatum: 30 okt. 2026" },
+    { "text": "Fakturadatum 2026-10-30" },
+    { "text": "Rabatten på 12,5 % gäller till kl. 23:59" },
+    { "text": "Kontakta oss på support@exempel.se eller 08-123 456 78" },
+    { "text": "Ordernummer: 4471-2026-0093" },
+    { "text": "Läs villkoren på https://exempel.se/villkor" },
+    { "text": "Lagersaldo: 12 500 st" },
+    { "text": "Version 4.2.1 släpptes 1 november" }
+  ]
+}

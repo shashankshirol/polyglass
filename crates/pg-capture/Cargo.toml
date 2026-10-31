@@ -1,0 +1,23 @@
+[package]
+name = "pg-capture"
+description = "Screen capture trait and per-OS implementations for Polyglass."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+pg-core.workspace = true
+image = { workspace = true, optional = true }
+
+[features]
+default = ["fixture"]
+# FixtureCapturer: serve frames from an image file (tests, pg-bench).
+fixture = ["dep:image"]
+
+[dev-dependencies]
+
+[lints]
+workspace = true
