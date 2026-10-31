@@ -25,6 +25,8 @@ pub struct LensConfig {
     pipeline_error: Option<&'static str>,
     /// Bytes of Swedish ↔ English models still to download (0 = installed).
     models_missing_bytes: u64,
+    /// `false` while the missing models are import-only (no download URLs yet, D-9).
+    models_downloadable: bool,
 }
 
 #[tauri::command]
@@ -41,6 +43,7 @@ pub fn lens_config(
         pipeline: state.has_pipeline() || state.mode != Mode::None,
         pipeline_error: state.pipeline_error(),
         models_missing_bytes: models.missing_bytes(),
+        models_downloadable: models.missing_downloadable(),
     })
 }
 

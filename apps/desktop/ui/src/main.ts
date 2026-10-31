@@ -42,6 +42,8 @@ let paused = false;
 let mode: LensConfig["mode"] = "none";
 /** Progress text while the toolbar's model download runs. */
 let downloadProgress: string | null = null;
+/** Whether the missing models can be downloaded with ⬇ (false: import-only, see README). */
+let modelsDownloadable = true;
 
 // Fluent IDs from the pipeline; real localized strings arrive with M4-5.
 const MESSAGES: Record<string, string> = {
@@ -53,7 +55,10 @@ const MESSAGES: Record<string, string> = {
   "cap-error-self-exclusion":
     "The lens can't hide itself from screen capture (needs Windows 10 version 2004 or later), so live capture is off.",
   "tr-error-model-missing":
-    "The Swedish ↔ English translation models aren't downloaded yet. Click ⬇ in the toolbar to get them from Mozilla (about 30 MB, once).",
+    "The Swedish ↔ English translation models aren't downloaded yet. Click ⬇ in the toolbar to get them (about 170 MB, once).",
+  // Until the converted OPUS-MT models are hosted (D-9) they're installed from the repository.
+  "tr-error-model-import":
+    "The Swedish ↔ English translation models aren't installed yet. Install them once from a terminal in the Polyglass repository with: python scripts/models/opus_mt.py (about 170 MB; README → First run), then restart Polyglass.",
   "tr-error-backend": "Translation failed",
   "mdl-error-download": "Downloading the translation models failed. Check the connection and click ⬇ to try again.",
 };
@@ -122,13 +127,17 @@ function render(u: LensUpdate): void {
       showMessage(MESSAGES["no-text"] ?? "No text found");
       break;
     case "error":
-      if (u.status.message_id === "tr-error-model-missing") modelsBtn.hidden = false;
+    {
+      const id =
+        u.status.message_id === "tr-error-model-missing" && !modelsDownloadable
+          ? "tr-error-model-import"
+          : u.status.message_id;
+      if (id === "tr-error-model-missing") modelsBtn.hidden = false;
       showMessage(
-        u.status.message_id === "tr-error-model-missing" && downloadProgress
-          ? downloadProgress
-          : (MESSAGES[u.status.message_id] ?? u.status.message_id),
+        id === "tr-error-model-missing" && downloadProgress ? downloadProgress : (MESSAGES[id] ?? id),
       );
       break;
+    }
   }
   // Live mode only falls back to the mock if someone wires it; say so when it happens.
   if (mode === "live") setBadge(u.backend.id === "mock" ? "mock" : null);
@@ -147,7 +156,8 @@ function applyConfig(cfg: LensConfig): void {
   root.setProperty("--toolbar", `${cfg.layout.toolbar}px`);
   mode = cfg.mode;
   setBadge(cfg.mode === "demo" ? "demo" : null);
-  if (cfg.mode === "live" && cfg.modelsMissingBytes > 0) {
+  modelsDownloadable = cfg.modelsDownloadable;
+  if (cfg.mode === "live" && cfg.modelsMissingBytes > 0 && cfg.modelsDownloadable) {
     modelsBtn.hidden = false;
     const label = `Download the Swedish and English translation models (${MB(cfg.modelsMissingBytes)})`;
     modelsBtn.title = label;
@@ -265,6 +275,7 @@ async function start(): Promise<void> {
       pipeline: true,
       pipelineError: null,
       modelsMissingBytes: 0,
+      modelsDownloadable: true,
     });
     render(sampleUpdate());
     return;

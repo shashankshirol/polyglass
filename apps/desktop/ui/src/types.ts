@@ -61,6 +61,8 @@ export interface LensConfig {
   pipelineError: string | null;
   /** Bytes of Swedish ↔ English models still to download (0 = installed). */
   modelsMissingBytes: number;
+  /** False while the missing models are import-only (not hosted yet). */
+  modelsDownloadable: boolean;
 }
 
 /** `models::ModelEvent`: progress of the toolbar's model download. */

@@ -1,15 +1,16 @@
 //! The default pipeline: real screen capture, OCR and on-device translation under the lens.
 //!
-//! Translation is Bergamot (ADR-0004) with both Swedish directions loaded, behind the SV-05
-//! token guard. Without the models the backend reports `tr-error-model-missing` for Swedish
-//! blocks (English still passes through) and the toolbar offers the download (`models.rs`).
+//! Translation is CTranslate2 with OPUS-MT models (ADR-0005), every installed direction loaded,
+//! behind the SV-05 token guard. Without the models the backend reports `tr-error-model-missing`
+//! for Swedish blocks (English still passes through) and the lens explains how to install them
+//! (`models.rs`).
 
 use std::sync::Arc;
 
-use pg_bergamot::BergamotTranslator;
 #[cfg(not(windows))]
 use pg_core::Error;
 use pg_core::Result;
+use pg_ct2::{Ct2Translator, Options};
 use pg_models::{Manifest, ModelStore};
 use pg_pipeline::Pipeline;
 use pg_translate::{TokenGuard, Translator};
@@ -19,21 +20,30 @@ pub const SELF_EXCLUSION_ERROR: &str = "cap-error-self-exclusion";
 
 /// The on-device translator with every installed model loaded. Never fails: a model that
 /// won't load is logged and treated as missing, so the lens says so instead of going blank.
+/// Threads per model: [`Options::default_threads`] (half the CPUs, at most 4).
 pub fn translator(store: &ModelStore) -> Arc<dyn Translator> {
-    let bergamot = Manifest::bundled()
+    let start = std::time::Instant::now();
+    let ct2 = Manifest::bundled()
         .map_err(|e| e.to_string())
-        .and_then(|m| BergamotTranslator::load_installed(&m, store).map_err(|e| e.to_string()))
+        .and_then(|m| {
+            Ct2Translator::load_installed(&m, store, Options::default()).map_err(|e| e.to_string())
+        })
         .unwrap_or_else(|error| {
             tracing::error!(%error, "on-device models failed to load");
-            BergamotTranslator::empty()
+            Ct2Translator::empty()
         });
-    let pairs: Vec<String> = bergamot.pairs().iter().map(ToString::to_string).collect();
+    let pairs: Vec<String> = ct2.pairs().iter().map(ToString::to_string).collect();
     if pairs.is_empty() {
         tracing::warn!("no on-device translation models installed");
     } else {
-        tracing::info!(?pairs, "on-device translation models loaded");
+        tracing::info!(
+            ?pairs,
+            threads = ct2.options().threads,
+            ms = start.elapsed().as_millis() as u64,
+            "on-device translation models loaded"
+        );
     }
-    Arc::new(TokenGuard::new(bergamot))
+    Arc::new(TokenGuard::new(ct2))
 }
 
 /// Build the live pipeline. Only call it once the lens is excluded from capture

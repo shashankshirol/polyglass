@@ -4,6 +4,10 @@
 //! the toolbar's ⬇ button downloads both directions from the URLs in `models/manifest.toml`
 //! through `pg-models` (SHA-256 verified, resumable), then swaps the loaded translator into the
 //! running pipeline. Nothing is downloaded without that click (MDL-06).
+//!
+//! The OPUS-MT entries are import-only until their files are hosted (D-9). Then there is no ⬇:
+//! the lens points to `scripts/models/opus_mt.py`, which converts and imports them (MDL-04),
+//! and the app loads them on its next start.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -60,6 +64,11 @@ impl Models {
     /// Bytes still to download for both Swedish directions (0 = installed).
     pub fn missing_bytes(&self) -> u64 {
         self.missing().iter().map(ModelEntry::download_size).sum()
+    }
+
+    /// Whether the missing models can be downloaded, i.e. the manifest has URLs for them.
+    pub fn missing_downloadable(&self) -> bool {
+        self.missing().iter().all(ModelEntry::is_downloadable)
     }
 }
 
