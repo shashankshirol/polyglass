@@ -43,7 +43,7 @@ Built with **Rust + Tauri 2**, targeting **Windows, macOS and Linux**.
  │ │   rest timer)   only)       hash diff)      │                 │   (backend)│
  │ └─────────────────────────────────────────────┼─────────────────┼──────────┘   │
  │      pg-capture            pg-ocr ────────────┘    pg-translate ┘              │
- │  WGC / ScreenCaptureKit /   WinRT OCR / Vision /   Bergamot (on-device) /     │
+ │  WGC / ScreenCaptureKit /   WinRT OCR / Vision /   CTranslate2 (on-device) /  │
  │  X11 / xdg-portal           Tesseract              LibreTranslate/DeepL/Google│
  └───────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -57,7 +57,7 @@ polyglass/
 │  ├─ pg-core/            # Shared types: PhysRect, Frame, Line, Block, LangPair, errors
 │  ├─ pg-capture/         # ScreenCapturer trait + per-OS implementations
 │  ├─ pg-ocr/             # OcrEngine trait + WinRT / Vision / Tesseract
-│  ├─ pg-translate/       # Translator trait + Bergamot / LibreTranslate / DeepL / Google
+│  ├─ pg-translate/       # Translator trait + LibreTranslate / DeepL / Google (on-device CTranslate2 backend in its own crate)
 │  ├─ pg-pipeline/        # Scheduler, change detection, block grouping, LRU cache
 │  ├─ pg-models/          # Model manifest, download, SHA-256 verify, storage
 │  └─ pg-bench/           # CLI: run pipeline on fixtures, print latency percentiles
@@ -107,7 +107,7 @@ pub trait Translator: Send + Sync {
 | Capture (Linux X11) | x11rb + MIT-SHM | XComposite per-window | Simple and fast; self-exclusion handled by mode design (§5). |
 | Capture (Wayland) | xdg-desktop-portal Screenshot → Freeze mode | Portal ScreenCast via PipeWire | Only sanctioned path; live mode is a post-v1 stretch. |
 | OCR | WinRT `Windows.Media.Ocr` / Apple Vision / Tesseract 5 on Linux; **Tesseract `swe` for Swedish on macOS** | PaddleOCR via ONNX, `ocrs` | Built into the OS where possible; Apple Vision doesn't support Swedish, so macOS bundles Tesseract for it (SPEC §3, OCR-01). |
-| On-device translation | **Bergamot** (Mozilla's engine behind Firefox Translations) via C++ FFI (`cxx`) | OPUS-MT via CTranslate2 (`ct2rs`) | Small int8 models (tens of MB per direction), CPU-fast, built for real-time. CTranslate2 is the fallback if the Bergamot build proves painful. |
+| On-device translation | **CTranslate2** (OpenNMT) via `ct2rs`, with OPUS-MT models converted to int8 | `fxtranslate` / Bergamot + Mozilla models (ADR-0004, superseded) | Actively maintained and widely deployed runtime; OPUS-MT has per-pair models for well over a thousand pairs (MDL-07). ≈ 80 MB per direction; 27 ms short / 199 ms paragraph measured. Decided in ADR-0005 (D-8). |
 | Online translation | LibreTranslate (self-hosted), DeepL API, Google Cloud Translation | — | As requested; all via `reqwest` with rustls. |
 | Secrets | OS keychain via `keyring` crate | Encrypted config file | Never store API keys in plain files. |
 | Settings | TOML in platform config dir | JSON, SQLite | Human-readable and diffable. |
@@ -150,7 +150,7 @@ Rough sizing assumes one or two part-time contributors. Each milestone ends with
 **M0 — Spikes and foundations (≈ 3 weeks).** Public repo from day one with this plan, the spec, license, and CONTRIBUTING.
 - Spike 1: transparent, frameless, always-on-top, click-through Tauri window on Win/mac/Linux.
 - Spike 2: self-excluding region capture on Windows and macOS; X11 hide-capture-show flicker measurement.
-- Spike 3: Bergamot vs CTranslate2 built from Rust on all three OSes, using the sv↔en models. Compare build complexity, binary size, latency, memory.
+- Spike 3: Bergamot vs CTranslate2 built from Rust on all three OSes, using the sv↔en models. Compare build complexity, binary size, latency, memory. Result: ADR-0004 (Windows), then ADR-0005 chose CTranslate2 + OPUS-MT.
 - Spike 4: create the Swedish fixtures; measure OCR latency and accuracy per engine, including Vision vs Tesseract `swe` for Swedish on macOS.
 - Spike 5: Wayland portal screenshot + fullscreen Freeze window on GNOME and KDE.
 - Output: ADRs in `docs/adr/`, CI skeleton, `pg-bench` harness.
@@ -167,7 +167,7 @@ Rough sizing assumes one or two part-time contributors. Each milestone ends with
 
 ## 8. Open-source and release setup
 
-**Licensing.** **Apache-2.0** (owner decision D-2, 2026-11-01; see `LICENSE`). Third-party: Bergamot is MPL-2.0 (file-level copyleft, compatible), Tesseract is Apache-2.0. Translation models carry their own licenses and are downloaded at runtime, not bundled; each model's license is shown in the model manager and recorded in `models/manifest.toml`. Generate `THIRD_PARTY_NOTICES` with `cargo-about`.
+**Licensing.** **Apache-2.0** (owner decision D-2, 2026-11-01; see `LICENSE`). Third-party: CTranslate2 is MIT, OPUS-MT models are CC-BY-4.0 (attribution, shown in the model manager), Tesseract is Apache-2.0. Translation models carry their own licenses and are downloaded at runtime, not bundled; each model's license is shown in the model manager and recorded in `models/manifest.toml`. Generate `THIRD_PARTY_NOTICES` with `cargo-about`.
 
 **Repository files.** README (quick start under 5 minutes), CONTRIBUTING, CODE_OF_CONDUCT (Contributor Covenant), SECURITY.md (private disclosure channel), GOVERNANCE.md (lightweight maintainer model), **PRIVACY.md** (plain-language data flow, linked from the app), DCO sign-off on commits (no CLA).
 
@@ -191,7 +191,7 @@ Rough sizing assumes one or two part-time contributors. Each milestone ends with
 
 | Risk | Impact | Mitigation |
 |---|---|---|
-| Bergamot is hard to build/link on all OSes (esp. Windows, arm64) | Delays on-device mode | M0 spike; CTranslate2 + OPUS-MT fallback behind the same trait |
+| CTranslate2 (C++, CMake) is hard to build/link on all OSes (esp. Windows, arm64) | Delays on-device mode | Built on Windows in the ADR-0004 spike; CI on all OSes; the engine stays behind the `Translator` trait |
 | Wayland limits live capture and always-on-top | Linux UX weaker | Freeze mode in v1; live ScreenCast as stretch goal; be upfront in README |
 | macOS permission re-prompts annoy users | Churn | Clear onboarding, graceful revoke handling, docs |
 | Unsigned binaries flagged by AV/SmartScreen (screen capture + hotkeys look suspicious) | Trust, adoption | Sign from first public beta; reproducible-ish builds; provenance |

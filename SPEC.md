@@ -4,7 +4,7 @@
 > Priorities use MoSCoW: **MUST** (blocks 1.0), **SHOULD** (expected in 1.0), **COULD** (nice to have).
 > Each requirement has an ID; acceptance criteria (AC) are written so they can be checked by a test or a reviewer.
 
-**Changes in v0.3:** Owner answers to the open questions (§10, decision D-5). Default direction is Swedish → English (SV-01). Language pairs come from the model catalog, so users can add their own (MDL-07); German → English is the next pair (§3). US English is the default variant (SV-10). Panel is the default mode on Linux X11 (MODE-02). Failing online backends fall back to on-device with a notice (TR-06). Apple's Translation framework is out of scope (§8). Minimum OS versions confirmed (§4, D-3).
+**Changes in v0.3:** On-device translation moves to CTranslate2 + OPUS-MT models (ADR-0005, decision D-8); SIZE-05 raised to 200 MB. Owner answers to the open questions (§10, decision D-5). Default direction is Swedish → English (SV-01). Language pairs come from the model catalog, so users can add their own (MDL-07); German → English is the next pair (§3). US English is the default variant (SV-10). Panel is the default mode on Linux X11 (MODE-02). Failing online backends fall back to on-device with a notice (TR-06). Apple's Translation framework is out of scope (§8). Minimum OS versions confirmed (§4, D-3).
 
 **Changes in v0.2:** Swedish is the primary v1 language. Added §3 (language scope) and §6.11 (Swedish requirements SV-01 to SV-10). OCR engine is now chosen per platform *and* source language, because Apple Vision has no Swedish support. Fixtures, performance measurement and UI localization now cover Swedish. macOS installer size target raised to 20 MB for the bundled Swedish OCR.
 
@@ -41,7 +41,7 @@ Language pairs are data, not code: any pair the model catalog or an online backe
 
 **Platform facts that shape this spec** (re-verify in M0, since vendor support changes):
 
-- **On-device translation:** Swedish is one of the languages supported by Firefox Translations, whose Bergamot models Polyglass uses, so sv↔en works fully offline.
+- **On-device translation:** OPUS-MT (Helsinki-NLP) publishes sv→en, en→sv and de→en models, which Polyglass runs with CTranslate2 (ADR-0005), so these pairs work fully offline.
 - **OCR on Windows:** Windows OCR supports Swedish (`sv-SE`), but only once the Swedish OCR feature is installed on the machine.
 - **OCR on macOS:** Apple Vision does not support Swedish text recognition. Swedish source text on macOS therefore uses Tesseract with Swedish data by default (OCR-01, SV-02).
 - **OCR on Linux:** Tesseract with Swedish data (`tesseract-ocr-swe` on Debian/Ubuntu, `tesseract-langpack-swe` on Fedora).
@@ -185,7 +185,7 @@ The minimums are confirmed (D-3). Older OS versions are not supported.
 ### 6.5 Translation (TR)
 
 **TR-01 Backends — MUST**
-- [ ] On-device backend (Bergamot, or CTranslate2 per M0 ADR) with sv→en and en→sv models in the model manifest.
+- [ ] On-device backend (CTranslate2 + OPUS-MT, ADR-0005) with sv→en and en→sv models in the model manifest.
 - [ ] LibreTranslate (user-supplied URL, optional API key).
 - [ ] DeepL API (Free and Pro endpoints).
 - [ ] Google Cloud Translation (API key).
@@ -399,7 +399,7 @@ Online backend round trips are excluded from PERF-01 and PERF-06.
 | SIZE-02 | Installer, macOS (DMG), incl. bundled Tesseract + Swedish/English data | ≤ 20 MB | MUST |
 | SIZE-03 | Linux .deb/.rpm (system WebKitGTK + Tesseract as dependencies) | ≤ 15 MB | MUST |
 | SIZE-04 | Linux AppImage (self-contained) | ≤ 100 MB | SHOULD |
-| SIZE-05 | sv→en plus en→sv on-device models | ≤ 100 MB combined | SHOULD |
+| SIZE-05 | sv→en plus en→sv on-device models | ≤ 200 MB combined (raised from 100 MB for OPUS-MT, ADR-0005) | SHOULD |
 
 ### 7.4 Security (SEC)
 

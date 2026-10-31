@@ -7,9 +7,10 @@ language pair for v1.
 
 **Status:** pre-alpha (milestone M0/M1). The headless core (`crates/pg-*`) builds and is tested.
 The desktop lens window (`apps/desktop`) runs on Windows with real screen capture (Windows
-Graphics Capture), Windows OCR and on-device Swedish ↔ English translation (Mozilla's Firefox
-Translations models, [ADR-0004](./docs/adr/0004-on-device-translation.md)). macOS and Linux
-capture/OCR are not implemented yet.
+Graphics Capture), Windows OCR and on-device Swedish ↔ English translation. Translation is
+moving from `fxtranslate` + Mozilla's models to CTranslate2 + OPUS-MT models
+([ADR-0005](./docs/adr/0005-ctranslate2-opus-mt.md)); until that lands, the steps below describe
+the current `fxtranslate` setup. macOS and Linux capture/OCR are not implemented yet.
 See [CHECKLIST.md](./CHECKLIST.md) for progress.
 
 ## Documents

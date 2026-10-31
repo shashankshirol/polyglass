@@ -1,7 +1,7 @@
 # ADR-0004: On-device translation engine and models
 
-- **Status:** accepted for Windows (macOS/Linux/arm64 builds and timings not run; see "Not
-  measured")
+- **Status:** superseded by [ADR-0005](./0005-ctranslate2-opus-mt.md) (2026-11-01, owner
+  decision D-8: move to CTranslate2 + OPUS-MT). Previously accepted for Windows.
 - **Date:** 2026-10-31
 - **Requirements:** TR-01, TR-02, SV-01, SV-05, MDL-01, MDL-02, MDL-06, SIZE-01, SIZE-05,
   PERF-01, PERF-06, RES-04
