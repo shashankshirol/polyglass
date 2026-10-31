@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-nudge-lens"
+description = "Enables the nudge_lens command without any pre-configured scope."
+commands.allow = ["nudge_lens"]
+
+[[permission]]
+identifier = "deny-nudge-lens"
+description = "Denies the nudge_lens command without any pre-configured scope."
+commands.deny = ["nudge_lens"]

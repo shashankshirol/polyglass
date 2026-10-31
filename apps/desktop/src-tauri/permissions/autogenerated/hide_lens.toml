@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-hide-lens"
+description = "Enables the hide_lens command without any pre-configured scope."
+commands.allow = ["hide_lens"]
+
+[[permission]]
+identifier = "deny-hide-lens"
+description = "Denies the hide_lens command without any pre-configured scope."
+commands.deny = ["hide_lens"]

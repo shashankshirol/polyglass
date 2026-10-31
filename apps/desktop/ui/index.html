@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Polyglass lens</title>
+    <link rel="stylesheet" href="./src/style.css" />
+    <script type="module" src="./src/main.ts"></script>
+  </head>
+  <body>
+    <div id="lens" tabindex="0" aria-label="Polyglass lens. Arrow keys move it, Shift+arrow moves faster.">
+      <header id="toolbar" role="toolbar" aria-label="Lens toolbar" data-tauri-drag-region>
+        <span class="grip" data-tauri-drag-region aria-hidden="true">⋮⋮</span>
+        <button id="source-lang" type="button" class="lang" aria-disabled="true"
+          aria-label="Source language: automatic, Swedish or English">Auto</button>
+        <span class="arrow" data-tauri-drag-region aria-hidden="true">→</span>
+        <button id="target-lang" type="button" class="lang" aria-disabled="true"
+          aria-label="Target language: English">EN</button>
+        <button id="swap" type="button" aria-disabled="true" aria-label="Swap languages" title="Swap languages">⇄</button>
+        <button id="mode" type="button" aria-disabled="true" aria-label="Mode: Overlay" title="Mode: Overlay">Overlay</button>
+        <span class="spacer" data-tauri-drag-region></span>
+        <span id="demo-badge" class="badge" title="Mock capture, OCR and translation" hidden>DEMO</span>
+        <span id="privacy" class="privacy" role="img" aria-label="On-device translation" title="On-device translation">
+          <svg id="icon-lock" viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M4.5 7V5a3.5 3.5 0 0 1 7 0v2" fill="none" stroke="currentColor" stroke-width="1.6" />
+            <rect x="3" y="7" width="10" height="7.5" rx="1.5" fill="currentColor" />
+          </svg>
+          <svg id="icon-cloud" viewBox="0 0 16 16" aria-hidden="true" hidden>
+            <path d="M4.5 13a3 3 0 0 1-.4-6A4 4 0 0 1 11.8 6a3.5 3.5 0 0 1 .2 7z" fill="currentColor" />
+          </svg>
+          <span id="privacy-name" class="privacy-name"></span>
+        </span>
+        <button id="pause" type="button" aria-pressed="false" aria-label="Pause translation" title="Pause translation">❚❚</button>
+        <button id="click-through" type="button" aria-pressed="true" aria-label="Click-through interior"
+          title="Click-through interior">⇲</button>
+        <button id="settings" type="button" aria-disabled="true" aria-label="Settings" title="Settings">⚙</button>
+        <button id="close" type="button" aria-label="Hide lens" title="Hide lens (reopen from the tray)">✕</button>
+      </header>
+      <main id="interior">
+        <div id="blocks"></div>
+        <p id="message" role="status" hidden></p>
+        <p id="notice" role="status" hidden></p>
+      </main>
+      <div class="rz n" data-dir="North"></div>
+      <div class="rz s" data-dir="South"></div>
+      <div class="rz e" data-dir="East"></div>
+      <div class="rz w" data-dir="West"></div>
+      <div class="rz ne" data-dir="NorthEast"></div>
+      <div class="rz nw" data-dir="NorthWest"></div>
+      <div class="rz se" data-dir="SouthEast"></div>
+      <div class="rz sw" data-dir="SouthWest"></div>
+    </div>
+  </body>
+</html>

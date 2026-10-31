@@ -1,0 +1,267 @@
+/* Lens window. The page is transparent; only the frame, toolbar and translated blocks paint.
+   --frame and --toolbar come from Rust (`lens_config`) so they match the click-through hit-test. */
+
+:root {
+  --frame: 6px;
+  --toolbar: 30px;
+  --chrome: rgba(24, 44, 66, 0.92);
+  --chrome-fg: #f2f6fa;
+  --accent: #7fd3ff;
+  --focus: #ffd34d;
+  color-scheme: dark;
+  font-family: "Segoe UI", system-ui, -apple-system, "Noto Sans", sans-serif;
+  font-size: 13px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: transparent;
+  user-select: none;
+}
+
+#lens {
+  position: relative;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  border: var(--frame) solid var(--chrome);
+  border-top: 0;
+  border-radius: 6px;
+  outline: none;
+}
+
+#lens:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--focus);
+}
+
+#toolbar {
+  flex: 0 0 var(--toolbar);
+  height: var(--toolbar);
+  /* The frame has no top border, so the toolbar spans the full width. */
+  margin: 0 calc(-1 * var(--frame));
+  padding: 0 4px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--chrome);
+  color: var(--chrome-fg);
+  border-radius: 6px 6px 0 0;
+  cursor: grab;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.grip {
+  padding: 0 4px;
+  letter-spacing: -3px;
+  opacity: 0.7;
+}
+
+.spacer {
+  flex: 1 1 auto;
+  align-self: stretch;
+}
+
+.arrow {
+  opacity: 0.7;
+}
+
+#toolbar button {
+  height: 22px;
+  min-width: 22px;
+  padding: 0 5px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: 22px;
+  cursor: pointer;
+}
+
+#toolbar button:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+#toolbar button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+#toolbar button[aria-disabled="true"] {
+  opacity: 0.55;
+  cursor: default;
+}
+
+#toolbar button[aria-pressed="true"] {
+  background: rgba(127, 211, 255, 0.25);
+  color: var(--accent);
+}
+
+.lang {
+  font-weight: 600;
+}
+
+.badge {
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: #b3261e;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.privacy {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0 4px;
+  color: #8be08b;
+}
+
+.privacy.online {
+  color: #ffc56b;
+}
+
+.privacy svg {
+  width: 14px;
+  height: 14px;
+}
+
+.privacy svg[hidden] {
+  display: none;
+}
+
+#interior {
+  position: relative;
+  flex: 1 1 auto;
+  overflow: hidden;
+  /* Faint inner edge so an empty, transparent lens is still visible. */
+  box-shadow: inset 0 0 0 1px rgba(127, 211, 255, 0.35);
+}
+
+/* Click-through off: a near-invisible fill so the webview receives clicks in the interior. */
+#lens.interactive #interior {
+  background: rgba(0, 0, 0, 0.01);
+}
+
+#lens.paused #interior {
+  background: rgba(24, 44, 66, 0.25);
+}
+
+#blocks {
+  position: absolute;
+  inset: 0;
+}
+
+.block {
+  position: absolute;
+  padding: 0 2px;
+  line-height: 1.2;
+  border-radius: 2px;
+  overflow-wrap: anywhere;
+}
+
+.block.dim {
+  opacity: 0.6;
+}
+
+#message,
+#notice {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  margin: 0;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: rgba(24, 44, 66, 0.85);
+  color: var(--chrome-fg);
+  font-size: 12px;
+}
+
+#message {
+  top: 50%;
+  transform: translateY(-50%);
+  text-align: center;
+}
+
+#notice {
+  bottom: 6px;
+  background: rgba(120, 80, 0, 0.88);
+}
+
+/* Resize zones over the frame (LENS-03). The top edge sits on the toolbar's outer 4 px. */
+.rz {
+  position: absolute;
+  z-index: 10;
+}
+.rz.n {
+  top: 0;
+  left: 10px;
+  right: 10px;
+  height: 4px;
+  cursor: ns-resize;
+}
+.rz.s {
+  bottom: calc(-1 * var(--frame));
+  left: 10px;
+  right: 10px;
+  height: var(--frame);
+  cursor: ns-resize;
+}
+.rz.e {
+  right: calc(-1 * var(--frame));
+  top: 10px;
+  bottom: 10px;
+  width: var(--frame);
+  cursor: ew-resize;
+}
+.rz.w {
+  left: calc(-1 * var(--frame));
+  top: 10px;
+  bottom: 10px;
+  width: var(--frame);
+  cursor: ew-resize;
+}
+.rz.ne,
+.rz.nw,
+.rz.se,
+.rz.sw {
+  width: 10px;
+  height: 10px;
+}
+.rz.ne {
+  top: 0;
+  right: calc(-1 * var(--frame));
+  cursor: nesw-resize;
+}
+.rz.nw {
+  top: 0;
+  left: calc(-1 * var(--frame));
+  cursor: nwse-resize;
+}
+.rz.se {
+  bottom: calc(-1 * var(--frame));
+  right: calc(-1 * var(--frame));
+  cursor: nwse-resize;
+}
+.rz.sw {
+  bottom: calc(-1 * var(--frame));
+  left: calc(-1 * var(--frame));
+  cursor: nesw-resize;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}

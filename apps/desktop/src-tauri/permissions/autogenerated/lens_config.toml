@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-lens-config"
+description = "Enables the lens_config command without any pre-configured scope."
+commands.allow = ["lens_config"]
+
+[[permission]]
+identifier = "deny-lens-config"
+description = "Denies the lens_config command without any pre-configured scope."
+commands.deny = ["lens_config"]

@@ -1,0 +1,17 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "lens",
+  "description": "The lens window: receive LensUpdate events, drag/resize itself, and call the lens commands. Nothing else (SEC-01).",
+  "windows": ["lens"],
+  "permissions": [
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "core:window:allow-start-dragging",
+    "core:window:allow-start-resize-dragging",
+    "allow-lens-config",
+    "allow-nudge-lens",
+    "allow-set-click-through",
+    "allow-set-paused",
+    "allow-hide-lens"
+  ]
+}
