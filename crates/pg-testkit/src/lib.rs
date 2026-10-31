@@ -3,6 +3,8 @@
 //! - [`TextRenderer`] draws text into a [`Frame`] with an installed system font. Rendering is
 //!   grayscale anti-aliased (no ClearType/subpixel), so real screen captures are harder than this.
 //!   The font is read from the OS at run time and never copied into the repository.
+//! - [`fixture`] renders the ground truth in `tests/fixtures/*/truth.json` into fixture images at
+//!   100–200% scale in a light and a dark theme (M0-FIX-2).
 //! - [`metrics`] scores OCR output against ground truth: CER, WER and the å/ä/ö report (M0-FIX-3).
 
 use std::fmt;
@@ -10,19 +12,23 @@ use std::path::{Path, PathBuf};
 
 use ab_glyph::{Font, FontVec, PxScale, ScaleFont, point};
 use pg_core::{Frame, PixelFormat, Rect};
+use sha2::{Digest, Sha256};
 
+pub mod fixture;
 pub mod metrics;
 
 /// Renders text into frames with one font.
 pub struct TextRenderer {
     font: FontVec,
     path: PathBuf,
+    sha256: String,
 }
 
 impl fmt::Debug for TextRenderer {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("TextRenderer")
             .field("path", &self.path)
+            .field("sha256", &self.sha256)
             .finish_non_exhaustive()
     }
 }
@@ -30,12 +36,25 @@ impl fmt::Debug for TextRenderer {
 impl TextRenderer {
     pub fn from_file(path: &Path) -> std::io::Result<Self> {
         let bytes = std::fs::read(path)?;
+        let sha256 = hex::encode(Sha256::digest(&bytes));
         let font = FontVec::try_from_vec(bytes)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
         Ok(Self {
             font,
             path: path.to_owned(),
+            sha256,
         })
+    }
+
+    /// The font file this renderer reads.
+    pub fn font_path(&self) -> &Path {
+        &self.path
+    }
+
+    /// SHA-256 of the font file. Rendering is deterministic for a given font file, so this
+    /// identifies which glyphs a fixture image was drawn with.
+    pub fn font_sha256(&self) -> &str {
+        &self.sha256
     }
 
     /// A common sans-serif UI font installed with the OS (Segoe UI on Windows), if found.

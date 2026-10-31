@@ -2671,9 +2671,12 @@ name = "pg-testkit"
 version = "0.1.0"
 dependencies = [
  "ab_glyph",
+ "hex",
+ "image",
  "pg-core",
  "serde",
  "serde_json",
+ "sha2 0.11.1",
  "unicode-normalization",
 ]
 

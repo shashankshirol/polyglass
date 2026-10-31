@@ -1,6 +1,6 @@
 [package]
 name = "pg-testkit"
-description = "Test and benchmark helpers for Polyglass: render text into frames, CER/WER scoring."
+description = "Test and benchmark helpers for Polyglass: fixture images rendered from ground truth, CER/WER scoring."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -11,9 +11,16 @@ publish.workspace = true
 [dependencies]
 pg-core.workspace = true
 ab_glyph.workspace = true
+hex.workspace = true
+image.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+sha2.workspace = true
 unicode-normalization.workspace = true
+
+[[bin]]
+name = "render-fixtures"
+path = "src/bin/render_fixtures.rs"
 
 [lints]
 workspace = true
