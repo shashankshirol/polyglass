@@ -35,6 +35,9 @@ windows = { workspace = true, features = [
     "Win32_UI_HiDpi",
 ] }
 
+[dev-dependencies]
+pg-testkit.workspace = true
+
 [target.'cfg(windows)'.dev-dependencies]
 pg-ocr.workspace = true
 windows = { workspace = true, features = [

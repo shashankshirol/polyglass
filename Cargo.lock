@@ -2610,6 +2610,7 @@ dependencies = [
  "image",
  "pg-core",
  "pg-ocr",
+ "pg-testkit",
  "windows",
 ]
 

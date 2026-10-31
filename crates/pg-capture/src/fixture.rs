@@ -4,16 +4,23 @@ use pg_core::{Error, Frame, PhysRect, PixelFormat, Result};
 
 use crate::{ScreenCapturer, StaticCapturer};
 
-/// Serves captures from an image file placed at the virtual-desktop origin.
+/// Serves captures from a fixture image placed at the virtual-desktop origin.
 #[derive(Debug, Clone)]
 pub struct FixtureCapturer {
     inner: StaticCapturer,
 }
 
 impl FixtureCapturer {
-    /// Load a PNG fixture. `scale_factor` is the simulated monitor scale (CAP-04 tests).
+    /// Load a PNG fixture file. `scale_factor` is the simulated monitor scale (CAP-04 tests).
     pub fn open(path: &Path, scale_factor: f64) -> Result<Self> {
-        let img = image::open(path)
+        let bytes = std::fs::read(path)
+            .map_err(|e| Error::InvalidInput(format!("cannot read fixture: {e}")))?;
+        Self::from_png(&bytes, scale_factor)
+    }
+
+    /// Load a PNG fixture from memory, e.g. one rendered by `pg-testkit` (M0-FIX-2).
+    pub fn from_png(png: &[u8], scale_factor: f64) -> Result<Self> {
+        let img = image::load_from_memory_with_format(png, image::ImageFormat::Png)
             .map_err(|e| Error::InvalidInput(format!("cannot load fixture: {e}")))?
             .into_rgba8();
         let (w, h) = img.dimensions();
