@@ -18,12 +18,17 @@ pg-ocr = { path = "crates/pg-ocr" }
 pg-translate = { path = "crates/pg-translate" }
 pg-pipeline = { path = "crates/pg-pipeline" }
 pg-models = { path = "crates/pg-models" }
+pg-bergamot = { path = "crates/pg-bergamot" }
 pg-testkit = { path = "crates/pg-testkit" }
 
 ab_glyph = "0.2"
 async-trait = "0.1"
 clap = { version = "4", features = ["derive"] }
+flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
 futures-util = { version = "0.3", default-features = false, features = ["std"] }
+# Pure-Rust port of the Firefox Translations (Bergamot) engine, MPL-2.0 (ADR-0004). Features are
+# chosen per target in pg-bergamot.
+fxtranslate = { version = "0.5", default-features = false }
 hex = "0.4"
 image = { version = "0.25", default-features = false, features = ["png"] }
 lru = "0.19"

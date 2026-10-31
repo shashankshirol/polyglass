@@ -1,0 +1,40 @@
+[package]
+name = "pg-bergamot"
+description = "On-device translation with Mozilla's Bergamot (Firefox Translations) models for Polyglass."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+pg-core.workspace = true
+pg-models.workspace = true
+pg-translate.workspace = true
+async-trait.workspace = true
+flate2.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["rt"] }
+tracing.workspace = true
+
+# MSVC can't build fxtranslate's AVX2 gemmology shim (ADR-0004), so Windows uses its pure-Rust
+# scalar kernel. Elsewhere the C++17 SIMD kernel is compiled when the toolchain allows and
+# fxtranslate falls back to scalar otherwise.
+[target.'cfg(windows)'.dependencies]
+fxtranslate = { workspace = true, features = ["lean-embed"] }
+
+[target.'cfg(not(windows))'.dependencies]
+fxtranslate = { workspace = true, features = ["lean-embed", "gemmology"] }
+
+[dev-dependencies]
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+hex.workspace = true
+tempfile.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+tokio-util.workspace = true
+
+[lints]
+workspace = true
