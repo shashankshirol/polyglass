@@ -25,12 +25,12 @@
 
 ## Current state
 
-- **Milestone:** M1. Headless core done. On Windows the lens runs **live by default**: Windows Graphics Capture of the lens interior + Windows OCR + **on-device translation** (`pg-bergamot`: Mozilla's Firefox Translations sv↔en models on the pure-Rust `fxtranslate` engine, behind the SV-05 `TokenGuard`; ADR-0004). Models aren't bundled: without them the lens says so and the toolbar ⬇ downloads them (30.5 MB). `--demo` / `POLYGLASS_DEMO=1` keeps all mocks. 137 tests green (4 ignored: 1 measurement + 3 real-model tests that download), clippy `-D warnings` and fmt clean (Windows only so far). ADR-0002 (click-through), ADR-0003 (capture) and ADR-0004 (translation) are verified on Windows only.
+- **Milestone:** M1. Headless core done. On Windows the lens runs **live by default**: Windows Graphics Capture of the lens interior + Windows OCR + **on-device translation** (`pg-bergamot`: Mozilla's Firefox Translations sv↔en models on the pure-Rust `fxtranslate` engine, behind the SV-05 `TokenGuard`; ADR-0004). Models aren't bundled: without them the lens says so and the toolbar ⬇ downloads them (30.5 MB). `--demo` / `POLYGLASS_DEMO=1` keeps all mocks. Fixture images are rendered from `truth.json` at test time (100–200%, light/dark) and Windows OCR is gated on them: OCR-04 and the SV-03 CER part pass, the SV-03 å/ä/ö part fails (M1-OCR-6). 151 tests green (5 ignored: 1 measurement, 3 real-model tests that download, the failing SV-03 letter gate), clippy `-D warnings` and fmt clean (Windows only so far). ADR-0002 (click-through), ADR-0003 (capture) and ADR-0004 (translation) are verified on Windows only.
 - **Dev machine used so far:** Windows 11 x64, Rust 1.99, Node 24, Python 3.12 (no Pillow), no Tesseract. Windows OCR languages installed: `en-US`, `en-GB`, `sv-SE` (Swedish was added after session 2; the real "Swedish missing" path is now tested with an uninstalled tag instead).
 - **Monitors on this machine:** 2560×1440 at 100% (primary) and 2160×3840 at 150% (above-left, negative coordinates), which is useful for CAP-04 and mixed-DPI checks.
 - **Git:** local repo on `main`; no remote yet.
 - **Next up (suggested order, each ≈ one session):**
-  1. M0-FIX-2: fixture image generator. `pg-testkit::TextRenderer` (ab_glyph + system font) already renders text into frames; extend it to truth.json → PNG at 100–200%, light/dark. Then M0-FIX-3 (CER) and M1-OCR-6 (accuracy gates).
+  1. M1-OCR-6 rest: SV-03 å/ä/ö fails on Windows OCR (7.3% vs ≤ 2%; ä→å/ä→a at 100–125%). First find out whether the renderer causes it: draw the fixtures with GDI/DirectWrite ClearType in a real window and capture with WGC (as `crates/pg-capture/tests/wgc.rs` does), then score with `pg_testkit::metrics`. If real text fails too, try mitigations (frame padding, other upscaling, Tesseract `swe` on Windows) and/or bring the result to the owner.
   2. Tune `ChangeConfig` and measure CPU on real captures in a release build (ADR-0003 "Not yet verified").
   3. M1-APP-6..9 (font fitting, hold-to-show-original, settings TOML + a model manager replacing the toolbar ⬇, hotkeys + the swap button now that both directions are loaded).
   4. M0-FIX-4 eval sets, then a `pg-bench` translation stage with the real backend (PERF-01/06 end to end).
@@ -53,6 +53,10 @@
   - Windows runs fxtranslate's scalar kernel (its AVX2 shim doesn't compile with MSVC): ≈ 7 ms per short string, ≈ 95 ms per two-sentence paragraph. Fix upstream if PERF-01 gets tight.
   - The toolbar ⬇ download has no cancel button or retry backoff (pg-models supports cancel), and a model that fails to load is logged and shown as "missing".
   - `pg-bench` still uses `MockTranslator`, so PERF-01/06 aren't measured end to end. The live app logged an uncached cycle of 31 ms (OCR 8.5 + translation 21.5 ms) for one Swedish sentence.
+  - Windows OCR drops isolated short words: "Save" alone at 12 px is missed at 100% even with page margins, and in a crop with ≤ 1/3 of a line gap above and below, "Save" and "Save changes?" vanish at 200% too. 8–16 px of background padding around the frame brought the 200% case to 0% CER (session 6). Consider padding frames inside `WindowsOcr` (the lens edge can sit close to text).
+  - Fixture images are grayscale anti-aliased with no hinting (`ab_glyph`). Real screen text uses hinting and ClearType, so OCR numbers on fixtures may be better or worse than on real captures (see Next up 1).
+  - The OCR accuracy gates (`crates/pg-ocr/tests/accuracy.rs`) and the Windows OCR part of `crates/pg-capture/tests/fixture.rs` skip with a message when the system font or an OCR language (`en`, `sv-SE`) is missing. GitHub's Windows runners probably lack `sv-SE`, so SV-03 would skip there; set `POLYGLASS_REQUIRE_OCR_GATES=1` on a runner that has Swedish.
+  - Stale notes outside session 6's items: M0-CORE-2 still says FixtureCapturer is untested (it is tested now, `crates/pg-capture/tests/fixture.rs`) and M0-FIX-1 lists images as not done (they're rendered at test time; `bbox` stays unused, see D-7).
   - `cargo deny check` passes in full (cargo-deny 0.20.2, session 5) with two ignores in `deny.toml` (D-6): RUSTSEC-2024-0370 `proc-macro-error` (Linux GTK 3 stack of Tauri 2) and RUSTSEC-2026-0192 `ttf-parser` (via `ab_glyph` in `pg-testkit`, dev/bench only). Drop them when Tauri moves off GTK 3 / `ab_glyph` drops ttf-parser.
 
 ## Owner decisions pending (PLAN §11, SPEC §10)
@@ -69,6 +73,7 @@
   - RUSTSEC-2024-0370 (unmaintained `proc-macro-error`) via gtk-rs 0.18 ← tray-icon/wry/tauri, Linux only. No fix in Tauri 2.x (GTK 3 bindings).
   - RUSTSEC-2026-0192 (unmaintained `ttf-parser` 0.25) via `ab_glyph` 0.2.32 (latest) ← `pg-testkit`, dev/bench only, never in the app. No fix upstream.
   - Raising the MSRV to 1.88 clears the three vulnerabilities; 1.90 (Tauri 2.12, npm to 2.12.x too) also clears `unic-*`. The two unmaintained crates need ignores either way.
+- [ ] D-7 Commit fixture PNGs? (session 6, not blocking.) Today they are rendered at test time with the OS UI font and nothing is committed (`tests/fixtures/README.md`). Segoe UI (Windows) and Arial (Windows/macOS) are licensed with the OS; the font files can't be redistributed, and whether renderings of them can be released under CC0 with the rest of the fixtures is unclear. Options: (a) keep rendering at test time (current); (b) commit PNGs rendered with an OFL font (e.g. Noto Sans) kept in or pinned by the repo — identical images on every OS and CI, but not the Windows UI font; (c) commit Segoe UI renderings after a licensing check. (b) or (c) would fill `image`/`bbox` in `truth.json` (≈ 3 MB for all 64 images).
 
 ---
 
@@ -102,8 +107,8 @@ These are verified with mocks. Each requirement is fully met only once real engi
 
 ### Fixtures (SPEC §5, CC0)
 - [~] M0-FIX-1 Ground-truth text for `ui-dialog-sv`, `ui-dialog-en`, `mixed-sv-en`, `numbers-sv`, `numbers-en`, `paragraphs-sv`, `paragraphs-en`, `long-compounds-en` in `tests/fixtures/*/truth.json` (format in `tests/fixtures/README.md`). *Done: text, block lists, expected languages. Not done: `bbox` per block, images, a held-out `mixed-sv-en-2` for langid, and a native-speaker review of the Swedish.*
-- [ ] M0-FIX-2 Fixture image generator (render truth.json to PNG at 100/125/150/200%, light + dark theme, 12–16 px UI fonts). Python+Pillow isn't installed here; consider a Rust generator (`ab_glyph`/`cosmic-text`) or a headless-browser script.
-- [ ] M0-FIX-3 CER scorer (per-char + å/ä/ö-specific error report, SV-03) in `pg-bench`.
+- [x] M0-FIX-2 Fixture image generator (render truth.json to PNG at 100/125/150/200%, light + dark theme, 12–16 px UI fonts). *`pg_testkit::fixture::FixtureImage::render` (Rust, `ab_glyph` + the OS UI font): 600 logical px page, block i in 12–16 px (`i % 5`), word-wrapped, light `#F3F3F3`/`#1B1B1B` and dark `#202020`/white; returns each line's text and box. **Rendered at test time, not committed**: the font (Segoe UI here) isn't redistributable and CC0 for its renderings is unclear (D-7); each OS is tested on its own UI font; no images to keep in sync. Deterministic per font file (`rendering_is_deterministic`; the font's SHA-256 is recorded). `cargo run -p pg-testkit --bin render-fixtures` writes all 64 PNGs + line boxes (≈ 3 MB) to `target/fixture-images`. Wired in: `FixtureCapturer::from_png`, `pg-bench` (`--scale`, `--theme`), CAP-04 tests, OCR gates. Tests: `fixture::tests` (5).*
+- [x] M0-FIX-3 CER scorer (per-char + å/ä/ö-specific error report, SV-03) in `pg-bench`. *Library: `pg_testkit::metrics::score` (NFC + whitespace-normalized CER and WER; Levenshtein alignment reporting each misread å/ä/ö/Å/Ä/Ö as a substitution or deletion; scores add up over sets; `systematic(n)`). `pg-bench --ocr windows` prints `accuracy  CER … WER … åäö … [ä→a×1]` (JSON: `accuracy`) for the whole lines in the lens. Tests: `metrics::tests` (6).*
 - [ ] M0-FIX-4 Eval sets `tests/eval/sv-en`, `tests/eval/en-sv`, 200 segments each with references (SV-07).
 
 ---
@@ -124,7 +129,7 @@ These are verified with mocks. Each requirement is fully met only once real engi
   - *Gap: the marker is not drawn by the real lens.*
 - [ ] M1-CAP-3 macOS: ScreenCaptureKit stream, `sourceRect` = lens, excluding own app (CAP-01/02).
 - [ ] M1-CAP-4 macOS Screen Recording permission missing/revoked → explanation + open-settings button + auto-resume (CAP-05).
-- [~] M1-CAP-5 HiDPI/mixed-DPI fixture tests at 100/125/150/200% (CAP-04, LENS-02). *Real-capture tests at 100% and 150% and across a mixed-DPI monitor edge (`cap04_every_monitor_and_a_region_across_two`); the live lens was checked on both monitors (ADR-0003). 125% and 200% aren't available on this machine; fixture-based tests need M0-FIX-2.*
+- [x] M1-CAP-5 HiDPI/mixed-DPI fixture tests at 100/125/150/200% (CAP-04, LENS-02). *Real-capture tests at 100% and 150% and across a mixed-DPI monitor edge (`cap04_every_monitor_and_a_region_across_two`); the live lens was checked on both monitors (ADR-0003). Fixture tests at all four scales (`crates/pg-capture/tests/fixture.rs`): `cap04_lens_over_a_line_at_every_scale` (lens in logical px over each separated line of `ui-dialog-en`, light + dark, `LogicalRect::to_physical`; the capture holds exactly that line's ink) and `cap04_windows_ocr_reads_the_lens_at_every_scale` (100 px lens moved down the page, Windows OCR CER ≤ 5%: 3.6/3.3% at 100%, 0–1.8% above). Not tested: real monitors at 125% and 200% (none here).*
 
 ### OCR
 - [x] M1-OCR-1 Windows OCR engine via `windows` crate (`Windows.Media.Ocr`), lines + boxes + confidence (OCR-01/02). *`pg_ocr::WindowsOcr` (windows 0.62 since session 5, the version Tauri 2.12 uses; no `unsafe`). Line box = union of word boxes in frame pixels; confidence is always 1.0 because Windows OCR has none, so OCR-05 filtering does nothing with this engine. Tests in `crates/pg-ocr/tests/windows_ocr.rs` render text with `pg-testkit` (Segoe UI, grayscale AA): `ocr01_recognizes_rendered_english_lines_with_boxes`, `ocr01_dark_theme_and_pixel_formats` (BGRA/RGBA with padded stride/Gray8), `ocr01_boxes_are_in_frame_pixels_at_any_upscale`. Text is checked with a CER bound (≤ 6%/line), not exact match. PERF-03 (release, `pg-bench --ocr windows`, 600×300, sv): p50 18.9 ms / p95 19.1 ms at 100%; 34.0 / 35.9 ms at 150% (900×450 px).*
@@ -132,7 +137,24 @@ These are verified with mocks. Each requirement is fully met only once real engi
 - [ ] M1-OCR-3 Apple Vision engine (English) + runtime language check (OCR-01, OCR-06).
 - [ ] M1-OCR-4 Tesseract 5 engine (bundled on macOS with `swe`+`eng`) (OCR-01, SV-02 mac).
 - [x] M1-OCR-5 Upscale small text before OCR (PLAN §10 risk mitigation). *`WindowsOcr` enlarges frames 2× (bilinear) below 200% scale; `with_upscale(k)` forces a factor. Measured on rendered Segoe UI, 5 lines (3 en, 2 sv), 600×300, release: exact lines at 1×/2×/3× — 11 px 0/0/1, 12 px 0/2/2, 13 px 1/2/2, 14 px 2/3/2, 16 px 2/3/2, 20 px 5/5/5; at 1× small text drops whole words. OCR time 1× ≈ 8–17 ms, 2× ≈ 17–26 ms, 3× ≈ 30–35 ms. Remaining misreads at 2× are mostly 5→S and rn→m (`ändringama`). Tuned on synthetic text only; recheck on real captures (ClearType).*
-- [ ] M1-OCR-6 Accuracy gates on fixtures: OCR-04 (en), SV-03 (sv, å/ä/ö).
+- [~] M1-OCR-6 Accuracy gates on fixtures: OCR-04 (en), SV-03 (sv, å/ä/ö). *`crates/pg-ocr/tests/accuracy.rs`: each fixture at 100–200%, light + dark, read by Windows OCR (default upscaling) in lens-sized strips of whole lines (600×300 logical), scores summed per set. English set = `*-en` (4), Swedish set = `*-sv` + `mixed-sv-en` (sv recognizer). Skips with a message without the font or OCR language (`POLYGLASS_REQUIRE_OCR_GATES=1` fails instead).*
+  - *`ocr04_english_fixture_set_cer`: **passes**, CER 0.80% (81/10,160), gate ≤ 3%.*
+  - *`sv03_swedish_fixture_set_cer`: **passes**, CER 0.82% (144/17,504), gate ≤ 3%. Also holds å/ä/ö ≤ 10% as a regression guard (not the SPEC bound).*
+  - *`sv03_swedish_letters` (`#[ignore]`d): **fails**, å/ä/ö 7.3% (35/480), gate ≤ 2%, with repeated misreads ä→å ×16, ä→a ×8, ä→i ×4, ä→∅ ×3, ä→u ×2, ö→o ×2. All errors are at 100% (13 + 11) and 125% (5 + 6); 150% and 200% have none. Forcing 1×/3×/4× upscaling doesn't help (6.7% / 11.9% / 9.8%). Next: Next up 1.*
+  - *Measured CER % per image (release build, Windows 11, Segoe UI 5.72; L = light, D = dark; in brackets: misread å/ä/ö of total):*
+
+    | Fixture | 100% L | 100% D | 125% L | 125% D | 150% L | 150% D | 200% L | 200% D |
+    |---|---:|---:|---:|---:|---:|---:|---:|---:|
+    | `long-compounds-en` | 0.48 | 1.43 | 0 | 0 | 0 | 0 | 0 | 0 |
+    | `numbers-en` | 2.40 | 2.99 | 0.30 | 1.50 | 1.20 | 1.20 | 0 | 0 |
+    | `paragraphs-en` | 3.34 | 1.11 | 0 | 0 | 0 | 0 | 0 | 0 |
+    | `ui-dialog-en` | 3.61 | 3.25 | 0 | 0.36 | 0 | 0 | 1.81 | 0 |
+    | `mixed-sv-en` | 1.88 [7/23] | 2.51 [6/23] | 0.54 [4/23] | 0.54 [4/23] | 0.09 | 0.09 | 0 | 0 |
+    | `numbers-sv` | 2.40 | 2.10 | 0.60 | 0 | 0 | 0.30 | 0 | 0 |
+    | `paragraphs-sv` | 2.09 [4/23] | 6.28 [4/23] | 0.42 | 0.63 [1/23] | 0 | 0 | 0 | 0 |
+    | `ui-dialog-sv` | 1.15 [2/7] | 4.23 [1/7] | 0.77 [1/7] | 0.77 [1/7] | 0 | 0 | 0 | 0 |
+
+    *Per slice (English / Swedish CER): 100% L 2.68 / 1.92, 100% D 2.13 / 3.47, 125% L 0.08 / 0.55, 125% D 0.47 / 0.50, 150% L 0.31 / 0.05, 150% D 0.31 / 0.09, 200% L 0.39 / 0, 200% D 0 / 0. The numbers are identical across runs.*
 
 ### Translation and models
 - [x] M1-TR-1 On-device backend per ADR-0004 implementing `Translator`, `is_local() == true` (TR-01). *New crate `pg-bergamot`: `BergamotTranslator` (id `bergamot`), translation on Tokio's blocking pool. Tests: `without_models_every_pair_is_model_missing`, `a_broken_installed_model_is_an_error_not_a_panic`; real models: `tr1_tr3_both_directions_loaded_and_translate` (ignored, run manually: passes). The app uses it in live mode. Manually verified with `lens-read.ps1` (release build): "Vill du spara ändringarna innan du stänger?" → "Do you want to save the changes before you close?", English passed through.*
@@ -234,6 +256,18 @@ These are verified with mocks. Each requirement is fully met only once real engi
 ## Session log
 
 Newest first. Keep each entry short: what changed, what's verified, what's next, gotchas.
+
+### 2026-10-31 — Session 6 (M0-FIX-2, M0-FIX-3, M1-CAP-5, M1-OCR-6)
+- Commits: `d182124` CER/WER/å-ä-ö scoring (`pg_testkit::metrics`); `f190a2a` fixture image generator (`pg_testkit::fixture`, `render-fixtures`); `e6df08d` `FixtureCapturer::from_png` + CAP-04 fixture tests at 100–200%; `1fbcbb0` `pg-bench` on fixture images with OCR accuracy output; `f63c542` OCR-04/SV-03 gates; then the docs and this checklist.
+- Fixture images are rendered at test time and not committed (font licensing, D-7 added; details in `tests/fixtures/README.md`).
+- Verified: fmt, clippy `-D warnings`, 151 tests (5 ignored), `cargo +1.90 check --workspace --all-targets`, `cargo deny check` (all ok). `pg-bench --ocr windows` (release, `ui-dialog-sv@100-light`): OCR p50 16.9 ms, accuracy CER 1.15%.
+- Result: OCR-04 passes (English CER 0.80%) and SV-03's CER part passes (0.82%), but SV-03's å/ä/ö part fails (7.3%, mostly ä→å/ä→a at 100–125%). M1-OCR-6 stays `[~]`; the failing gate is an `#[ignore]`d test.
+- Not verified: whether the å/ä/ö failure also happens on real ClearType screen text; real 125%/200% monitors; macOS/Linux fonts (Arial, DejaVu Sans) in the generator.
+- Gotchas:
+  - Windows OCR misses words near the frame edge: give OCR tests some background around the text, or they measure the crop instead of the engine.
+  - The gates read each page in lens-sized strips (`FixtureImage::bands`), as the lens would see it; whole pages fit Windows OCR's limit (`MaxImageDimension` is 10,000 px here).
+  - Commits here were split by staging intermediate file versions with `git hash-object -w` + `git update-index --cacheinfo` (no interactive `git add -p` in this environment).
+- Next: see "Next up".
 
 ### 2026-10-31 — Session 5 (tooling: MSRV 1.90, Tauri 2.12, cargo deny)
 - MSRV fix: `pg-capture` is declared with `default-features = false` in `[workspace.dependencies]`; `pg-pipeline` and the app inherit it plainly, `pg-bench` adds `fixture`. `cargo tree` shows the same `pg-capture` features per package as before.

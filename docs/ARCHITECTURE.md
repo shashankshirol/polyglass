@@ -13,20 +13,20 @@ pg-core ◄── pg-capture ◄──┐
    │          └── pg-bergamot ◄──────────────────┘
    └────── pg-models ◄┘
 
-pg-testkit (dev-only: text rendering for tests and pg-bench)
+pg-testkit (dev-only: fixture images and OCR scoring for tests and pg-bench)
 ```
 
 | Crate | Owns | Key items |
 |---|---|---|
 | `pg-core` | Types shared by everything | `PhysRect`, `LogicalRect::to_physical` (CAP-04), `Frame` (redacted `Debug`), `Line`, `Block::text` (de-hyphenation), `LangTag`, `LangPair`, `SourceLang`, `Error` |
-| `pg-capture` | Getting pixels | `ScreenCapturer` (incl. `release` while hidden), `StaticCapturer`, `FixtureCapturer`, `WgcCapturer` + `monitors()` (Windows Graphics Capture, Windows only; ADR-0003) |
+| `pg-capture` | Getting pixels | `ScreenCapturer` (incl. `release` while hidden), `StaticCapturer`, `FixtureCapturer` (PNG file or bytes), `WgcCapturer` + `monitors()` (Windows Graphics Capture, Windows only; ADR-0003) |
 | `pg-ocr` | Pixels → lines | `OcrEngine`, `default_engine` (OCR-01 table), `resolve_language` (OCR-06/SV-02), `MockOcr`, `WindowsOcr` (WinRT `Windows.Media.Ocr`, Windows only) |
 | `pg-translate` | Text → text | `Translator`, `TranslateError` (TR-06 kinds + Fluent IDs), `langid` (SV-04/TR-07), `tokens` (SV-05 check), `TokenGuard` (SV-05: masked retry, else source), `PivotTranslator`/`plan_route` (TR-03), `MockTranslator` |
 | `pg-bergamot` | On-device translation (ADR-0004) | `BergamotTranslator` (id `bergamot`, local): Mozilla's Firefox Translations models run by `fxtranslate` (pure Rust); `load_installed` loads every installed direction; `ModelFiles` |
 | `pg-pipeline` | Orchestration | `Scheduler` (CAP-03, LENS-06), `change` (CAP-03/06), `grouping` (OCR-02), `cache` (TR-04), `color` (REN-01), `Pipeline::run_cycle`, `driver::spawn`, `LensUpdate` |
 | `pg-models` | Model files | `Manifest` (MDL-01/02), `ModelStore` (MDL-04/05), `Downloader` (MDL-03) |
-| `pg-bench` | Measurement | CLI over `Pipeline::run_cycle` (SPEC §5); `--ocr mock\|windows` |
-| `pg-testkit` | Test helpers | `TextRenderer`: draws text into a `Frame` with an installed system font (until fixture images exist, M0-FIX-2) |
+| `pg-bench` | Measurement | CLI over `Pipeline::run_cycle` (SPEC §5) on a rendered fixture image (`--scale`, `--theme`); `--ocr mock\|windows`, the latter also prints CER/WER/å-ä-ö for the lines in the lens |
+| `pg-testkit` | Test helpers | `TextRenderer` (text into a `Frame` with the system UI font); `fixture` (`truth.json` → `FixtureImage` at 100–200%, light/dark, with line boxes; `render-fixtures` binary); `metrics` (CER, WER, å/ä/ö misreadings) |
 
 ## One cycle
 
@@ -107,6 +107,20 @@ none (`fxtranslate` is pure Rust apart from an optional SIMD shim inside that cr
   (Windows OCR has none).
 - The blocking call `IAsyncOperation::get()` runs on the pipeline's blocking pool. windows-rs
   initialises the thread's COM apartment (MTA) on first use.
+
+## Fixtures and accuracy tests
+
+- Fixture images are rendered from `tests/fixtures/*/truth.json` when a test or `pg-bench` needs
+  them (`pg_testkit::fixture`), never committed; layout, fonts and why are in
+  `tests/fixtures/README.md`. Rendering is deterministic per font file.
+- They reach code under test as PNG bytes through `FixtureCapturer::from_png`, i.e. the same
+  path as an image file.
+- `pg_testkit::metrics::score` compares recognized text with the rendered lines after NFC and
+  whitespace normalization: CER and WER by Levenshtein distance, plus an alignment-based count of
+  how each reference å/ä/ö/Å/Ä/Ö was misread (SV-03). Scores add up across images.
+- Tests: `crates/pg-capture/tests/fixture.rs` (CAP-04: lens regions at 100/125/150/200%),
+  `crates/pg-ocr/tests/accuracy.rs` (OCR-04/SV-03 gates on Windows OCR; they skip with a message
+  when the font or an OCR language is missing, unless `POLYGLASS_REQUIRE_OCR_GATES=1`).
 
 ## Privacy invariants in code
 
