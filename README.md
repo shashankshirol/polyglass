@@ -26,7 +26,7 @@ See [CHECKLIST.md](./CHECKLIST.md) for progress.
 
 ## Building (developers)
 
-Requirements: Rust (stable, 1.85+), Node 20+, and the
+Requirements: Rust (stable, 1.90+), Node 20+, and the
 [Tauri 2 prerequisites](https://v2.tauri.app/start/prerequisites/) for your OS (WebView2 on
 Windows; webkit2gtk 4.1 on Linux).
 

@@ -5,7 +5,7 @@ members = ["crates/*", "apps/desktop/src-tauri"]
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.90"
 # Tentative pending owner decision D-2 (see CHECKLIST.md).
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/polyglass/polyglass"
@@ -13,8 +13,8 @@ publish = false
 
 [workspace.dependencies]
 pg-core = { path = "crates/pg-core" }
-# No default features (`fixture`): members opt in. Cargo 1.85 (MSRV) rejects a member turning
-# them off on an inherited dependency.
+# No default features (`fixture`): members opt in. Some Cargo versions (1.85) reject a member
+# turning them off on an inherited dependency.
 pg-capture = { path = "crates/pg-capture", default-features = false }
 pg-ocr = { path = "crates/pg-ocr" }
 pg-translate = { path = "crates/pg-translate" }
@@ -46,8 +46,8 @@ toml = "1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 unicode-normalization = "0.1"
-# Same minor as Tauri 2.11 uses, so the app builds one copy.
-windows = "0.61"
+# Same minor as Tauri 2.12 uses, so the app builds one copy.
+windows = "0.62"
 
 [workspace.lints.rust]
 unsafe_code = "deny"

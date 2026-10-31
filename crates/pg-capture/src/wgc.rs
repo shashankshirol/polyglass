@@ -315,7 +315,7 @@ impl WgcCapturer {
         if let Ok(op) =
             GraphicsCaptureAccess::RequestAccessAsync(GraphicsCaptureAccessKind::Borderless)
         {
-            let _ = op.get();
+            let _ = op.join();
         }
         Ok(Self {
             device,
@@ -349,10 +349,10 @@ impl WgcCapturer {
     }
 
     fn staging(&mut self, w: u32, h: u32) -> Result<ID3D11Texture2D> {
-        if let Some((sw, sh, tex)) = &self.staging {
-            if (*sw, *sh) == (w, h) {
-                return Ok(tex.clone());
-            }
+        if let Some((sw, sh, tex)) = &self.staging
+            && (*sw, *sh) == (w, h)
+        {
+            return Ok(tex.clone());
         }
         let desc = D3D11_TEXTURE2D_DESC {
             Width: w,
@@ -476,14 +476,14 @@ impl ScreenCapturer for WgcCapturer {
 
         // Black, opaque background for parts outside every monitor.
         let mut data = vec![0u8; region.width as usize * region.height as usize * 4];
-        for px in data.chunks_exact_mut(4) {
+        for px in data.as_chunks_mut::<4>().0 {
             px[3] = 255;
         }
         for (m, part) in &parts {
             self.copy_part(m.id, *part, region, &mut data)?;
         }
         // Copied pixels carry the desktop's alpha; make the frame opaque throughout.
-        for px in data.chunks_exact_mut(4) {
+        for px in data.as_chunks_mut::<4>().0 {
             px[3] = 255;
         }
         // The scale of the monitor holding most of the region.

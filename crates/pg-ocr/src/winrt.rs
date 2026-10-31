@@ -145,7 +145,7 @@ impl OcrEngine for WindowsOcr {
         let bitmap = self.to_bitmap(frame, k)?;
         let result = engine
             .RecognizeAsync(&bitmap)
-            .and_then(|op| op.get())
+            .and_then(|op| op.join())
             .map_err(win_err)?;
         let mut lines = Vec::new();
         for line in &result.Lines().map_err(win_err)? {
@@ -156,10 +156,10 @@ impl OcrEngine for WindowsOcr {
                 bbox = Some(bbox.map_or(r, |b| b.union(&r)));
             }
             let text = line.Text().map_err(win_err)?.to_string_lossy();
-            // Let-chains would need Rust 1.88; the MSRV is 1.85.
-            match bbox {
-                Some(bbox) if !text.trim().is_empty() => lines.push(Line::new(text, bbox, 1.0)),
-                _ => {}
+            if let Some(bbox) = bbox
+                && !text.trim().is_empty()
+            {
+                lines.push(Line::new(text, bbox, 1.0));
             }
         }
         Ok(lines)

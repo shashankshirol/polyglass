@@ -12,7 +12,7 @@ The lens needs an on-device sv→en and en→sv translator behind the `Translato
 fast enough that "at rest → translation drawn" stays within PERF-01 (p50 ≤ 600 ms with OCR at
 ≈ 19 ms), with both directions loaded at once (SV-01, RES-04 < 400 MB), models ≤ 100 MB for
 the pair (SIZE-05), downloaded from manifest URLs with SHA-256 (MDL-02), and licenses on the
-`deny.toml` allowlist. The workspace denies `unsafe_code`, its MSRV is 1.85, and it must build
+`deny.toml` allowlist. The workspace denies `unsafe_code`, its MSRV was 1.85 (1.90 since D-6), and it must build
 on Windows, macOS (x86_64 + arm64) and Linux.
 
 PLAN §4 proposed Bergamot through a C++ FFI (`cxx`), with CTranslate2 (`ct2rs`) as the
