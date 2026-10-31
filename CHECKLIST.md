@@ -61,11 +61,17 @@
 
 ## Owner decisions pending (PLAN §11, SPEC §10)
 
-- [ ] D-1 Final project name (crate prefix `pg-` assumes "Polyglass").
-- [ ] D-2 License. Workspace currently declares `MIT OR Apache-2.0` (PLAN recommendation); LICENSE files not yet added.
-- [ ] D-3 Minimum OS versions confirmed (proposed: Win10 2004, macOS 13, Ubuntu 22.04).
-- [ ] D-4 Code-signing budget (Apple Developer Program, SignPath).
-- [ ] D-5 SPEC §10 open questions 1–6 (default direction, pivot languages, UK/US English default, Linux default mode, online→on-device fallback, Apple Translation framework).
+- [x] D-1 Final project name. **Decided (2026-11-01): "Polyglass is good for now"**; the `pg-` crate prefix stays.
+- [x] D-2 License. **Decided (2026-11-01): "Use the APACHE-2.0 license"**. Done in session 7: `LICENSE` (Apache-2.0 text), workspace `license = "Apache-2.0"`, `apps/desktop/package.json`, README, PLAN §8. `THIRD_PARTY_NOTICES` via `cargo-about` is still M5-2.
+- [x] D-3 Minimum OS versions. **Decided (2026-11-01): the proposed versions (Win10 2004, macOS 13, Ubuntu 22.04); "I don't care about supporting old OSes".** Recorded in SPEC §4.
+- [-] D-4 Code-signing budget (Apple Developer Program, SignPath). **Deferred by the owner (2026-11-01)**; revisit before the first public beta (M5-1).
+- [x] D-5 SPEC §10 open questions 1–6. **Decided (2026-11-01)**, written into SPEC v0.3:
+  1. Default direction **Swedish → English**, "for now"; keep pairs modular so users can set up their own languages (SV-01, new MDL-07 → M3-8).
+  2. Next pair **German → English** (main audience is English speakers) (§3 → M3-9).
+  3. **US** English by default (SV-10 → M3-2).
+  4. **Panel** is the default mode on Linux X11 (MODE-02 → M2-2).
+  5. On-device is the **fallback when an online backend fails, with a notice** to the user; on-device is the default at launch and online backends are opt-in (TR-06, TR-02 → M3-4).
+  6. **No** Apple Translation framework: same backend on every OS (§8).
 - [x] D-6 `cargo deny` advisories that MSRV 1.85 / Tauri 2.11 block (session 5). **Decided: "Raise MSRV to 1.90"** — done in session 5 (MSRV 1.90, Tauri 2.12, `cargo update`; quick-xml, time and `unic-*` are gone; the two unmaintained crates below are ignored in `deny.toml` with reasons). Original findings:
   - RUSTSEC-2026-0194, RUSTSEC-2026-0195 (quick-xml 0.38.4, XML DoS) via `plist` 1.8.0 ← tauri-utils/tauri-macros/the app. `plist` ≥ 1.9 drops quick-xml but needs Rust 1.88. Tauri uses it to read our own config/Info.plist at build time; `tauri` itself depends on it only on macOS.
   - RUSTSEC-2026-0009 (time 0.3.45, RFC 2822 parse stack exhaustion) via `cookie` and `plist`. Fixed in time 0.3.47, which needs Rust 1.88.
@@ -74,6 +80,7 @@
   - RUSTSEC-2026-0192 (unmaintained `ttf-parser` 0.25) via `ab_glyph` 0.2.32 (latest) ← `pg-testkit`, dev/bench only, never in the app. No fix upstream.
   - Raising the MSRV to 1.88 clears the three vulnerabilities; 1.90 (Tauri 2.12, npm to 2.12.x too) also clears `unic-*`. The two unmaintained crates need ignores either way.
 - [ ] D-7 Commit fixture PNGs? (session 6, not blocking.) Today they are rendered at test time with the OS UI font and nothing is committed (`tests/fixtures/README.md`). Segoe UI (Windows) and Arial (Windows/macOS) are licensed with the OS; the font files can't be redistributed, and whether renderings of them can be released under CC0 with the rest of the fixtures is unclear. Options: (a) keep rendering at test time (current); (b) commit PNGs rendered with an OFL font (e.g. Noto Sans) kept in or pinned by the repo — identical images on every OS and CI, but not the Windows UI font; (c) commit Segoe UI renderings after a licensing check. (b) or (c) would fill `image`/`bbox` in `truth.json` (≈ 3 MB for all 64 images).
+- [ ] D-8 Translation engine: keep `fxtranslate` (ADR-0004 option C) or switch to Mozilla's Bergamot C++ (option A, same model files) for a more proven engine? Raised by the owner on 2026-11-01 ("less trustworthy, perhaps?"). Switching keeps the manifest, models and `Translator` API; the cost is a CMake + C++17 build on every OS and CI, a git submodule, and a scoped `unsafe` exception for the `cxx` bridge. The session-4 build attempt was blocked by this environment's permission check for running CMake on downloaded source, so the owner would need to allow that.
 
 ---
 
@@ -218,7 +225,7 @@ These are verified with mocks. Each requirement is fully met only once real engi
 
 ## M2 — Linux + more modes
 - [ ] M2-1 X11 capture (x11rb + MIT-SHM); experimental overlay hide-capture-show (CAP-02 X11).
-- [ ] M2-2 Panel mode (MODE-02) incl. flip-above and reading order.
+- [ ] M2-2 Panel mode (MODE-02) incl. flip-above and reading order; Panel is the default on Linux X11 (D-5).
 - [ ] M2-3 Freeze mode on all platforms; Wayland via xdg-desktop-portal (MODE-03, CAP-05 Wayland).
 - [ ] M2-4 Tray-menu fallback for hotkeys on Wayland (HK-03).
 - [ ] M2-5 Low-confidence hide/dim setting (OCR-05) — pipeline side already filters by threshold; UI setting pending.
@@ -227,12 +234,14 @@ These are verified with mocks. Each requirement is fully met only once real engi
 
 ## M3 — Online backends
 - [ ] M3-1 LibreTranslate backend + language-list check for Swedish (TR-01, SV-10).
-- [ ] M3-2 DeepL Free/Pro + EN-GB/EN-US variant (TR-01, SV-10).
+- [ ] M3-2 DeepL Free/Pro + EN-GB/EN-US variant, default EN-US (TR-01, SV-10, D-5).
 - [ ] M3-3 Google Cloud Translation (TR-01).
-- [ ] M3-4 Batching per frame (TR-05); 5 s timeouts and error mapping (TR-06) — `TranslateError` kinds already exist.
+- [ ] M3-4 Batching per frame (TR-05); 5 s timeouts and error mapping (TR-06) — `TranslateError` kinds already exist. Online failure falls back to on-device when the pair's models are installed, with a lens notice; on by default, can be turned off (TR-06, D-5).
 - [ ] M3-5 Keychain storage via `keyring` (SET-02) + grep test.
 - [ ] M3-6 Consent dialogs per backend (PRIV-04); text-only payloads test (PRIV-03).
 - [ ] M3-7 Network activity log (PRIV-08); rustls only (SEC-03).
+- [ ] M3-8 Configurable language pairs (MDL-07, D-5): pairs come from settings + the model catalog instead of the hard-coded sv/en (`SourceLang::AutoSvEn`, `langid` sv/en scorer, `live.rs`, `pg-bergamot` loading exactly sv→en/en→sv); toolbar source/target pickers; OCR language follows the source (OCR-06). Could move earlier if it simplifies M3-9.
+- [ ] M3-9 German → English on-device (SPEC §3, D-5): manifest entry for Mozilla's de→en model (verify it's in the catalog, its license and SHA-256), German OCR (Windows `de-DE` OCR feature, Tesseract `deu` elsewhere), `de-en` fixtures with ä/ö/ü/ß, CER gate.
 
 ## M4 — Polish
 - [ ] M4-1 Appearance settings + reduced motion (LENS-07).
@@ -256,6 +265,14 @@ These are verified with mocks. Each requirement is fully met only once real engi
 ## Session log
 
 Newest first. Keep each entry short: what changed, what's verified, what's next, gotchas.
+
+### 2026-11-01 — Session 7 (owner decisions D-1..D-5, coordinator)
+- The owner answered D-1..D-5. D-1, D-2, D-3 and D-5 are decided and D-4 is deferred (details under "Owner decisions"). SPEC is now v0.3: §3, §4, MODE-02, TR-06, MDL-07 (new), SV-01, SV-10, §8 and §10. PLAN §8 and §11 are updated too.
+- D-2 is done: `LICENSE` (Apache-2.0; matches the text that `reqwest` ships, apart from the copyright line), workspace `license`, `package.json` + lock and the README.
+- New tasks: M3-8 (configurable language pairs, MDL-07) and M3-9 (German → English). M2-2, M3-2 and M3-4 carry the D-5 details.
+- New open question D-8 (`fxtranslate` vs Bergamot C++), raised by the owner.
+- README: "Build and run locally" section (`5c50fc7`). The release build (`npm run tauri build -- --no-bundle`) and a `--demo` launch of `target/release/polyglass.exe` were checked; the installer bundle (WiX/NSIS) was not.
+- Next: see "Next up"; D-8 may move the engine switch to the front.
 
 ### 2026-10-31 — Session 6 (M0-FIX-2, M0-FIX-3, M1-CAP-5, M1-OCR-6)
 - Commits: `d182124` CER/WER/å-ä-ö scoring (`pg_testkit::metrics`); `f190a2a` fixture image generator (`pg_testkit::fixture`, `render-fixtures`); `e6df08d` `FixtureCapturer::from_png` + CAP-04 fixture tests at 100–200%; `1fbcbb0` `pg-bench` on fixture images with OCR accuracy output; `f63c542` OCR-04/SV-03 gates; then the docs and this checklist.

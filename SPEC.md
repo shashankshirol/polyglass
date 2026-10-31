@@ -1,8 +1,10 @@
 # Polyglass — Product Specification
 
-> **Version:** 0.2 (draft) · **Date:** 2026-10-30 · **Companion:** [`PLAN.md`](./PLAN.md)
+> **Version:** 0.3 (draft) · **Date:** 2026-11-01 · **Companion:** [`PLAN.md`](./PLAN.md)
 > Priorities use MoSCoW: **MUST** (blocks 1.0), **SHOULD** (expected in 1.0), **COULD** (nice to have).
 > Each requirement has an ID; acceptance criteria (AC) are written so they can be checked by a test or a reviewer.
+
+**Changes in v0.3:** Owner answers to the open questions (§10, decision D-5). Default direction is Swedish → English (SV-01). Language pairs come from the model catalog, so users can add their own (MDL-07); German → English is the next pair (§3). US English is the default variant (SV-10). Panel is the default mode on Linux X11 (MODE-02). Failing online backends fall back to on-device with a notice (TR-06). Apple's Translation framework is out of scope (§8). Minimum OS versions confirmed (§4, D-3).
 
 **Changes in v0.2:** Swedish is the primary v1 language. Added §3 (language scope) and §6.11 (Swedish requirements SV-01 to SV-10). OCR engine is now chosen per platform *and* source language, because Apple Vision has no Swedish support. Fixtures, performance measurement and UI localization now cover Swedish. macOS installer size target raised to 20 MB for the bundled Swedish OCR.
 
@@ -31,8 +33,11 @@ Swedish is the primary language for v1.
 |---|---|---|
 | MUST | Swedish → English | On-device and online |
 | MUST | English → Swedish | On-device and online |
+| SHOULD | German → English | Next pair after sv↔en (D-5): most users are English speakers. On-device model from the same catalog |
 | SHOULD | Swedish ↔ other languages that have on-device models | Pivot through English (TR-03) |
 | COULD | Any other pair a backend offers | No Swedish-specific testing |
+
+Language pairs are data, not code: any pair the model catalog or an online backend offers can be installed and selected without a code change (MDL-07).
 
 **Platform facts that shape this spec** (re-verify in M0, since vendor support changes):
 
@@ -59,6 +64,8 @@ Swedish is the primary language for v1.
 | Linux Wayland | GNOME 45 / KDE Plasma 6 | 2 | ❌ (post-v1) | ❌ (post-v1) | ✅ |
 
 Tier 1: release-blocking. Tier 2: supported, but bugs don't block a release.
+
+The minimums are confirmed (D-3). Older OS versions are not supported.
 
 ## 5. Reference hardware and measurement
 
@@ -110,6 +117,7 @@ Tier 1: release-blocking. Tier 2: supported, but bugs don't block a release.
 **MODE-02 Panel — MUST**
 - [ ] The lens interior stays transparent; translations are listed in a panel attached below the lens, flipping above when there is no room below.
 - [ ] Panel lists blocks in reading order of the source.
+- [ ] Panel is the default mode on Linux X11; Overlay stays selectable there as experimental (§4).
 
 **MODE-03 Freeze — MUST**
 - [ ] A hotkey or toolbar button takes one snapshot of the current monitor and displays it fullscreen; the lens can then be moved over the snapshot.
@@ -199,7 +207,8 @@ Tier 1: release-blocking. Tier 2: supported, but bugs don't block a release.
 
 **TR-06 Failure handling — MUST**
 - [ ] Network errors, timeouts (5 s), HTTP 401/403 (auth) and 429 (quota) each show a distinct, human-readable message in the lens.
-- [ ] The app never silently falls back from on-device to an online backend. Falling back from online to on-device is allowed only if the user enabled it.
+- [ ] The app never falls back from on-device to an online backend.
+- [ ] When an online backend fails, the app falls back to the on-device backend for that pair if its models are installed, and the lens says so ("Online translation failed — using on-device"). This fallback is on by default and can be turned off in settings.
 
 **TR-07 Already in target language — MUST**
 - [ ] Blocks detected as already in the target language are shown unchanged and not sent to the backend (see SV-04).
@@ -238,6 +247,10 @@ Tier 1: release-blocking. Tier 2: supported, but bugs don't block a release.
 
 **MDL-04 Offline import — SHOULD**
 - [ ] A model package can be imported from a local file and is verified the same way.
+
+**MDL-07 User-selected language pairs — SHOULD**
+- [ ] Users can install any pair the catalog lists and pick it as source/target in the toolbar; adding a pair the on-device engine supports needs only a catalog entry, no code change.
+- [ ] Pipeline, OCR language selection and language identification take the pair from settings instead of assuming Swedish/English.
 
 **MDL-05 Removal — MUST**
 - [ ] Models can be deleted; total disk usage is displayed.
@@ -309,7 +322,7 @@ These keys were chosen because they produce no characters with AltGr on the Swed
 ### 6.11 Swedish language support (SV)
 
 **SV-01 First-run defaults — MUST**
-- [ ] If the OS display language is Swedish, the default direction is English → Swedish; otherwise Swedish → English.
+- [ ] The default direction is Swedish → English, whatever the OS display language (D-5).
 - [ ] The first-run wizard pre-selects both the sv→en and en→sv on-device models and shows their combined download size before downloading.
 - [ ] The swap hotkey (HK-01) switches direction instantly, without reloading models once both are downloaded.
 
@@ -350,7 +363,7 @@ These keys were chosen because they produce no characters with AltGr on the Swed
 
 **SV-10 Swedish on online backends — MUST**
 - [ ] DeepL and Google backends pass both evaluation sets (SV-07) end-to-end without errors.
-- [ ] Settings has an English-variant choice (UK/US), mapped to DeepL's separate British and American English targets.
+- [ ] Settings has an English-variant choice (UK/US), mapped to DeepL's separate British and American English targets. The default is US English (D-5).
 - [ ] When a LibreTranslate server is added, the app reads its language list; if Swedish is not offered, it says so and doesn't enable the backend for Swedish pairs.
 
 ## 7. Non-functional requirements
@@ -422,6 +435,7 @@ Online backend round trips are excluded from PERF-01 and PERF-06.
 - Required GPU acceleration.
 - Mac App Store / Microsoft Store distribution.
 - Live (non-Freeze) capture on Wayland.
+- Apple's Translation framework or other OS-specific translation engines: every OS uses the same on-device backend (D-5).
 
 ## 9. Traceability to milestones
 
@@ -436,9 +450,11 @@ Online backend round trips are excluded from PERF-01 and PERF-06.
 
 ## 10. Open questions
 
-1. Which direction matters more to your users, Swedish → English or English → Swedish? Defaults currently follow the OS language (SV-01).
-2. Beyond English, which languages should Swedish pair with first (e.g. Finnish, German, Arabic)? This sets the priority for pivot testing (TR-03).
-3. Default English variant for online backends: UK or US (SV-10)?
-4. Should Panel mode, rather than Overlay, be the default on Linux X11?
-5. Should the on-device backend be offered as an automatic fallback when an online backend fails (TR-06), and if so, on by default?
-6. Is Apple's built-in Translation framework worth adding later as a second macOS on-device backend? (Check its Swedish support first.)
+All answered by the owner on 2026-11-01 (D-5):
+
+1. ~~Which direction matters more?~~ **Swedish → English**, for now (SV-01). Pairs must stay configurable (MDL-07).
+2. ~~Which languages next?~~ The main audience is English speakers, so the next pair is **German → English** (§3).
+3. ~~UK or US English?~~ **US** by default (SV-10).
+4. ~~Panel by default on Linux X11?~~ **Yes** (MODE-02).
+5. ~~On-device fallback when online fails?~~ **Yes, with a notice in the lens** (TR-06). On-device stays the default at launch; online backends are opt-in (TR-02).
+6. ~~Apple's Translation framework?~~ **No.** Same backend on every OS (§8).
