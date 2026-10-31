@@ -25,22 +25,26 @@
 
 ## Current state
 
-- **Milestone:** M0/M1. Headless core done. Desktop shell `apps/desktop` (Tauri 2.11, TS + Vite, no framework) runs on Windows with a transparent click-through lens and the mock pipeline behind `--demo` / `POLYGLASS_DEMO=1`. 107 tests green, clippy `-D warnings` and fmt clean (Windows only so far). M0-SPK-1 is verified on Windows only (ADR-0002).
+- **Milestone:** M1. Headless core done. On Windows the lens now runs **live by default**: Windows Graphics Capture of the lens interior + Windows OCR. Translation is still `MockTranslator` until M1-TR-1 (Swedish shows as `[en] <text>`, toolbar badge "MOCK MT"). `--demo` / `POLYGLASS_DEMO=1` keeps all mocks. 126 tests green (1 ignored measurement), clippy `-D warnings` and fmt clean (Windows only so far). ADR-0002 (click-through) and ADR-0003 (capture) are verified on Windows only.
 - **Dev machine used so far:** Windows 11 x64, Rust 1.99, Node 24, Python 3.12 (no Pillow), no Tesseract. Windows OCR languages installed: `en-US`, `en-GB`, `sv-SE` (Swedish was added after session 2; the real "Swedish missing" path is now tested with an uninstalled tag instead).
 - **Monitors on this machine:** 2560×1440 at 100% (primary) and 2160×3840 at 150% (above-left, negative coordinates), which is useful for CAP-04 and mixed-DPI checks.
 - **Git:** local repo on `main`; no remote yet.
 - **Next up (suggested order, each ≈ one session):**
-  1. M1-OCR-1/2: Windows OCR engine (`windows` crate) in `pg-ocr`, testable on this machine.
-  2. M1-CAP-1/2: WGC region capture + `WDA_EXCLUDEFROMCAPTURE` on the lens HWND. Then make capture the default in `apps/desktop` (today it needs `--demo` to run a pipeline at all).
-  3. M0-FIX-2: fixture image generator (unblocks OCR accuracy gates and real `pg-bench` runs).
-  4. M0-SPK-3: Bergamot vs CTranslate2.
-  5. M0-SPK-1 on macOS/Linux (measure click-through there, see ADR-0002 "Not yet verified").
+  1. M0-SPK-3: Bergamot vs CTranslate2 → ADR-0004, then M1-TR-1 (real translation replaces the mock in `apps/desktop/src-tauri/src/live.rs`).
+  2. M0-FIX-2: fixture image generator. `pg-testkit::TextRenderer` (ab_glyph + system font) already renders text into frames; extend it to truth.json → PNG at 100–200%, light/dark. Then M0-FIX-3 (CER) and M1-OCR-6 (accuracy gates).
+  3. Tune `ChangeConfig` and measure CPU on real captures in a release build (ADR-0003 "Not yet verified").
+  4. M1-APP-6..9 (font fitting, hold-to-show-original, settings TOML, hotkeys).
+  5. M0-SPK-1/SPK-2 on macOS/Linux.
 - **Known follow-ups inside done work** (not separate tasks yet):
   - `ChangeConfig` thresholds (8 px cells, 6-level tolerance, 0.15% of cells) are only tested on synthetic frames. Tune on real captures (caret blink, ClearType).
   - `langid` scores 100% on `mixed-sv-en`, but it was tuned on that same fixture. Add a held-out set before trusting the SV-04 ≥ 90% gate.
   - `reqwest` uses rustls with the default **aws-lc-rs** provider. It built fine here, but check its binary size (SIZE-01) and build needs on macOS/Linux/arm64; switch to `ring` if needed.
   - An OCR call already running when the lens moves runs to completion and its result is discarded. OCR never *starts* while moving (ADR-0001).
-  - The pipeline queries OCR languages through `recognize` errors on each cycle. Cache the language list if WinRT makes that slow.
+  - The pipeline queries OCR languages through `recognize` errors on each cycle, and `WindowsOcr` queries `AvailableRecognizerLanguages` on each `recognize` that names a language. That is inside the ≈19 ms OCR p50, so there is no cache yet.
+  - `WindowsOcr` reports confidence 1.0 for every line (Windows OCR has none), so the OCR-05 threshold never hides Windows OCR lines.
+  - Capture recovery after monitor hot-plug, resolution change or device loss is untested (ADR-0003); errors surface as `cap-error`.
+  - The WGC tests (`crates/pg-capture/tests/wgc.rs`) open real windows and need a desktop session with WGC, so they may fail on GitHub's Windows runners. Decide between skipping and a self-hosted runner when CI first runs.
+  - Live-mode CPU with the lens visible over static content: 438 ms per 10 s in a debug build (4 Hz capture + change detection + click-through poller). Measure a release build.
   - Tauri is pinned to the 2.11 line (crate 2.11.6, npm `@tauri-apps/api` 2.11.1 / CLI 2.11.5), because Tauri 2.12 needs Rust 1.90 and the workspace MSRV is 1.85. Raise the MSRV to move on, and keep npm and crate on the same minor version (the CLI warns otherwise).
   - The click-through poller doesn't check mouse-button state (ADR-0002); a drag-selection that crosses into the interior flips to click-through mid-gesture.
   - Demo mode's synthetic desktop uses the starting monitor's scale for all monitors (mock only).
@@ -78,7 +82,7 @@ These are verified with mocks. Each requirement is fully met only once real engi
 
 ### Spikes (each ends with an ADR in `docs/adr/`)
 - [~] M0-SPK-1 Transparent, frameless, always-on-top Tauri 2 window; click-through via cursor hit-testing at ~30 Hz (PLAN §5). Measure smoothness on Win/mac/Linux. → ADR-0002. *Windows done and measured (19–49 ms switch, ≈0.3% core while visible, 0 when hidden; debug build). macOS/Linux not run; release-build numbers not taken.*
-- [ ] M0-SPK-2 Self-excluding region capture: WGC + `WDA_EXCLUDEFROMCAPTURE` (Win), ScreenCaptureKit (mac); X11 hide/capture/show flicker timing. → ADR-0003.
+- [~] M0-SPK-2 Self-excluding region capture: WGC + `WDA_EXCLUDEFROMCAPTURE` (Win), ScreenCaptureKit (mac); X11 hide/capture/show flicker timing. → ADR-0003. *Windows done and measured (ADR-0003). macOS ScreenCaptureKit and X11 flicker timing not started.*
 - [ ] M0-SPK-3 Bergamot (cxx FFI) vs CTranslate2 (`ct2rs`) with sv↔en models: build complexity, size, latency, memory on all OSes. → ADR-0004.
 - [ ] M0-SPK-4 Swedish fixtures + OCR accuracy/latency per engine incl. Vision vs Tesseract `swe` on macOS. → ADR-0005.
 - [ ] M0-SPK-5 Wayland portal screenshot + fullscreen Freeze window on GNOME and KDE. → ADR-0006.
@@ -94,15 +98,24 @@ These are verified with mocks. Each requirement is fully met only once real engi
 ## M1 — MVP on Windows + macOS
 
 ### Capture
-- [ ] M1-CAP-1 Windows: Windows.Graphics.Capture region capture (CAP-01) in `pg-capture::windows`.
-- [ ] M1-CAP-2 Windows: `SetWindowDisplayAffinity(WDA_EXCLUDEFROMCAPTURE)` on lens window; marker self-capture test over 100 cycles (CAP-02).
+- [x] M1-CAP-1 Windows: Windows.Graphics.Capture region capture (CAP-01) in `pg-capture::windows`. *`pg_capture::WgcCapturer` (module `wgc`, the only `unsafe` in the crates).*
+  - *Per-monitor sessions keep only the newest frame; the region is cropped on the GPU; monitor rects are read in a PMv2 thread scope so they are physical pixels; parts outside every monitor are black.*
+  - *`ScreenCapturer::release` frees the sessions while the lens is hidden or paused. The driver calls it, and `lens06_hide_parks_the_pipeline` checks that.*
+  - *Tests: `cap01_captures_exactly_the_region`, `cap04_every_monitor_and_a_region_across_two` (100% + 150% at negative coordinates, region across x = 0), `release_closes_sessions_and_capture_reopens_them`.*
+  - *600×300 capture p50 0.26 ms / p95 0.41 ms (release); the first capture after a session starts takes 10–37 ms.*
+  - *Not tested: hot-plug, resolution change, device loss.*
+- [x] M1-CAP-2 Windows: `SetWindowDisplayAffinity(WDA_EXCLUDEFROMCAPTURE)` on lens window; marker self-capture test over 100 cycles (CAP-02).
+  - *`lens::exclude_from_capture` runs before the lens is first shown. If it fails, live mode doesn't start and the lens shows `cap-error-self-exclusion`.*
+  - *Tests: `cap02_excluded_window_is_not_captured` and `cap02_marker_is_never_recognized_over_100_cycles`. The second uses a Win32 stand-in window that draws "POLYGLASS MARKER QX7" with the same affinity call; a control run without exclusion does read the marker.*
+  - *Manually: in live mode the lens shows one `[en] …` translation of the text beneath it, never a translation of its own output.*
+  - *Gap: the marker is not drawn by the real lens.*
 - [ ] M1-CAP-3 macOS: ScreenCaptureKit stream, `sourceRect` = lens, excluding own app (CAP-01/02).
 - [ ] M1-CAP-4 macOS Screen Recording permission missing/revoked → explanation + open-settings button + auto-resume (CAP-05).
-- [ ] M1-CAP-5 HiDPI/mixed-DPI fixture tests at 100/125/150/200% (CAP-04, LENS-02).
+- [~] M1-CAP-5 HiDPI/mixed-DPI fixture tests at 100/125/150/200% (CAP-04, LENS-02). *Real-capture tests at 100% and 150% and across a mixed-DPI monitor edge (`cap04_every_monitor_and_a_region_across_two`); the live lens was checked on both monitors (ADR-0003). 125% and 200% aren't available on this machine; fixture-based tests need M0-FIX-2.*
 
 ### OCR
 - [x] M1-OCR-1 Windows OCR engine via `windows` crate (`Windows.Media.Ocr`), lines + boxes + confidence (OCR-01/02). *`pg_ocr::WindowsOcr` (windows 0.61, the version Tauri 2.11 already uses; no `unsafe`). Line box = union of word boxes in frame pixels; confidence is always 1.0 because Windows OCR has none, so OCR-05 filtering does nothing with this engine. Tests in `crates/pg-ocr/tests/windows_ocr.rs` render text with `pg-testkit` (Segoe UI, grayscale AA): `ocr01_recognizes_rendered_english_lines_with_boxes`, `ocr01_dark_theme_and_pixel_formats` (BGRA/RGBA with padded stride/Gray8), `ocr01_boxes_are_in_frame_pixels_at_any_upscale`. Text is checked with a CER bound (≤ 6%/line), not exact match. PERF-03 (release, `pg-bench --ocr windows`, 600×300, sv): p50 18.9 ms / p95 19.1 ms at 100%; 34.0 / 35.9 ms at 150% (900×450 px).*
-- [~] M1-OCR-2 Runtime language query `AvailableRecognizerLanguages` (OCR-06) + SV-02 Windows message/link when `sv-SE` missing. *Done: `WindowsOcr::available_languages()` is queried on every `recognize` that names a language and by `supported_languages()`; a missing language is `Error::OcrLanguageMissing`. Tests: `ocr06_languages_are_queried_at_runtime`, `ocr03_uninstalled_language_is_reported_missing` (real engine, `tlh`), `sv02_swedish_missing_or_recognized` (checks whichever branch the machine is on). **sv-SE is now installed on this machine**, so the real "Swedish missing" branch can't be hit here any more. Not done: the lens's "how to add Swedish" explanation + settings link.*
+- [~] M1-OCR-2 Runtime language query `AvailableRecognizerLanguages` (OCR-06) + SV-02 Windows message/link when `sv-SE` missing. *Done: `WindowsOcr::available_languages()` is queried on every `recognize` that names a language and by `supported_languages()`; a missing language is `Error::OcrLanguageMissing`. Tests: `ocr06_languages_are_queried_at_runtime`, `ocr03_uninstalled_language_is_reported_missing` (real engine, `tlh`), `sv02_swedish_missing_or_recognized` (checks whichever branch the machine is on). **sv-SE is now installed on this machine**, so the real "Swedish missing" branch can't be hit here any more. Lens UI: when Swedish OCR is missing (the Auto-mode notice or `ocr-error-language-missing`), the interior explains where to add it and a toolbar "⚠ SV" button calls `open_ocr_language_settings`, which opens `ms-settings:regionlanguage`. The button is in the toolbar because the interior is click-through. Not verified in the running app: Swedish is installed here, so that state never occurs.*
 - [ ] M1-OCR-3 Apple Vision engine (English) + runtime language check (OCR-01, OCR-06).
 - [ ] M1-OCR-4 Tesseract 5 engine (bundled on macOS with `swe`+`eng`) (OCR-01, SV-02 mac).
 - [x] M1-OCR-5 Upscale small text before OCR (PLAN §10 risk mitigation). *`WindowsOcr` enlarges frames 2× (bilinear) below 200% scale; `with_upscale(k)` forces a factor. Measured on rendered Segoe UI, 5 lines (3 en, 2 sv), 600×300, release: exact lines at 1×/2×/3× — 11 px 0/0/1, 12 px 0/2/2, 13 px 1/2/2, 14 px 2/3/2, 16 px 2/3/2, 20 px 5/5/5; at 1× small text drops whole words. OCR time 1× ≈ 8–17 ms, 2× ≈ 17–26 ms, 3× ≈ 30–35 ms. Remaining misreads at 2× are mostly 5→S and rn→m (`ändringama`). Tuned on synthetic text only; recheck on real captures (ClearType).*
@@ -136,6 +149,7 @@ These are verified with mocks. Each requirement is fully met only once real engi
   - *Close hides the lens to the tray.*
 
   *Not done:*
+  - *A mode badge: "DEMO" with `--demo`, "MOCK MT" in live mode until M1-TR-1.*
   - *Source/target/swap/mode/settings are `aria-disabled` placeholders.*
   - *Keyboard Tab order and screen-reader output not tested.*
 - [~] M1-APP-4 Tray icon, no taskbar/Dock entry, show/hide hotkey parks the pipeline (LENS-01, LENS-06). *Done:*
@@ -153,7 +167,7 @@ These are verified with mocks. Each requirement is fully met only once real engi
   - *A basic 16→9 px shrink-to-fit (full REN-02 is M1-APP-6).*
   - *Verified end to end with `--demo` (mock engines). Test: `demo_pipeline_translates_swedish_and_passes_english_through`.*
 
-  *Not done: real capture/OCR/translation.*
+  *Since session 3 the default (non-demo) pipeline on Windows is real capture + Windows OCR (`live.rs`), checked with `apps/desktop/scripts/lens-read.ps1` on the 100% and 150% monitors. Not done: real translation (M1-TR-1).*
 - [ ] M1-APP-6 Font fitting down to 9 px + grow + tooltip (REN-02).
 - [ ] M1-APP-7 Hold Alt/Option to show original (REN-04); copy hotkey (REN-05, UTF-8 round-trip test).
 - [ ] M1-APP-8 Settings TOML in config dir (SET-01); model manager UI (MDL-01/03/05); first-run wizard (MDL-06, SV-01).
@@ -207,6 +221,25 @@ These are verified with mocks. Each requirement is fully met only once real engi
 ## Session log
 
 Newest first. Keep each entry short: what changed, what's verified, what's next, gotchas.
+
+### 2026-10-31 — Session 3 (M1-OCR-1/2/5, M1-CAP-1/2)
+- Commits: `d061cf8` Windows OCR + `pg-testkit`; `7257279` WGC capturer + `ScreenCapturer::release`; `3640236` live mode in the app; then ADR-0003 + this checklist.
+- `pg_ocr::WindowsOcr` (no `unsafe`), with 2× upscaling below 200% scale and a runtime language list. PERF-03 on rendered text: OCR p50 18.9 ms at 600×300 (100%) and 34 ms at 150% (release).
+- New crate `pg-testkit` (dev and bench only): `TextRenderer` draws text with a system font (Segoe UI). `pg-bench` renders the fixture text with it and has `--ocr windows`.
+- `pg_capture::WgcCapturer` + ADR-0003. The app sets `WDA_EXCLUDEFROMCAPTURE` on the lens and runs live capture + Windows OCR + mock translation by default; `--demo` is unchanged.
+- Verified: fmt, clippy, 126 tests (19 new). The live app was checked on both monitors with `lens-read.ps1`; logs had no recognized text; a hidden lens used 0 ms CPU per 10 s.
+- Not verified: release-build CPU, the Windows 11 yellow capture border (check by eye), the SV-02 UI (Swedish is installed here), CI.
+- Gotchas:
+  - **Swedish OCR (`sv-SE`) is now installed on this machine**, so the real "Swedish missing" path can't be reached here. The engine's missing-language path is tested with `tlh` instead.
+  - Windows OCR misreads small grayscale-AA text badly at 1× and drops whole words at 14 px and below. 2× bilinear fixes most of it; 3× doesn't help. Typical leftovers: `5`→`S`, `rn`→`m`. Tests use a CER bound, not exact strings.
+  - The lens is invisible to screenshots (that's CAP-02 working). Read its text through UI Automation with `apps/desktop/scripts/lens-read.ps1 -X <x> -Y <y>`: put the test window under the lens interior; `lens-probe.ps1 info` gives the lens rect.
+  - Windows PowerShell 5.1 reads BOM-less UTF-8 scripts as ANSI (å/ä/ö become mojibake). Save `.ps1` files that contain non-ASCII text with a BOM.
+  - In this environment's Bash tool, a doubled backslash inside a quoted heredoc reaches the program as a single one, so Python read `\b` as a backspace. That's how README's PATH hint got a literal backspace (fixed). Heredocs with apostrophes also sometimes fail to parse; write scripts to a file instead, and check for control characters after scripted edits.
+  - windows-rs 0.61: the D3D11 and WGC classes are `Send`, but the WinRT `IDirect3DDevice` isn't, so `WgcCapturer` creates it whenever a session starts instead of storing it. `HMONITOR` holds a raw pointer (not `Send`) and is stored as `isize`.
+  - Let-chains (`if let … && …`) need Rust 1.88; the MSRV is 1.85.
+  - A WGC frame pool fills up if nobody takes frames, and newer frames are then dropped. The `FrameArrived` handler keeps only the newest frame, and the copy holds that frame's lock so its buffer can't be recycled mid-copy.
+  - The WGC tests take about 7 s and flash small topmost windows near (200, 200) on each monitor; they run one at a time behind a mutex.
+- Next: see "Next up".
 
 ### 2026-10-31 — Session 2 (M0-SPK-1 + M1-APP-1)
 - Added `apps/desktop`: Tauri 2 shell (`src-tauri`, now a workspace member) and the lens UI (`ui/`, TS + Vite 8, no framework), with a strict CSP and least-privilege capabilities. Modules: lens geometry, click-through poller, shared state → `DriverHandle`, IPC commands, `--demo` mock pipeline, tray.
