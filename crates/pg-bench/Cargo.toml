@@ -10,7 +10,7 @@ publish.workspace = true
 
 [dependencies]
 pg-core.workspace = true
-pg-capture.workspace = true
+pg-capture = { workspace = true, features = ["fixture"] }
 pg-ocr.workspace = true
 pg-translate.workspace = true
 pg-pipeline.workspace = true

@@ -13,7 +13,9 @@ publish = false
 
 [workspace.dependencies]
 pg-core = { path = "crates/pg-core" }
-pg-capture = { path = "crates/pg-capture" }
+# No default features (`fixture`): members opt in. Cargo 1.85 (MSRV) rejects a member turning
+# them off on an inherited dependency.
+pg-capture = { path = "crates/pg-capture", default-features = false }
 pg-ocr = { path = "crates/pg-ocr" }
 pg-translate = { path = "crates/pg-translate" }
 pg-pipeline = { path = "crates/pg-pipeline" }

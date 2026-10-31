@@ -17,7 +17,7 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 pg-core.workspace = true
-pg-capture = { workspace = true, default-features = false }
+pg-capture.workspace = true
 pg-ocr.workspace = true
 pg-translate.workspace = true
 pg-pipeline.workspace = true
