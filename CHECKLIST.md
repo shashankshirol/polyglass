@@ -25,16 +25,16 @@
 
 ## Current state
 
-- **Milestone:** M1. Headless core done. On Windows the lens now runs **live by default**: Windows Graphics Capture of the lens interior + Windows OCR. Translation is still `MockTranslator` until M1-TR-1 (Swedish shows as `[en] <text>`, toolbar badge "MOCK MT"). `--demo` / `POLYGLASS_DEMO=1` keeps all mocks. 126 tests green (1 ignored measurement), clippy `-D warnings` and fmt clean (Windows only so far). ADR-0002 (click-through) and ADR-0003 (capture) are verified on Windows only.
+- **Milestone:** M1. Headless core done. On Windows the lens runs **live by default**: Windows Graphics Capture of the lens interior + Windows OCR + **on-device translation** (`pg-bergamot`: Mozilla's Firefox Translations sv↔en models on the pure-Rust `fxtranslate` engine, behind the SV-05 `TokenGuard`; ADR-0004). Models aren't bundled: without them the lens says so and the toolbar ⬇ downloads them (30.5 MB). `--demo` / `POLYGLASS_DEMO=1` keeps all mocks. 137 tests green (4 ignored: 1 measurement + 3 real-model tests that download), clippy `-D warnings` and fmt clean (Windows only so far). ADR-0002 (click-through), ADR-0003 (capture) and ADR-0004 (translation) are verified on Windows only.
 - **Dev machine used so far:** Windows 11 x64, Rust 1.99, Node 24, Python 3.12 (no Pillow), no Tesseract. Windows OCR languages installed: `en-US`, `en-GB`, `sv-SE` (Swedish was added after session 2; the real "Swedish missing" path is now tested with an uninstalled tag instead).
 - **Monitors on this machine:** 2560×1440 at 100% (primary) and 2160×3840 at 150% (above-left, negative coordinates), which is useful for CAP-04 and mixed-DPI checks.
 - **Git:** local repo on `main`; no remote yet.
 - **Next up (suggested order, each ≈ one session):**
-  1. M0-SPK-3: Bergamot vs CTranslate2 → ADR-0004, then M1-TR-1 (real translation replaces the mock in `apps/desktop/src-tauri/src/live.rs`).
-  2. M0-FIX-2: fixture image generator. `pg-testkit::TextRenderer` (ab_glyph + system font) already renders text into frames; extend it to truth.json → PNG at 100–200%, light/dark. Then M0-FIX-3 (CER) and M1-OCR-6 (accuracy gates).
-  3. Tune `ChangeConfig` and measure CPU on real captures in a release build (ADR-0003 "Not yet verified").
-  4. M1-APP-6..9 (font fitting, hold-to-show-original, settings TOML, hotkeys).
-  5. M0-SPK-1/SPK-2 on macOS/Linux.
+  1. M0-FIX-2: fixture image generator. `pg-testkit::TextRenderer` (ab_glyph + system font) already renders text into frames; extend it to truth.json → PNG at 100–200%, light/dark. Then M0-FIX-3 (CER) and M1-OCR-6 (accuracy gates).
+  2. Tune `ChangeConfig` and measure CPU on real captures in a release build (ADR-0003 "Not yet verified").
+  3. M1-APP-6..9 (font fitting, hold-to-show-original, settings TOML + a model manager replacing the toolbar ⬇, hotkeys + the swap button now that both directions are loaded).
+  4. M0-FIX-4 eval sets, then a `pg-bench` translation stage with the real backend (PERF-01/06 end to end).
+  5. M0-SPK-1/SPK-2/SPK-3 on macOS/Linux.
 - **Known follow-ups inside done work** (not separate tasks yet):
   - `ChangeConfig` thresholds (8 px cells, 6-level tolerance, 0.15% of cells) are only tested on synthetic frames. Tune on real captures (caret blink, ClearType).
   - `langid` scores 100% on `mixed-sv-en`, but it was tuned on that same fixture. Add a held-out set before trusting the SV-04 ≥ 90% gate.
@@ -48,6 +48,12 @@
   - Tauri is pinned to the 2.11 line (crate 2.11.6, npm `@tauri-apps/api` 2.11.1 / CLI 2.11.5), because Tauri 2.12 needs Rust 1.90 and the workspace MSRV is 1.85. Raise the MSRV to move on, and keep npm and crate on the same minor version (the CLI warns otherwise).
   - The click-through poller doesn't check mouse-button state (ADR-0002); a drag-selection that crosses into the interior flips to click-through mid-gesture.
   - Demo mode's synthetic desktop uses the starting monitor's scale for all monitors (mock only).
+  - **MSRV 1.85 isn't actually checkable:** with Cargo 1.85 the workspace fails to load because `crates/pg-pipeline/Cargo.toml` sets `default-features = false` on the workspace-inherited `pg-capture` ("cannot override workspace's `default-features`"; newer Cargo only warns). Pre-existing since session 3. The new dependencies (`fxtranslate` with the Windows features, `flate2`) were checked separately with `cargo +1.85` in a scratch crate.
+  - `fxtranslate` (ADR-0004) is young (first release 2026-07, one maintainer). Re-run `cargo test -p pg-bergamot --release --test real_models -- --ignored --test-threads 1` on every upgrade. Bergamot C++ (option A) is the documented fallback for the same model files and was **not built** (blocked in session 4).
+  - Windows runs fxtranslate's scalar kernel (its AVX2 shim doesn't compile with MSVC): ≈ 7 ms per short string, ≈ 95 ms per two-sentence paragraph. Fix upstream if PERF-01 gets tight.
+  - The toolbar ⬇ download has no cancel button or retry backoff (pg-models supports cancel), and a model that fails to load is logged and shown as "missing".
+  - `pg-bench` still uses `MockTranslator`, so PERF-01/06 aren't measured end to end. The live app logged an uncached cycle of 31 ms (OCR 8.5 + translation 21.5 ms) for one Swedish sentence.
+  - **`cargo deny check` has never passed** (first local run in session 4, cargo-deny 0.20.2): `licenses` passes; `bans` fails on "wildcard" path dependencies in every crate (`[bans] wildcards = "deny"` without `allow-wildcard-paths = true`); `advisories` fails on Tauri/ab_glyph dependencies (quick-xml 0.38.4 via plist: RUSTSEC-2026-0194/0195; time 0.3.45 via cookie: RUSTSEC-2026-0009; unmaintained ttf-parser, unic-*, proc-macro-error). None come from the session-4 dependencies (fxtranslate, flate2, miniz_oxide 0.9, crc32fast, adler2); no openssl/native-tls.
 
 ## Owner decisions pending (PLAN §11, SPEC §10)
 
@@ -83,7 +89,7 @@ These are verified with mocks. Each requirement is fully met only once real engi
 ### Spikes (each ends with an ADR in `docs/adr/`)
 - [~] M0-SPK-1 Transparent, frameless, always-on-top Tauri 2 window; click-through via cursor hit-testing at ~30 Hz (PLAN §5). Measure smoothness on Win/mac/Linux. → ADR-0002. *Windows done and measured (19–49 ms switch, ≈0.3% core while visible, 0 when hidden; debug build). macOS/Linux not run; release-build numbers not taken.*
 - [~] M0-SPK-2 Self-excluding region capture: WGC + `WDA_EXCLUDEFROMCAPTURE` (Win), ScreenCaptureKit (mac); X11 hide/capture/show flicker timing. → ADR-0003. *Windows done and measured (ADR-0003). macOS ScreenCaptureKit and X11 flicker timing not started.*
-- [ ] M0-SPK-3 Bergamot (cxx FFI) vs CTranslate2 (`ct2rs`) with sv↔en models: build complexity, size, latency, memory on all OSes. → ADR-0004.
+- [~] M0-SPK-3 Bergamot (cxx FFI) vs CTranslate2 (`ct2rs`) with sv↔en models: build complexity, size, latency, memory on all OSes. → ADR-0004. *Windows done (ADR-0004, accepted for Windows): CTranslate2 (`ct2rs` 0.10.3, ruy) + OPUS-MT int8 measured, plus a third option, `fxtranslate` (pure-Rust Bergamot port) + Mozilla's models, which was chosen. Not done: Bergamot C++ via `cxx` wasn't built (running CMake on the downloaded source wasn't permitted in session 4; facts from its CMake files only), and nothing was built or timed on macOS/Linux/arm64.*
 - [ ] M0-SPK-4 Swedish fixtures + OCR accuracy/latency per engine incl. Vision vs Tesseract `swe` on macOS. → ADR-0005.
 - [ ] M0-SPK-5 Wayland portal screenshot + fullscreen Freeze window on GNOME and KDE. → ADR-0006.
 
@@ -122,10 +128,10 @@ These are verified with mocks. Each requirement is fully met only once real engi
 - [ ] M1-OCR-6 Accuracy gates on fixtures: OCR-04 (en), SV-03 (sv, å/ä/ö).
 
 ### Translation and models
-- [ ] M1-TR-1 On-device backend per ADR-0004 implementing `Translator`, `is_local() == true` (TR-01).
-- [ ] M1-TR-2 Model manifest entries for sv→en, en→sv with real URLs/SHA-256/licenses (MDL-02, SIZE-05).
-- [ ] M1-TR-3 Both directions loaded → instant swap (SV-01).
-- [ ] M1-TR-4 Preserved-token gate on `numbers-sv`/`numbers-en` with the real backend (SV-05).
+- [x] M1-TR-1 On-device backend per ADR-0004 implementing `Translator`, `is_local() == true` (TR-01). *New crate `pg-bergamot`: `BergamotTranslator` (id `bergamot`), translation on Tokio's blocking pool. Tests: `without_models_every_pair_is_model_missing`, `a_broken_installed_model_is_an_error_not_a_panic`; real models: `tr1_tr3_both_directions_loaded_and_translate` (ignored, run manually: passes). The app uses it in live mode. Manually verified with `lens-read.ps1` (release build): "Vill du spara ändringarna innan du stänger?" → "Do you want to save the changes before you close?", English passed through.*
+- [x] M1-TR-2 Model manifest entries for sv→en, en→sv with real URLs/SHA-256/licenses (MDL-02, SIZE-05). *`bergamot-sv-en`, `bergamot-en-sv`: Mozilla GCS https URLs, the gzip files' sizes + SHA-256, MPL-2.0, 30.5 MB together. Tests: `bundled_manifest_has_both_swedish_directions` (incl. < 100 MB); `mdl02_tr2_swedish_models_download_and_verify` (ignored: downloads through `pg-models` and checks the unpacked models against Mozilla's registry hashes; passes). Also downloaded through the app's toolbar ⬇ (2.5 s here).*
+- [x] M1-TR-3 Both directions loaded → instant swap (SV-01). *`load_installed` loads every installed direction at startup (≈ 0.4 s for both in the app, off the UI thread). `tr1_tr3_both_directions_loaded_and_translate` alternates sv→en / en→sv without reloading (each pair of short strings well under 500 ms). The UI swap button and hotkey are still placeholders (M1-APP-9).*
+- [x] M1-TR-4 Preserved-token gate on `numbers-sv`/`numbers-en` with the real backend (SV-05). *`pg_translate::TokenGuard` (masked `{n}` retry, else the source text) + `tr4_sv05_numbers_fixtures_keep_preserved_tokens` (ignored, run manually): all 20 blocks pass `check_preserved`, 9 needed the masked pass, 0 fell back to the source. The guard logic is also unit-tested with a mock (`guard::tests`, 8 tests, part of `cargo test --workspace`).*
 
 ### Desktop app (`apps/desktop`)
 - [x] M1-APP-1 Tauri 2 scaffold, TS + Vite UI, strict CSP, least-privilege capabilities (SEC-01, SEC-02). *Verified on Windows: the app runs in `tauri dev` and with embedded assets (`--features tauri/custom-protocol`) under the production CSP. The commands are declared in a `build.rs` app manifest, so each needs `allow-*` in `capabilities/lens.json`; no `core:default`. Validation tests: `sec01_nudge_accepts_only_arrow_key_steps`. CI `ui` job and Linux webkit deps added but never run; `tauri build` (bundling) not run yet.*
@@ -221,6 +227,21 @@ These are verified with mocks. Each requirement is fully met only once real engi
 ## Session log
 
 Newest first. Keep each entry short: what changed, what's verified, what's next, gotchas.
+
+### 2026-10-31 — Session 4 (M0-SPK-3 Windows, M1-TR-1..4)
+- ADR-0004: compared CTranslate2 (`ct2rs` 0.10.3 + OPUS-MT int8) with `fxtranslate` 0.5 (pure-Rust port of the Bergamot engine) + Mozilla's Firefox Translations models, measured on this machine. Picked the Mozilla models on `fxtranslate`: 30.5 MB for both directions vs ≈ 162 MB, MPL-2.0 vs CC-BY-4.0, no CMake and no `unsafe`, 7 ms short / 95 ms paragraph (scalar, 1 thread) vs 27 / 199 ms (ruy, 4 threads), 68 MB vs 200 MB RSS for both directions. Bergamot C++ via `cxx` was **not built** (see Gotchas).
+- New: `pg_translate::guard` (`TokenGuard`, SV-05), crate `pg-bergamot`, manifest entries, app live mode on the real backend with a toolbar ⬇ download (`models.rs`, command `download_models`, event `lens-models`). The "MOCK MT" badge now shows only if the mock backend is active.
+- Verified: fmt, clippy `-D warnings`, 137 tests (11 new; plus 3 ignored real-model tests, run manually and passing). In the release app (`--features tauri/custom-protocol`): model-missing message + ⬇ → download → real translation under the lens; a restart loads both models from disk; logs contain no screen text; polyglass.exe working set 126 MB with both models.
+- Not verified: macOS/Linux; PERF-01 end to end via `pg-bench`; translation quality (SV-07).
+- `cargo deny`: installed and run for the first time; licenses pass, bans/advisories fail on pre-existing items only (Known follow-ups).
+- Gotchas:
+  - **Running CMake on the cloned `mozilla/translations` source was blocked by this environment's permission classifier** ("code from external"). Building crates.io packages (ct2rs compiles CTranslate2 with CMake) was allowed. Finishing option A needs the owner to allow that build.
+  - ct2rs on Windows: run inside `vcvars64` with `CMAKE_GENERATOR=Ninja` (VS 18 ships CMake + Ninja under `Common7\IDE\CommonExtensions\Microsoft\CMake`). A long `CARGO_TARGET_DIR` breaks sentencepiece's try-compile (250-char object path), and a CMake cache from another generator must be deleted. `cmd /c` children can't start `~/.cargo/bin/cargo.exe` (rustup symlink); put the toolchain's `bin` first on `PATH`.
+  - `ct2rs` `dnnl`: oneDNN builds but won't link with MSVC (CRT `/MD` vs `/MT`, either way round).
+  - fxtranslate: `translate_batch` is slower than one block at a time; `translate` truncates multi-sentence input, so use `translate_long`. Its gemmology shim fails on MSVC and the build silently falls back to scalar (`FXTRANSLATE_REQUIRE_SIMD=1` makes that an error).
+  - The Mozilla model files are gzip. The manifest pins the `.gz` hashes and the files stay gzipped on disk (`pg-bergamot` decompresses on load). `{1}`-style placeholders survive the model; `X1X` does not reliably (`kl. X2X`).
+  - The Rust 1.85 toolchain is now installed (`cargo +1.85`), but the workspace doesn't load with it (Known follow-ups).
+- Next: see "Next up".
 
 ### 2026-10-31 — Session 3 (M1-OCR-1/2/5, M1-CAP-1/2)
 - Commits: `d061cf8` Windows OCR + `pg-testkit`; `7257279` WGC capturer + `ScreenCapturer::release`; `3640236` live mode in the app; then ADR-0003 + this checklist.

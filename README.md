@@ -9,9 +9,9 @@ language pair for v1.
 
 **Status:** pre-alpha (milestone M0/M1). The headless core (`crates/pg-*`) builds and is tested.
 The desktop lens window (`apps/desktop`) runs on Windows with real screen capture (Windows
-Graphics Capture) and Windows OCR. Translation is still a placeholder (the lens shows
-`[en] <recognized text>` and a "MOCK MT" badge) until the on-device translator lands. macOS and
-Linux capture/OCR are not implemented yet.
+Graphics Capture), Windows OCR and on-device Swedish ↔ English translation (Mozilla's Firefox
+Translations models, [ADR-0004](./docs/adr/0004-on-device-translation.md)). macOS and Linux
+capture/OCR are not implemented yet.
 See [CHECKLIST.md](./CHECKLIST.md) for progress.
 
 ## Documents
@@ -46,6 +46,10 @@ npm run tauri dev                      # live capture + Windows OCR
 POLYGLASS_DEMO=1 npm run tauri dev     # mocks only
 ```
 
+Translation models aren't bundled (MDL-06). On first use the lens says they're missing and the
+toolbar shows ⬇; it downloads both directions (about 30 MB, from Mozilla's model storage, SHA-256
+checked) into `%LOCALAPPDATA%\org.polyglass.desktop\models` and starts translating.
+
 Swedish text recognition on Windows needs the optional Swedish OCR feature (Settings → Time &
 language → Language & region → Swedish → Language options); without it the lens reads English
 only and says so.
@@ -56,7 +60,14 @@ processes can't start; put `$(rustc --print sysroot)\bin` first on `PATH`.
 
 `pg-bench` runs the pipeline on a fixture and prints per-stage latency percentiles. Until the
 fixture images exist it renders the fixture text with a system font. `--ocr mock` (default)
-measures pipeline overhead only; `--ocr windows` runs Windows OCR. Translation is a mock.
+measures pipeline overhead only; `--ocr windows` runs Windows OCR. Translation in `pg-bench` is
+still a mock.
+
+Tests against the real translation models download them first, so they are ignored by default:
+
+```
+cargo test -p pg-bergamot --release --test real_models -- --ignored --test-threads 1
+```
 
 ## Repository layout
 
@@ -65,7 +76,8 @@ apps/desktop         Tauri 2 shell (src-tauri/) + lens UI (ui/, TypeScript + Vit
 crates/pg-core       shared types (geometry, frames, lines/blocks, languages, errors)
 crates/pg-capture    ScreenCapturer trait, Windows Graphics Capture, fixture capturer
 crates/pg-ocr        OcrEngine trait, default-engine table, language resolution, Windows OCR
-crates/pg-translate  Translator trait, sv/en language ID, preserved-token checks, pivoting
+crates/pg-translate  Translator trait, sv/en language ID, preserved-token checks + guard, pivoting
+crates/pg-bergamot   on-device sv↔en translation (Mozilla models, fxtranslate engine)
 crates/pg-pipeline   scheduler, change detection, block grouping, cache, live driver
 crates/pg-models     model manifest, SHA-256 verification, store, resumable downloads
 crates/pg-bench      benchmark CLI
