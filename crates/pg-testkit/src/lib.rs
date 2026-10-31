@@ -1,15 +1,17 @@
 //! Test and benchmark helpers for Polyglass.
 //!
-//! [`TextRenderer`] draws text into a [`Frame`] with an installed system font, so OCR engines can
-//! be tested and benchmarked before the fixture images exist (CHECKLIST M0-FIX-2). Rendering is
-//! grayscale anti-aliased (no ClearType/subpixel), so real screen captures are harder than this.
-//! The font is read from the OS at run time and never copied into the repository.
+//! - [`TextRenderer`] draws text into a [`Frame`] with an installed system font. Rendering is
+//!   grayscale anti-aliased (no ClearType/subpixel), so real screen captures are harder than this.
+//!   The font is read from the OS at run time and never copied into the repository.
+//! - [`metrics`] scores OCR output against ground truth: CER, WER and the å/ä/ö report (M0-FIX-3).
 
 use std::fmt;
 use std::path::{Path, PathBuf};
 
 use ab_glyph::{Font, FontVec, PxScale, ScaleFont, point};
 use pg_core::{Frame, PixelFormat, Rect};
+
+pub mod metrics;
 
 /// Renders text into frames with one font.
 pub struct TextRenderer {

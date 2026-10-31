@@ -1,6 +1,6 @@
 [package]
 name = "pg-testkit"
-description = "Test and benchmark helpers for Polyglass: render text into frames without fixture images."
+description = "Test and benchmark helpers for Polyglass: render text into frames, CER/WER scoring."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -11,6 +11,9 @@ publish.workspace = true
 [dependencies]
 pg-core.workspace = true
 ab_glyph.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+unicode-normalization.workspace = true
 
 [lints]
 workspace = true

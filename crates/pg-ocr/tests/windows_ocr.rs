@@ -1,12 +1,14 @@
-//! Windows OCR against text rendered with an installed system font (no fixture images yet).
+//! Windows OCR against text rendered with an installed system font.
 //!
 //! The renderer draws grayscale anti-aliased Segoe UI, so these are smoke tests of the engine
-//! wiring (text, boxes, formats, languages), not the OCR-04/SV-03 accuracy gates (M1-OCR-6).
+//! wiring (text, boxes, formats, languages). The OCR-04/SV-03 accuracy gates on the fixture
+//! images are in `accuracy.rs` (M1-OCR-6).
 #![cfg(windows)]
 
 use pg_core::{Error, Frame, LangTag, Line, PixelFormat, Rect};
 use pg_ocr::{OcrEngine, WindowsOcr};
 use pg_testkit::TextRenderer;
+use pg_testkit::metrics::cer;
 
 const LINES: [(&str, f32); 3] = [
     ("Save changes before closing?", 20.0),
@@ -47,26 +49,6 @@ fn normalized(s: &str) -> String {
     s.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
-/// Levenshtein distance over chars.
-fn edits(a: &str, b: &str) -> usize {
-    let b: Vec<char> = b.chars().collect();
-    let mut prev: Vec<usize> = (0..=b.len()).collect();
-    for (i, ca) in a.chars().enumerate() {
-        let mut cur = vec![i + 1];
-        for (j, cb) in b.iter().enumerate() {
-            let sub = prev[j] + usize::from(ca != *cb);
-            cur.push(sub.min(prev[j + 1] + 1).min(cur[j] + 1));
-        }
-        prev = cur;
-    }
-    prev[b.len()]
-}
-
-/// Character error rate of `got` against `want`.
-fn cer(got: &str, want: &str) -> f64 {
-    edits(got, want) as f64 / want.chars().count() as f64
-}
-
 fn assert_matches_rendered(lines: &[Line], boxes: &[Rect]) {
     let texts: Vec<String> = lines.iter().map(|l| normalized(&l.text)).collect();
     assert_eq!(texts.len(), LINES.len(), "{texts:?}");
@@ -88,12 +70,6 @@ fn assert_matches_rendered(lines: &[Line], boxes: &[Rect]) {
             "{b:?} vs {rendered:?}"
         );
     }
-}
-
-#[test]
-fn cer_helper() {
-    assert_eq!(edits("kitten", "sitting"), 3);
-    assert_eq!(cer("ändringama", "ändringarna"), 2.0 / 11.0);
 }
 
 #[test]
