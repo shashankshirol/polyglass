@@ -1,0 +1,22 @@
+# Windows (MSVC) build settings for CTranslate2, which ct2rs compiles with CMake (ADR-0005).
+
+# ct2rs builds CTranslate2 with the static MSVC runtime (/MT), so everything linked with it must
+# use the static CRT too, or linking fails with LNK2038 (RuntimeLibrary mismatch).
+# Note: a RUSTFLAGS environment variable replaces these flags; add `-C target-feature=+crt-static`
+# to it on Windows if you set one.
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]
+
+[target.aarch64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]
+
+[env]
+# Without a generator, cmake-rs picks the Visual Studio generator and replaces
+# CMAKE_<LANG>_FLAGS_RELEASE with flags that have no optimization level, so CTranslate2 is
+# compiled unoptimized and runs ≈ 13× slower. With Ninja, CMake keeps its Release flags
+# (/O2 /Ob2 /DNDEBUG). cmake-rs passes the MSVC environment it finds (INCLUDE, LIB, PATH) to
+# CMake, so this works from a normal terminal; `ninja` must be on PATH (README). The variables are
+# target-specific (cmake-rs reads CMAKE_GENERATOR_<target> first), so other platforms keep
+# CMake's default generator.
+CMAKE_GENERATOR_x86_64_pc_windows_msvc = "Ninja"
+CMAKE_GENERATOR_aarch64_pc_windows_msvc = "Ninja"

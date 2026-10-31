@@ -21,11 +21,17 @@ pg-translate = { path = "crates/pg-translate" }
 pg-pipeline = { path = "crates/pg-pipeline" }
 pg-models = { path = "crates/pg-models" }
 pg-bergamot = { path = "crates/pg-bergamot" }
+pg-ct2 = { path = "crates/pg-ct2" }
 pg-testkit = { path = "crates/pg-testkit" }
 
 ab_glyph = "0.2"
 async-trait = "0.1"
 clap = { version = "4", features = ["derive"] }
+# CTranslate2 (OpenNMT) bindings, MIT (ADR-0005). Builds CTranslate2 and SentencePiece from
+# source with CMake and a C++17 compiler. ruy is the only CPU backend that needs no extra system
+# library or off-allowlist license (ADR-0004 build notes); the Hugging Face tokenizers aren't
+# needed for OPUS-MT (SentencePiece).
+ct2rs = { version = "0.10.3", default-features = false, features = ["ruy", "sentencepiece"] }
 flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
 futures-util = { version = "0.3", default-features = false, features = ["std"] }
 # Pure-Rust port of the Firefox Translations (Bergamot) engine, MPL-2.0 (ADR-0004). Features are

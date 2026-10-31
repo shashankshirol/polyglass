@@ -1,0 +1,30 @@
+[package]
+name = "pg-ct2"
+description = "On-device translation with CTranslate2 and OPUS-MT models for Polyglass."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+pg-core.workspace = true
+pg-models.workspace = true
+pg-translate.workspace = true
+async-trait.workspace = true
+ct2rs.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["rt"] }
+tracing.workspace = true
+
+[dev-dependencies]
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+hex.workspace = true
+tempfile.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+
+[lints]
+workspace = true
