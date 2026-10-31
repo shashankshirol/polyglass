@@ -2,15 +2,18 @@
 //!
 //! Defines the [`Translator`] trait shared by all backends (TR-01), the error kinds the UI
 //! distinguishes (TR-06), Swedish/English language identification (SV-04, TR-07), preserved-token
-//! checks (SV-05) and English pivoting (TR-03). Backends are added per CHECKLIST M1-TR-1, M3-*.
+//! checks (SV-05) with a guard that keeps those tokens intact through any backend, and English
+//! pivoting (TR-03). Backends are added per CHECKLIST M1-TR-1, M3-*.
 
 mod error;
+pub mod guard;
 pub mod langid;
 mod mock;
 mod pivot;
 pub mod tokens;
 
 pub use error::{Result, TranslateError};
+pub use guard::TokenGuard;
 pub use mock::MockTranslator;
 pub use pivot::{PivotTranslator, Route, plan_route};
 

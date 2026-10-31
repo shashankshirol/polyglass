@@ -34,13 +34,13 @@ pub enum TokenMismatch {
 
 /// Thousands/decimal conventions for a language.
 #[derive(Debug, Clone, Copy)]
-struct NumberStyle {
-    decimal: char,
+pub(crate) struct NumberStyle {
+    pub(crate) decimal: char,
     /// Characters accepted as thousands separators (only when followed by exactly 3 digits).
-    thousands: &'static [char],
+    pub(crate) thousands: &'static [char],
 }
 
-fn style_for(lang: &LangTag) -> NumberStyle {
+pub(crate) fn style_for(lang: &LangTag) -> NumberStyle {
     match lang.primary() {
         // Swedish: space / no-break space / narrow no-break space for thousands, comma decimal.
         "sv" | "fi" | "nb" | "nn" | "no" | "fr" | "pl" | "cs" => NumberStyle {
@@ -58,7 +58,7 @@ fn style_for(lang: &LangTag) -> NumberStyle {
     }
 }
 
-fn is_url_start(s: &str) -> bool {
+pub(crate) fn is_url_start(s: &str) -> bool {
     let l = s.to_ascii_lowercase();
     l.starts_with("http://") || l.starts_with("https://") || l.starts_with("www.")
 }
@@ -94,7 +94,7 @@ fn split_verbatim(text: &str) -> (Vec<Token>, String) {
     (tokens, rest)
 }
 
-fn is_email(s: &str) -> bool {
+pub(crate) fn is_email(s: &str) -> bool {
     let Some((local, domain)) = s.split_once('@') else {
         return false;
     };
@@ -110,7 +110,7 @@ fn is_email(s: &str) -> bool {
 /// Normalized form: optional `-`, integer digits without grouping, then `.`-separated digit
 /// groups for the decimal part and for dotted identifiers (`4.2`, `192.168.0.1`), which read
 /// the same in every language.
-fn scan_numbers(text: &str, style: NumberStyle) -> Vec<String> {
+pub(crate) fn scan_numbers(text: &str, style: NumberStyle) -> Vec<String> {
     let chars: Vec<char> = text.chars().collect();
     let digit_at = |i: usize| chars.get(i).is_some_and(char::is_ascii_digit);
     let mut out = Vec::new();
