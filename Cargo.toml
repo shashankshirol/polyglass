@@ -18,7 +18,9 @@ pg-ocr = { path = "crates/pg-ocr" }
 pg-translate = { path = "crates/pg-translate" }
 pg-pipeline = { path = "crates/pg-pipeline" }
 pg-models = { path = "crates/pg-models" }
+pg-testkit = { path = "crates/pg-testkit" }
 
+ab_glyph = "0.2"
 async-trait = "0.1"
 clap = { version = "4", features = ["derive"] }
 futures-util = { version = "0.3", default-features = false, features = ["std"] }
@@ -37,6 +39,8 @@ toml = "1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 unicode-normalization = "0.1"
+# Same minor as Tauri 2.11 uses, so the app builds one copy.
+windows = "0.61"
 
 [workspace.lints.rust]
 unsafe_code = "deny"

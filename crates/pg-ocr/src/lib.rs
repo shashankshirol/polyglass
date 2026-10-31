@@ -1,14 +1,19 @@
 //! OCR engines for Polyglass.
 //!
-//! Platform engines (Windows OCR, Apple Vision, Tesseract) are added per CHECKLIST M1-OCR-*.
 //! This crate defines the engine trait, default-engine selection (OCR-01), language
-//! resolution against runtime-queried languages (OCR-06), and a mock for tests.
+//! resolution against runtime-queried languages (OCR-06), and a mock for tests. Platform
+//! engines: [`WindowsOcr`] on Windows; Apple Vision and Tesseract follow per CHECKLIST
+//! M1-OCR-3/4.
 
 mod mock;
 mod select;
+#[cfg(windows)]
+mod winrt;
 
 pub use mock::MockOcr;
 pub use select::{EngineKind, Platform, default_engine, resolve_language};
+#[cfg(windows)]
+pub use winrt::WindowsOcr;
 
 use pg_core::{Frame, LangTag, Line, Result};
 

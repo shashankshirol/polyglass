@@ -1,0 +1,16 @@
+[package]
+name = "pg-testkit"
+description = "Test and benchmark helpers for Polyglass: render text into frames without fixture images."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+pg-core.workspace = true
+ab_glyph.workspace = true
+
+[lints]
+workspace = true

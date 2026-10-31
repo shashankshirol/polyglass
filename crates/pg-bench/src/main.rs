@@ -1,8 +1,10 @@
 //! `pg-bench`: run the pipeline on a fixture and print latency percentiles (SPEC §5).
 //!
-//! Real OCR engines and the on-device translator plug in here as they land (CHECKLIST
-//! M1-OCR-*, M1-TR-1); until then `--ocr mock` replays the fixture's ground truth so the
-//! pipeline overhead itself can be measured and regression-gated (QUAL-02).
+//! Until the fixture images exist (M0-FIX-2), the fixture's ground-truth text is rendered into
+//! a synthetic desktop with a system font (`pg-testkit`). `--ocr mock` replays the ground truth
+//! so the pipeline overhead itself can be measured and regression-gated (QUAL-02); `--ocr
+//! windows` runs Windows OCR on the rendered pixels. The on-device translator plugs in with
+//! M1-TR-1.
 
 #![allow(clippy::print_stdout)]
 
@@ -14,8 +16,9 @@ use std::time::Duration;
 use clap::{Parser, ValueEnum};
 use pg_capture::{FixtureCapturer, ScreenCapturer, StaticCapturer};
 use pg_core::{Frame, LangTag, Line, PhysRect, Rect, SourceLang};
-use pg_ocr::MockOcr;
+use pg_ocr::{MockOcr, OcrEngine};
 use pg_pipeline::{CycleOutcome, Pipeline, PipelineConfig, Tick, Timings};
+use pg_testkit::TextRenderer;
 use pg_translate::MockTranslator;
 use serde::{Deserialize, Serialize};
 
@@ -23,6 +26,9 @@ use serde::{Deserialize, Serialize};
 enum Ocr {
     /// Replay ground-truth text from truth.json.
     Mock,
+    /// Windows OCR (`Windows.Media.Ocr`) on the rendered or fixture pixels.
+    #[cfg(windows)]
+    Windows,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
@@ -60,6 +66,9 @@ struct Args {
     height: u32,
     #[arg(long, default_value_t = 1.0)]
     scale: f64,
+    /// Font size in logical px for the rendered synthetic desktop (UI text is 12–16 px).
+    #[arg(long, default_value_t = 15.0)]
+    font_px: f32,
     /// Print JSON instead of a table.
     #[arg(long)]
     json: bool,
@@ -135,8 +144,38 @@ fn mock_lines(truth: &Truth, scale: f32) -> Vec<Line> {
         .collect()
 }
 
-/// A synthetic desktop with dark bars where the lines are, so the frame isn't blank.
-fn synthetic_desktop(lines: &[Line], w: u32, h: u32) -> Frame {
+/// Render the truth blocks as word-wrapped text, top to bottom, at `px` physical pixels.
+/// Returns the desktop and one ground-truth line per rendered line (lines that don't fit are
+/// dropped).
+fn rendered_desktop(
+    r: &TextRenderer,
+    truth: &Truth,
+    w: u32,
+    h: u32,
+    px: f32,
+) -> (Frame, Vec<Line>) {
+    let mut frame = Frame::solid(w, h, [250, 250, 250]);
+    let margin = px;
+    let line_h = r.line_height(px);
+    let mut top = margin;
+    let mut lines = Vec::new();
+    'blocks: for block in &truth.blocks {
+        for text in r.wrap(px, &block.text, w as f32 - 2.0 * margin) {
+            if top + line_h > h as f32 {
+                break 'blocks;
+            }
+            let bbox = r.draw(&mut frame, margin, top, px, &text, [30, 30, 30]);
+            lines.push(Line::new(text, bbox, 0.95));
+            top += line_h;
+        }
+        top += line_h * 0.8;
+    }
+    (frame, lines)
+}
+
+/// A synthetic desktop with dark bars where the lines are, so the frame isn't blank (used when
+/// no system font is found).
+fn bar_desktop(lines: &[Line], w: u32, h: u32) -> Frame {
     let mut f = Frame::solid(w, h, [250, 250, 250]);
     let stride = f.stride();
     let data = f.data_mut();
@@ -178,23 +217,33 @@ fn run(args: &Args) -> Result<(), String> {
 
     let region = pg_core::LogicalRect::new(0.0, 0.0, f64::from(args.width), f64::from(args.height))
         .to_physical(args.scale);
-    let lines = mock_lines(&truth, args.scale as f32);
+    let (w, h) = (region.width, region.height);
+    let (desktop, lines) = match TextRenderer::system() {
+        Some(r) => rendered_desktop(&r, &truth, w, h, args.font_px * args.scale as f32),
+        None => {
+            let lines = mock_lines(&truth, args.scale as f32);
+            (bar_desktop(&lines, w, h), lines)
+        }
+    };
     let capturer: Box<dyn ScreenCapturer> = match &truth.image {
         Some(img) => Box::new(
             FixtureCapturer::open(&args.fixture.join(img), args.scale)
                 .map_err(|e| e.to_string())?,
         ),
         None => Box::new(StaticCapturer::new(
-            synthetic_desktop(&lines, region.width, region.height)
-                .with_origin(PhysRect::new(0, 0, region.width, region.height), args.scale),
+            desktop.with_origin(PhysRect::new(0, 0, w, h), args.scale),
         )),
     };
-    let ocr = match args.ocr {
-        Ocr::Mock => MockOcr::fixed(lines).with_delay(Duration::from_millis(args.mock_ocr_ms)),
+    let ocr: Arc<dyn OcrEngine> = match args.ocr {
+        Ocr::Mock => {
+            Arc::new(MockOcr::fixed(lines).with_delay(Duration::from_millis(args.mock_ocr_ms)))
+        }
+        #[cfg(windows)]
+        Ocr::Windows => Arc::new(pg_ocr::WindowsOcr::new().map_err(|e| e.to_string())?),
     };
     let translator = MockTranslator::new();
     let config = PipelineConfig::new(SourceLang::Fixed(truth.lang.clone()), target.clone());
-    let pipeline = Pipeline::new(capturer, Arc::new(ocr), Arc::new(translator), config);
+    let pipeline = Pipeline::new(capturer, ocr, Arc::new(translator), config);
 
     let rt = tokio::runtime::Builder::new_multi_thread()
         .enable_time()

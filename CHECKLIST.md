@@ -26,7 +26,7 @@
 ## Current state
 
 - **Milestone:** M0/M1. Headless core done. Desktop shell `apps/desktop` (Tauri 2.11, TS + Vite, no framework) runs on Windows with a transparent click-through lens and the mock pipeline behind `--demo` / `POLYGLASS_DEMO=1`. 107 tests green, clippy `-D warnings` and fmt clean (Windows only so far). M0-SPK-1 is verified on Windows only (ADR-0002).
-- **Dev machine used so far:** Windows 11 x64, Rust 1.99, Node 24, Python 3.12 (no Pillow), no Tesseract. Windows OCR languages installed: `en-US`, `en-GB` (no `sv-SE`, which is useful for testing SV-02).
+- **Dev machine used so far:** Windows 11 x64, Rust 1.99, Node 24, Python 3.12 (no Pillow), no Tesseract. Windows OCR languages installed: `en-US`, `en-GB`, `sv-SE` (Swedish was added after session 2; the real "Swedish missing" path is now tested with an uninstalled tag instead).
 - **Monitors on this machine:** 2560×1440 at 100% (primary) and 2160×3840 at 150% (above-left, negative coordinates), which is useful for CAP-04 and mixed-DPI checks.
 - **Git:** local repo on `main`; no remote yet.
 - **Next up (suggested order, each ≈ one session):**
@@ -101,11 +101,11 @@ These are verified with mocks. Each requirement is fully met only once real engi
 - [ ] M1-CAP-5 HiDPI/mixed-DPI fixture tests at 100/125/150/200% (CAP-04, LENS-02).
 
 ### OCR
-- [ ] M1-OCR-1 Windows OCR engine via `windows` crate (`Windows.Media.Ocr`), lines + boxes + confidence (OCR-01/02).
-- [ ] M1-OCR-2 Runtime language query `AvailableRecognizerLanguages` (OCR-06) + SV-02 Windows message/link when `sv-SE` missing.
+- [x] M1-OCR-1 Windows OCR engine via `windows` crate (`Windows.Media.Ocr`), lines + boxes + confidence (OCR-01/02). *`pg_ocr::WindowsOcr` (windows 0.61, the version Tauri 2.11 already uses; no `unsafe`). Line box = union of word boxes in frame pixels; confidence is always 1.0 because Windows OCR has none, so OCR-05 filtering does nothing with this engine. Tests in `crates/pg-ocr/tests/windows_ocr.rs` render text with `pg-testkit` (Segoe UI, grayscale AA): `ocr01_recognizes_rendered_english_lines_with_boxes`, `ocr01_dark_theme_and_pixel_formats` (BGRA/RGBA with padded stride/Gray8), `ocr01_boxes_are_in_frame_pixels_at_any_upscale`. Text is checked with a CER bound (≤ 6%/line), not exact match. PERF-03 (release, `pg-bench --ocr windows`, 600×300, sv): p50 18.9 ms / p95 19.1 ms at 100%; 34.0 / 35.9 ms at 150% (900×450 px).*
+- [~] M1-OCR-2 Runtime language query `AvailableRecognizerLanguages` (OCR-06) + SV-02 Windows message/link when `sv-SE` missing. *Done: `WindowsOcr::available_languages()` is queried on every `recognize` that names a language and by `supported_languages()`; a missing language is `Error::OcrLanguageMissing`. Tests: `ocr06_languages_are_queried_at_runtime`, `ocr03_uninstalled_language_is_reported_missing` (real engine, `tlh`), `sv02_swedish_missing_or_recognized` (checks whichever branch the machine is on). **sv-SE is now installed on this machine**, so the real "Swedish missing" branch can't be hit here any more. Not done: the lens's "how to add Swedish" explanation + settings link.*
 - [ ] M1-OCR-3 Apple Vision engine (English) + runtime language check (OCR-01, OCR-06).
 - [ ] M1-OCR-4 Tesseract 5 engine (bundled on macOS with `swe`+`eng`) (OCR-01, SV-02 mac).
-- [ ] M1-OCR-5 Upscale small text before OCR (PLAN §10 risk mitigation).
+- [x] M1-OCR-5 Upscale small text before OCR (PLAN §10 risk mitigation). *`WindowsOcr` enlarges frames 2× (bilinear) below 200% scale; `with_upscale(k)` forces a factor. Measured on rendered Segoe UI, 5 lines (3 en, 2 sv), 600×300, release: exact lines at 1×/2×/3× — 11 px 0/0/1, 12 px 0/2/2, 13 px 1/2/2, 14 px 2/3/2, 16 px 2/3/2, 20 px 5/5/5; at 1× small text drops whole words. OCR time 1× ≈ 8–17 ms, 2× ≈ 17–26 ms, 3× ≈ 30–35 ms. Remaining misreads at 2× are mostly 5→S and rn→m (`ändringama`). Tuned on synthetic text only; recheck on real captures (ClearType).*
 - [ ] M1-OCR-6 Accuracy gates on fixtures: OCR-04 (en), SV-03 (sv, å/ä/ö).
 
 ### Translation and models

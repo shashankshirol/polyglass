@@ -10,17 +10,20 @@ pg-core ◄── pg-capture ◄──┐
    ▲   ◄── pg-ocr     ◄──┼── pg-pipeline ◄── pg-bench
    │   ◄── pg-translate ◄┘                   apps/desktop
    └────── pg-models
+
+pg-testkit (dev-only: text rendering for tests and pg-bench)
 ```
 
 | Crate | Owns | Key items |
 |---|---|---|
 | `pg-core` | Types shared by everything | `PhysRect`, `LogicalRect::to_physical` (CAP-04), `Frame` (redacted `Debug`), `Line`, `Block::text` (de-hyphenation), `LangTag`, `LangPair`, `SourceLang`, `Error` |
 | `pg-capture` | Getting pixels | `ScreenCapturer`, `StaticCapturer`, `FixtureCapturer` |
-| `pg-ocr` | Pixels → lines | `OcrEngine`, `default_engine` (OCR-01 table), `resolve_language` (OCR-06/SV-02), `MockOcr` |
+| `pg-ocr` | Pixels → lines | `OcrEngine`, `default_engine` (OCR-01 table), `resolve_language` (OCR-06/SV-02), `MockOcr`, `WindowsOcr` (WinRT `Windows.Media.Ocr`, Windows only) |
 | `pg-translate` | Text → text | `Translator`, `TranslateError` (TR-06 kinds + Fluent IDs), `langid` (SV-04/TR-07), `tokens` (SV-05), `PivotTranslator`/`plan_route` (TR-03), `MockTranslator` |
 | `pg-pipeline` | Orchestration | `Scheduler` (CAP-03, LENS-06), `change` (CAP-03/06), `grouping` (OCR-02), `cache` (TR-04), `color` (REN-01), `Pipeline::run_cycle`, `driver::spawn`, `LensUpdate` |
 | `pg-models` | Model files | `Manifest` (MDL-01/02), `ModelStore` (MDL-04/05), `Downloader` (MDL-03) |
-| `pg-bench` | Measurement | CLI over `Pipeline::run_cycle` (SPEC §5) |
+| `pg-bench` | Measurement | CLI over `Pipeline::run_cycle` (SPEC §5); `--ocr mock\|windows` |
+| `pg-testkit` | Test helpers | `TextRenderer`: draws text into a `Frame` with an installed system font (until fixture images exist, M0-FIX-2) |
 
 ## One cycle
 
@@ -65,6 +68,18 @@ colours only as `#rrggbb`.
 
 Events: the driver's `LensUpdate`s are emitted to the lens window as `lens-update` (JSON as in
 `pg_pipeline::update`) and drawn as absolutely positioned DOM blocks in the interior.
+
+## Windows OCR (`pg-ocr::WindowsOcr`)
+
+- Languages come from `OcrEngine.AvailableRecognizerLanguages` on every call that names a
+  language (OCR-06); a missing one is `Error::OcrLanguageMissing` (SV-02). Recognizers are cached
+  per language tag.
+- The frame is converted to packed BGRA, enlarged 2× (bilinear) below 200% scale, and copied
+  into a `SoftwareBitmap` via a WinRT `DataWriter` buffer: no `unsafe`. Word boxes are mapped
+  back to frame pixels; a line's box is the union of its words. Confidence is always 1.0
+  (Windows OCR has none).
+- The blocking call `IAsyncOperation::get()` runs on the pipeline's blocking pool. windows-rs
+  initialises the thread's COM apartment (MTA) on first use.
 
 ## Privacy invariants in code
 

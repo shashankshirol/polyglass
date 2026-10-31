@@ -11,7 +11,18 @@ publish.workspace = true
 [dependencies]
 pg-core.workspace = true
 
+[target.'cfg(windows)'.dependencies]
+windows = { workspace = true, features = [
+    "Foundation",
+    "Foundation_Collections",
+    "Globalization",
+    "Graphics_Imaging",
+    "Media_Ocr",
+    "Storage_Streams",
+] }
+
 [dev-dependencies]
+pg-testkit.workspace = true
 
 [lints]
 workspace = true
