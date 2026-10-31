@@ -119,7 +119,8 @@ cargo run --release -p pg-bench -- --fixture tests/fixtures/ui-dialog-sv
 - the default, `--ocr mock`, measures only the pipeline's own overhead;
 - `--ocr windows` runs Windows OCR;
 - translation in `pg-bench` is still a mock;
-- until the fixture images exist, it renders the fixture text with a system font.
+- it renders the fixture image from `truth.json` at `--scale` and `--theme`, and with
+  `--ocr windows` it also prints OCR accuracy (CER, WER, å/ä/ö).
 
 Tests against the real translation models download those models first, so they're ignored by
 default:
@@ -156,7 +157,7 @@ crates/pg-bergamot   on-device sv↔en translation (Mozilla models, fxtranslate 
 crates/pg-pipeline   scheduler, change detection, block grouping, cache, live driver
 crates/pg-models     model manifest, SHA-256 verification, store, resumable downloads
 crates/pg-bench      benchmark CLI
-crates/pg-testkit    test helpers (renders text into frames with a system font)
+crates/pg-testkit    test helpers (fixture images from truth.json, CER/WER scoring)
 models/manifest.toml pinned model URLs + hashes + licenses
 tests/fixtures/      ground-truth fixtures (CC0)
 docs/                architecture notes and ADRs
