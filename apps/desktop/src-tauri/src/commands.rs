@@ -5,7 +5,7 @@ use serde::Serialize;
 use tauri::{State, WebviewWindow};
 
 use crate::lens::{self, LAYOUT, Layout};
-use crate::state::Lens;
+use crate::state::{Lens, Mode};
 
 type CmdResult<T> = Result<T, String>;
 
@@ -16,10 +16,12 @@ const NUDGE_STEPS: [i32; 5] = [-10, -1, 0, 1, 10];
 #[serde(rename_all = "camelCase")]
 pub struct LensConfig {
     layout: Layout,
-    demo: bool,
+    mode: Mode,
     click_through: bool,
-    /// False until a real capturer exists (M1-CAP-1) unless `--demo` is on.
+    /// Whether a pipeline runs (or is starting) behind the lens.
     pipeline: bool,
+    /// Fluent message ID if the pipeline failed to start.
+    pipeline_error: Option<&'static str>,
 }
 
 #[tauri::command]
@@ -27,10 +29,30 @@ pub fn lens_config(window: WebviewWindow, state: State<'_, Lens>) -> CmdResult<L
     ensure_lens(&window)?;
     Ok(LensConfig {
         layout: LAYOUT,
-        demo: state.demo,
+        mode: state.mode,
         click_through: state.click.is_enabled(),
-        pipeline: state.has_pipeline() || state.demo,
+        pipeline: state.has_pipeline() || state.mode != Mode::None,
+        pipeline_error: state.pipeline_error(),
     })
+}
+
+/// Open the Windows settings page where the Swedish OCR feature is added (SV-02). The target is
+/// fixed; nothing from the webview reaches the process arguments.
+#[tauri::command]
+pub fn open_ocr_language_settings(window: WebviewWindow) -> CmdResult<()> {
+    ensure_lens(&window)?;
+    #[cfg(windows)]
+    {
+        std::process::Command::new("explorer.exe")
+            .arg("ms-settings:regionlanguage")
+            .spawn()
+            .map(drop)
+            .map_err(|e| e.to_string())
+    }
+    #[cfg(not(windows))]
+    {
+        Err("only available on Windows".into())
+    }
 }
 
 #[tauri::command]

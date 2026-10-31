@@ -8,8 +8,10 @@ translated in near real time, and the translation is drawn inside the lens. Ever
 language pair for v1.
 
 **Status:** pre-alpha (milestone M0/M1). The headless core (`crates/pg-*`) builds and is tested.
-The desktop lens window (`apps/desktop`) runs on Windows with mock engines (`--demo`); platform
-capture/OCR and the on-device translator are not implemented yet.
+The desktop lens window (`apps/desktop`) runs on Windows with real screen capture (Windows
+Graphics Capture) and Windows OCR. Translation is still a placeholder (the lens shows
+`[en] <recognized text>` and a "MOCK MT" badge) until the on-device translator lands. macOS and
+Linux capture/OCR are not implemented yet.
 See [CHECKLIST.md](./CHECKLIST.md) for progress.
 
 ## Documents
@@ -33,34 +35,41 @@ cargo test --workspace
 cargo run --release -p pg-bench -- --fixture tests/fixtures/ui-dialog-sv
 ```
 
-Desktop app (lens window). Demo mode (`POLYGLASS_DEMO=1`, or the `--demo` argument on the
-built binary) swaps in mock capture/OCR/translation, so the whole flow is visible before the
-real engines land:
+Desktop app (lens window). On Windows it captures and recognizes the text under the lens by
+default. Demo mode (`POLYGLASS_DEMO=1`, or the `--demo` argument on the built binary) swaps in
+mock capture/OCR/translation and never reads the screen:
 
 ```
 cd apps/desktop
 npm install
-POLYGLASS_DEMO=1 npm run tauri dev
+npm run tauri dev                      # live capture + Windows OCR
+POLYGLASS_DEMO=1 npm run tauri dev     # mocks only
 ```
+
+Swedish text recognition on Windows needs the optional Swedish OCR feature (Settings → Time &
+language → Language & region → Swedish → Language options); without it the lens reads English
+only and says so.
 
 On Windows, if the Tauri CLI reports
 `cargo metadata ... program not found`, your `cargo.exe` is probably a rustup symlink that child
-processes can't start; put `$(rustc --print sysroot)in` first on `PATH`.
+processes can't start; put `$(rustc --print sysroot)\bin` first on `PATH`.
 
-`pg-bench` runs the pipeline on a fixture and prints per-stage latency percentiles. Until real
-OCR/translation engines land it uses mock engines, which measures pipeline overhead only.
+`pg-bench` runs the pipeline on a fixture and prints per-stage latency percentiles. Until the
+fixture images exist it renders the fixture text with a system font. `--ocr mock` (default)
+measures pipeline overhead only; `--ocr windows` runs Windows OCR. Translation is a mock.
 
 ## Repository layout
 
 ```
 apps/desktop         Tauri 2 shell (src-tauri/) + lens UI (ui/, TypeScript + Vite, no framework)
 crates/pg-core       shared types (geometry, frames, lines/blocks, languages, errors)
-crates/pg-capture    ScreenCapturer trait (+ fixture capturer; per-OS backends to come)
-crates/pg-ocr        OcrEngine trait, default-engine table, language resolution
+crates/pg-capture    ScreenCapturer trait, Windows Graphics Capture, fixture capturer
+crates/pg-ocr        OcrEngine trait, default-engine table, language resolution, Windows OCR
 crates/pg-translate  Translator trait, sv/en language ID, preserved-token checks, pivoting
 crates/pg-pipeline   scheduler, change detection, block grouping, cache, live driver
 crates/pg-models     model manifest, SHA-256 verification, store, resumable downloads
 crates/pg-bench      benchmark CLI
+crates/pg-testkit    test helpers (renders text into frames with a system font)
 models/manifest.toml pinned model URLs + hashes + licenses
 tests/fixtures/      ground-truth fixtures (CC0)
 docs/                architecture notes and ADRs

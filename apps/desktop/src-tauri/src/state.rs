@@ -8,34 +8,58 @@ use std::sync::{Arc, Mutex, OnceLock};
 
 use pg_core::PhysRect;
 use pg_pipeline::DriverHandle;
+use serde::Serialize;
 
 use crate::clickthrough::ClickThrough;
+
+/// What runs behind the lens.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Mode {
+    /// `--demo`: mock capture, OCR and translation.
+    Demo,
+    /// Real capture and OCR; translation is still the mock until M1-TR-1.
+    Live,
+    /// No capture backend on this platform yet.
+    None,
+}
 
 #[derive(Debug)]
 pub struct Lens {
     pub click: Arc<ClickThrough>,
-    pub demo: bool,
+    pub mode: Mode,
     driver: OnceLock<DriverHandle>,
+    /// Fluent message ID if the pipeline couldn't start.
+    pipeline_error: OnceLock<&'static str>,
     visible: AtomicBool,
     paused: AtomicBool,
     region: Mutex<Option<PhysRect>>,
 }
 
 impl Lens {
-    pub fn new(demo: bool) -> Self {
+    pub fn new(mode: Mode) -> Self {
         Self {
             click: ClickThrough::new(true),
-            demo,
+            mode,
             driver: OnceLock::new(),
+            pipeline_error: OnceLock::new(),
             visible: AtomicBool::new(false),
             paused: AtomicBool::new(false),
             region: Mutex::new(None),
         }
     }
 
-    /// Whether a pipeline is running behind the lens (only with `--demo` until M1-CAP-1).
+    /// Whether a pipeline is running behind the lens.
     pub fn has_pipeline(&self) -> bool {
         self.driver.get().is_some()
+    }
+
+    pub fn pipeline_error(&self) -> Option<&'static str> {
+        self.pipeline_error.get().copied()
+    }
+
+    pub fn set_pipeline_error(&self, message_id: &'static str) {
+        let _ = self.pipeline_error.set(message_id);
     }
 
     /// Attach the driver and bring it up to date with the current lens state.

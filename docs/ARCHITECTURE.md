@@ -17,7 +17,7 @@ pg-testkit (dev-only: text rendering for tests and pg-bench)
 | Crate | Owns | Key items |
 |---|---|---|
 | `pg-core` | Types shared by everything | `PhysRect`, `LogicalRect::to_physical` (CAP-04), `Frame` (redacted `Debug`), `Line`, `Block::text` (de-hyphenation), `LangTag`, `LangPair`, `SourceLang`, `Error` |
-| `pg-capture` | Getting pixels | `ScreenCapturer`, `StaticCapturer`, `FixtureCapturer` |
+| `pg-capture` | Getting pixels | `ScreenCapturer` (incl. `release` while hidden), `StaticCapturer`, `FixtureCapturer`, `WgcCapturer` + `monitors()` (Windows Graphics Capture, Windows only; ADR-0003) |
 | `pg-ocr` | Pixels → lines | `OcrEngine`, `default_engine` (OCR-01 table), `resolve_language` (OCR-06/SV-02), `MockOcr`, `WindowsOcr` (WinRT `Windows.Media.Ocr`, Windows only) |
 | `pg-translate` | Text → text | `Translator`, `TranslateError` (TR-06 kinds + Fluent IDs), `langid` (SV-04/TR-07), `tokens` (SV-05), `PivotTranslator`/`plan_route` (TR-03), `MockTranslator` |
 | `pg-pipeline` | Orchestration | `Scheduler` (CAP-03, LENS-06), `change` (CAP-03/06), `grouping` (OCR-02), `cache` (TR-04), `color` (REN-01), `Pipeline::run_cycle`, `driver::spawn`, `LensUpdate` |
@@ -52,22 +52,28 @@ A thin Tauri 2 layer; no pipeline logic lives here or in JS.
 
 | Module (`src-tauri/src`) | Role |
 |---|---|
-| `lens.rs` | Creates the frameless, transparent, always-on-top, no-taskbar window; centres it on the cursor's monitor (LENS-01); `Layout` (frame/toolbar insets) and `interior_region` (logical → `LogicalRect::to_physical`, CAP-04); arrow-key nudge (LENS-02) |
+| `lens.rs` | Creates the frameless, transparent, always-on-top, no-taskbar window and sets `WDA_EXCLUDEFROMCAPTURE` on it before it is shown (CAP-02); centres it on the cursor's monitor (LENS-01); `Layout` (frame/toolbar insets) and `interior_region` (logical → `LogicalRect::to_physical`, CAP-04); arrow-key nudge (LENS-02) |
 | `state.rs` | `Lens`: visibility, pause and interior region in one place; forwards them to the `DriverHandle` (`show`/`hide`/`lens_moved`) and to the click-through poller |
 | `clickthrough.rs` | ~30 Hz cursor poll toggling `set_ignore_cursor_events` over the interior only; parked while hidden (ADR-0002) |
-| `commands.rs` | The only IPC commands (`lens_config`, `nudge_lens`, `set_click_through`, `set_paused`, `hide_lens`); input validated in Rust (SEC-01) |
+| `commands.rs` | The only IPC commands (`lens_config`, `nudge_lens`, `set_click_through`, `set_paused`, `hide_lens`, `open_ocr_language_settings`); input validated in Rust (SEC-01) |
+| `live.rs` | Default on Windows: `WgcCapturer` + `WindowsOcr` + `MockTranslator` (until M1-TR-1), Auto sv/en → en. Started only if the lens is excluded from capture |
 | `demo.rs` | `--demo`: `StaticCapturer` over a synthetic desktop + `MockOcr` + `MockTranslator` |
 | `tray.rs` | Tray icon: show/hide lens, quit |
 
 Security: `build.rs` declares the commands in an app manifest so each needs an explicit
 `allow-*` permission; `capabilities/lens.json` grants the lens window only event listen/unlisten,
-start-dragging/resize-dragging and those five commands — no `core:default`. The CSP in
+start-dragging/resize-dragging and those six commands — no `core:default`. The CSP in
 `tauri.conf.json` allows bundled scripts/styles only, no frames, objects or remote connections
 besides Tauri IPC (SEC-02). The UI renders recognized text with `textContent` only and accepts
 colours only as `#rrggbb`.
 
 Events: the driver's `LensUpdate`s are emitted to the lens window as `lens-update` (JSON as in
-`pg_pipeline::update`) and drawn as absolutely positioned DOM blocks in the interior.
+`pg_pipeline::update`) and drawn as absolutely positioned DOM blocks in the interior. If the
+pipeline can't start, `lens-error` carries a Fluent message ID (also in `lens_config`).
+
+`unsafe`: the workspace denies it. Allowed only in `pg-capture`'s `wgc` module (D3D11/DXGI
+interop, monitor enumeration), the one `SetWindowDisplayAffinity` call in `lens.rs`, and the
+Win32 test windows in `crates/pg-capture/tests/wgc.rs`. `WindowsOcr` needs none.
 
 ## Windows OCR (`pg-ocr::WindowsOcr`)
 

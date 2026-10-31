@@ -53,7 +53,10 @@ export interface Timings {
 /** `commands::LensConfig`. */
 export interface LensConfig {
   layout: { frame: number; toolbar: number };
-  demo: boolean;
+  /** demo: all mocks; live: real capture + OCR, mock translation (until M1-TR-1). */
+  mode: "demo" | "live" | "none";
   clickThrough: boolean;
   pipeline: boolean;
+  /** Fluent message ID if the pipeline failed to start. */
+  pipelineError: string | null;
 }

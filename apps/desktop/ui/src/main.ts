@@ -32,6 +32,7 @@ const lockIcon = document.getElementById("icon-lock") as unknown as SVGElement;
 const cloudIcon = document.getElementById("icon-cloud") as unknown as SVGElement;
 const pauseBtn = $<HTMLButtonElement>("pause");
 const clickBtn = $<HTMLButtonElement>("click-through");
+const ocrLangBtn = $<HTMLButtonElement>("ocr-lang");
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
 let lastGeneration = -1;
@@ -44,7 +45,13 @@ const MESSAGES: Record<string, string> = {
   "cap-error-permission": "Screen capture permission is missing",
   "ocr-error": "Text recognition failed",
   "ocr-error-language-missing": "Text recognition language is not installed",
+  "cap-error-self-exclusion":
+    "The lens can't hide itself from screen capture (needs Windows 10 version 2004 or later), so live capture is off.",
 };
+
+// SV-02: where to add Swedish OCR on Windows. The toolbar's ⚠ SV button opens the page.
+const SWEDISH_OCR_HELP =
+  "Swedish text recognition isn't installed, so only English is read. Add it in Windows Settings → Time & language → Language & region → Swedish → Language options → Optical character recognition (⚠ SV in the toolbar opens Settings).";
 
 function showMessage(text: string | null): void {
   messageEl.hidden = text === null;
@@ -108,21 +115,34 @@ function render(u: LensUpdate): void {
       break;
   }
 
-  const missing = u.notices.find((n) => n.kind === "ocr_language_missing");
+  const missing =
+    u.notices.some((n) => n.kind === "ocr_language_missing") ||
+    (u.status.kind === "error" && u.status.message_id === "ocr-error-language-missing");
   noticeEl.hidden = !missing;
-  noticeEl.textContent = missing
-    ? `Swedish text recognition isn't installed; reading English only (${missing.lang}).`
-    : "";
+  noticeEl.textContent = missing ? SWEDISH_OCR_HELP : "";
+  ocrLangBtn.hidden = !missing;
 }
 
 function applyConfig(cfg: LensConfig): void {
   const root = document.documentElement.style;
   root.setProperty("--frame", `${cfg.layout.frame}px`);
   root.setProperty("--toolbar", `${cfg.layout.toolbar}px`);
-  $("demo-badge").hidden = !cfg.demo;
+  const badge = $("mode-badge");
+  badge.hidden = cfg.mode === "none";
+  if (cfg.mode === "demo") {
+    badge.textContent = "DEMO";
+    badge.title = "Demo mode: mock capture, OCR and translation";
+  } else {
+    // Real capture and OCR; translation stays a placeholder until M1-TR-1.
+    badge.textContent = "MOCK MT";
+    badge.title = "Real screen capture and OCR. Translation is a placeholder ([en] + original) until the on-device translator lands.";
+  }
+  badge.setAttribute("aria-label", badge.title);
   setClickThroughUi(cfg.clickThrough);
-  if (!cfg.pipeline) {
-    showMessage("Live capture isn't available yet (M1-CAP-1). Start with --demo for mock results.");
+  if (cfg.pipelineError) {
+    showMessage(MESSAGES[cfg.pipelineError] ?? cfg.pipelineError);
+  } else if (!cfg.pipeline) {
+    showMessage("Live capture isn't available on this platform yet. Start with --demo for mock results.");
   }
 }
 
@@ -178,15 +198,23 @@ clickBtn.addEventListener("click", () => {
 });
 
 $("close").addEventListener("click", () => call("hide_lens"));
+ocrLangBtn.addEventListener("click", () => call("open_ocr_language_settings"));
 
 async function start(): Promise<void> {
   if (!isTauri()) {
     // Plain browser (layout preview): show a sample update instead of live data.
-    applyConfig({ layout: { frame: 6, toolbar: 30 }, demo: true, clickThrough: true, pipeline: true });
+    applyConfig({
+      layout: { frame: 6, toolbar: 30 },
+      mode: "demo",
+      clickThrough: true,
+      pipeline: true,
+      pipelineError: null,
+    });
     render(sampleUpdate());
     return;
   }
   await listen<LensUpdate>("lens-update", (e) => render(e.payload));
+  await listen<string>("lens-error", (e) => showMessage(MESSAGES[e.payload] ?? e.payload));
   applyConfig(await invoke<LensConfig>("lens_config"));
 }
 

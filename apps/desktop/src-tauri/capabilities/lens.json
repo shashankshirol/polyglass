@@ -12,6 +12,7 @@
     "allow-nudge-lens",
     "allow-set-click-through",
     "allow-set-paused",
-    "allow-hide-lens"
+    "allow-hide-lens",
+    "allow-open-ocr-language-settings"
   ]
 }

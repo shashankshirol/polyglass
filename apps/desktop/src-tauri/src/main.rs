@@ -9,21 +9,24 @@ mod clickthrough;
 mod commands;
 mod demo;
 mod lens;
+mod live;
 mod state;
 mod tray;
 
 use std::sync::Arc;
 
 use pg_core::PhysRect;
-use pg_pipeline::{LensUpdate, SchedulerConfig, driver};
+use pg_pipeline::{LensUpdate, Pipeline, SchedulerConfig, driver};
 use tauri::{AppHandle, Emitter, Manager, RunEvent, WebviewWindow, WindowEvent};
 use tokio::sync::mpsc;
 use tracing_subscriber::EnvFilter;
 
-use crate::state::Lens;
+use crate::state::{Lens, Mode};
 
 /// Event the lens UI listens to for pipeline results.
 const UPDATE_EVENT: &str = "lens-update";
+/// Event carrying a Fluent message ID when the pipeline can't start.
+const ERROR_EVENT: &str = "lens-error";
 
 fn main() {
     tracing_subscriber::fmt()
@@ -34,19 +37,29 @@ fn main() {
 
     let demo = std::env::args().any(|a| a == "--demo")
         || std::env::var("POLYGLASS_DEMO").is_ok_and(|v| v == "1");
+    let mode = if demo {
+        Mode::Demo
+    } else if cfg!(windows) {
+        Mode::Live
+    } else {
+        Mode::None
+    };
 
     let app = tauri::Builder::default()
-        .manage(Lens::new(demo))
+        .manage(Lens::new(mode))
         .invoke_handler(tauri::generate_handler![
             commands::lens_config,
             commands::nudge_lens,
             commands::set_click_through,
             commands::set_paused,
             commands::hide_lens,
+            commands::open_ocr_language_settings,
         ])
         .setup(move |app| {
             let handle = app.handle().clone();
             let window = lens::create(&handle)?;
+            // Before the lens is first shown, so no capture ever contains it (CAP-02).
+            let self_excluded = lens::exclude_from_capture(&window);
             watch_window(&window);
             tray::create(&handle)?;
             lens::place_and_show(&handle, &window)?;
@@ -54,9 +67,22 @@ fn main() {
             state.set_region(lens::interior_region(&window));
             state.set_visible(true);
             state.click.spawn(handle.clone(), window.clone());
-            if demo {
-                tracing::warn!("demo mode: mock capture, OCR and translation");
-                start_demo_pipeline(handle, &window);
+            match mode {
+                Mode::Demo => {
+                    tracing::warn!("demo mode: mock capture, OCR and translation");
+                    let scale = window.scale_factor().unwrap_or(1.0);
+                    let bounds = desktop_bounds(&handle).unwrap_or(PhysRect::new(0, 0, 1920, 1080));
+                    start_pipeline(handle, move || Ok(demo::pipeline(bounds, scale)));
+                }
+                // Without exclusion the lens would OCR its own translations (CAP-02).
+                Mode::Live if !self_excluded => {
+                    report_pipeline_error(&handle, live::SELF_EXCLUSION_ERROR);
+                }
+                Mode::Live => {
+                    tracing::warn!("live capture and OCR; translation is the mock (M1-TR-1)");
+                    start_pipeline(handle, live::pipeline);
+                }
+                Mode::None => tracing::warn!("no capture backend on this platform yet"),
             }
             Ok(())
         })
@@ -110,15 +136,25 @@ pub fn toggle_lens(app: &AppHandle) {
     }
 }
 
-fn start_demo_pipeline(app: AppHandle, window: &WebviewWindow) {
-    let scale = window.scale_factor().unwrap_or(1.0);
-    let bounds = desktop_bounds(&app).unwrap_or(PhysRect::new(0, 0, 1920, 1080));
+/// Build the pipeline off the UI thread (painting the demo desktop and starting WGC/OCR take a
+/// moment), then run the driver and forward its updates to the lens.
+fn start_pipeline(
+    app: AppHandle,
+    build: impl FnOnce() -> pg_core::Result<Pipeline> + Send + 'static,
+) {
     tauri::async_runtime::spawn(async move {
-        // Painting the synthetic desktop takes a moment; keep it off the UI thread.
-        let Ok(pipeline) = tokio::task::spawn_blocking(move || demo::pipeline(bounds, scale)).await
-        else {
-            tracing::error!("demo pipeline setup failed");
-            return;
+        let pipeline = match tokio::task::spawn_blocking(build).await {
+            Ok(Ok(p)) => p,
+            Ok(Err(e)) => {
+                // Technical context only, never recognized text (PRIV-07).
+                tracing::error!(error = %e, "pipeline failed to start");
+                report_pipeline_error(&app, "cap-error");
+                return;
+            }
+            Err(_) => {
+                tracing::error!("pipeline setup panicked");
+                return;
+            }
         };
         let (tx, mut rx) = mpsc::unbounded_channel::<LensUpdate>();
         let (handle, _task) = driver::spawn(Arc::new(pipeline), SchedulerConfig::default(), tx);
@@ -130,6 +166,14 @@ fn start_demo_pipeline(app: AppHandle, window: &WebviewWindow) {
             }
         }
     });
+}
+
+/// Tell the lens why nothing runs behind it. `lens_config` carries the same ID in case the UI
+/// subscribes after this event.
+fn report_pipeline_error(app: &AppHandle, message_id: &'static str) {
+    tracing::error!(message_id, "no pipeline behind the lens");
+    app.state::<Lens>().set_pipeline_error(message_id);
+    let _ = app.emit_to(lens::LABEL, ERROR_EVENT, message_id);
 }
 
 /// Bounding box of all monitors in physical px.

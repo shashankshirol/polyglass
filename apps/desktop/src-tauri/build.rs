@@ -8,6 +8,7 @@ fn main() {
             "set_click_through",
             "set_paused",
             "hide_lens",
+            "open_ocr_language_settings",
         ]),
     ))
     .expect("failed to run tauri-build");

@@ -129,6 +129,34 @@ pub fn get(app: &AppHandle) -> Option<WebviewWindow> {
     app.get_webview_window(LABEL)
 }
 
+/// Keep the lens out of every screen capture, including our own, so OCR never reads the
+/// translations it draws (CAP-02). Needs Windows 10 2004+. Returns whether it worked.
+#[cfg(windows)]
+pub fn exclude_from_capture(window: &WebviewWindow) -> bool {
+    use windows::Win32::UI::WindowsAndMessaging::{
+        SetWindowDisplayAffinity, WDA_EXCLUDEFROMCAPTURE,
+    };
+    let Ok(hwnd) = window.hwnd() else {
+        return false;
+    };
+    // SAFETY: `hwnd` is the live lens window owned by this process; the call only sets a window
+    // attribute and fails cleanly on older Windows. The only `unsafe` in the desktop shell.
+    #[allow(unsafe_code)]
+    let result = unsafe { SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE) };
+    match result {
+        Ok(()) => true,
+        Err(e) => {
+            tracing::error!(error = %e, "could not exclude the lens from screen capture");
+            false
+        }
+    }
+}
+
+#[cfg(not(windows))]
+pub fn exclude_from_capture(_window: &WebviewWindow) -> bool {
+    false
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

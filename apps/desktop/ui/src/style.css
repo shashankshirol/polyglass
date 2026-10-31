@@ -265,3 +265,9 @@ body {
     animation: none !important;
   }
 }
+
+/* SV-02: shown only while Swedish OCR is missing. */
+#toolbar button.warn {
+  color: #ffd166;
+  font-weight: 700;
+}

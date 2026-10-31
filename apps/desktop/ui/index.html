@@ -19,7 +19,10 @@
         <button id="swap" type="button" aria-disabled="true" aria-label="Swap languages" title="Swap languages">⇄</button>
         <button id="mode" type="button" aria-disabled="true" aria-label="Mode: Overlay" title="Mode: Overlay">Overlay</button>
         <span class="spacer" data-tauri-drag-region></span>
-        <span id="demo-badge" class="badge" title="Mock capture, OCR and translation" hidden>DEMO</span>
+        <button id="ocr-lang" type="button" class="warn" hidden
+          aria-label="Swedish text recognition isn't installed. Open Windows language settings to add it."
+          title="Swedish text recognition isn't installed. Open Windows language settings to add it.">⚠ SV</button>
+        <span id="mode-badge" class="badge" hidden></span>
         <span id="privacy" class="privacy" role="img" aria-label="On-device translation" title="On-device translation">
           <svg id="icon-lock" viewBox="0 0 16 16" aria-hidden="true">
             <path d="M4.5 7V5a3.5 3.5 0 0 1 7 0v2" fill="none" stroke="currentColor" stroke-width="1.6" />
