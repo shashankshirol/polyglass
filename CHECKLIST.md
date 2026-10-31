@@ -27,7 +27,7 @@
 
 - **Milestone:** M0 (foundations). Headless core done: 98 tests green, clippy `-D warnings` clean, fmt clean (Windows only so far). Platform spikes not started.
 - **Dev machine used so far:** Windows 11 x64, Rust 1.99, Node 24, Python 3.12 (no Pillow), no Tesseract. Windows OCR languages installed: `en-US`, `en-GB` (no `sv-SE`, which is useful for testing SV-02).
-- **Git:** `git init` done locally on `main`; **nothing committed yet**, no remote.
+- **Git:** local repo on `main`; initial commit `8cd14de` (M0 foundation); no remote yet.
 - **Next up (suggested order, each ≈ one session):**
   1. M0-SPK-1 + M1-APP-1: Tauri 2 scaffold in `apps/desktop` with a transparent click-through lens window.
   2. M1-OCR-1/2: Windows OCR engine (`windows` crate) in `pg-ocr`, testable on this machine.
@@ -59,7 +59,7 @@
 - [~] M0-REPO-3 CI skeleton `.github/workflows/ci.yml`: fmt, clippy `-D warnings`, tests on Windows/macOS (arm64 + x86_64)/Ubuntu, `pg-bench` smoke run, `cargo deny` (QUAL-01, SEC-05 skeleton). *Written but never run: no remote yet. `deny.toml` not run locally (cargo-deny not installed).*
 - [x] M0-REPO-4 Docs skeleton: README, CONTRIBUTING, CODE_OF_CONDUCT, SECURITY, GOVERNANCE, PRIVACY, docs/ARCHITECTURE.md, docs/adr/0000-template + ADR-0001 (OSS-03 skeleton). *Contact e-mails are `.invalid` placeholders.*
 - [ ] M0-REPO-5 Add LICENSE-MIT / LICENSE-APACHE once D-2 is decided.
-- [~] M0-REPO-6 Repo history + public remote. *Done: local `git init`. Not done: first commit, remote, real contact addresses.*
+- [~] M0-REPO-6 Repo history + public remote. *Done: local repo + initial commit `8cd14de`. Not done: remote, real contact addresses, `.gitattributes` (global `core.autocrlf` converts files to CRLF on Windows checkouts).*
 - [ ] M0-REPO-7 `cargo-about` config for THIRD_PARTY_NOTICES (OSS-01).
 
 ### Headless core (Principle 4)
@@ -174,7 +174,8 @@ Newest first. Keep each entry short: what changed, what's verified, what's next,
 - Created this checklist. Scaffolded the workspace (edition 2024, resolver 3, workspace lints incl. `unsafe_code = "deny"`; platform crates will need a module-level `allow`), docs, ADR-0001, CI and `deny.toml`.
 - Implemented M0-CORE-1..7. `cargo test --workspace`: 98 passed, and the timing-dependent driver tests passed 8 runs in a row (they use Tokio's paused clock). Clippy and fmt are clean.
 - Fixture ground truth written for all 8 SPEC fixtures (text only).
-- Not done or not verified: CI never ran (no remote), `cargo deny` never ran, nothing committed, nothing tested on macOS/Linux.
+- Not done or not verified: CI never ran (no remote), `cargo deny` never ran, nothing tested on macOS/Linux.
+- Committed as `8cd14de` on `main`, with no DCO `Signed-off-by` line (CONTRIBUTING asks contributors for one).
 - Gotchas:
   - Windows OCR here has no `sv-SE`; Tesseract and Pillow aren't installed.
   - `tokio::select!` evaluates disabled branches' futures, so deadlines use `unwrap_or_else(Instant::now)`, not `unwrap()`.
