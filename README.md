@@ -197,6 +197,29 @@ on GitHub itself (the redirect to the asset host and a resumed download; ≈ 2 M
 The MSRV is Rust 1.90: `cargo +1.90 check --workspace --all-targets`. `cargo deny check` checks
 licenses and advisories.
 
+### 7. Developer flags and crash reports
+
+Pass these after `polyglass.exe`, or after `npm run tauri dev -- --`:
+
+- `--trace-timings` logs each cycle's stage timings and, once the lens has painted a result,
+  `at_rest_ms`: from the lens coming to rest to the result on screen (PERF-01/02/06), with a
+  summary when the app quits. `--trace-timings=uncached` also clears the translation cache each
+  time the lens moves, so every result is translated afresh. The toolbar shows TRACE. Only
+  numbers are logged, never screen text. `apps/desktop/scripts/lens-trace.ps1` moves the lens
+  over a fixture's text to collect the numbers; release builds have no console, so redirect
+  the log, which goes to standard output (`Start-Process target\release\polyglass.exe -ArgumentList '--trace-timings=uncached'
+  -RedirectStandardOutput trace.log`).
+- `--debug-dump-frames[=DIR]` saves every captured frame as a PNG in a new folder under DIR
+  (default: `debug-frames` in the app's local data folder, `%LOCALAPPDATA%\org.polyglass.desktop`
+  on Windows), keeping the newest 200. This is the only way screen images reach the disk
+  (PRIV-02), and the lens shows a red banner with the folder for as long as it runs.
+
+If Polyglass panics it saves a crash report (version, OS, where and why it stopped, a
+backtrace) in `crash-reports` in the same local data folder and keeps the newest 10. Nothing is
+uploaded. When reports exist, the tray menu shows **Crash reports…**, which opens the folder, so
+you can attach one to an issue. Crashes inside the C++ translation engine end the app without a
+report.
+
 ### Troubleshooting
 
 - **`cargo metadata ... program not found` from the Tauri CLI (Windows):** your `cargo.exe` is

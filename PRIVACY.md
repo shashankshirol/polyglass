@@ -35,6 +35,8 @@ If you choose an online service (LibreTranslate, DeepL or Google):
 ## What Polyglass never does
 
 - No analytics, telemetry or tracking.
-- No automatic crash uploads. Crash reports are saved locally; you decide whether to attach
-  one to a bug report.
+- No automatic crash uploads. If Polyglass crashes it saves a report in its own data folder
+  (`crash-reports`, the newest 10 are kept; the tray's "Crash reports…" opens it). The report
+  holds the version, OS and where the program stopped, not your screen's text. You decide
+  whether to attach one to a bug report.
 - Logs at the default level contain no recognized or translated text.

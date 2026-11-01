@@ -48,7 +48,9 @@ pg-testkit (dev-only: fixture images and OCR scoring for tests and pg-bench)
 scheduler deadline. Any command that bumps the generation drops the in-flight cycle, and
 results are compared with the current generation before being emitted, so results for an old
 lens position are never drawn. When hidden, the scheduler has no deadline and the loop only
-waits on its channel (LENS-06, RES-01).
+waits on its channel (LENS-06, RES-01). A `show` while already shown changes nothing, so the
+app's `show` after each move doesn't cut the 150 ms rest delay short (CAP-03; before session 12
+it did, and every move started a cycle).
 
 ## Desktop shell (`apps/desktop`)
 
@@ -59,11 +61,13 @@ A thin Tauri 2 layer; no pipeline logic lives here or in JS.
 | `lens.rs` | Creates the frameless, transparent, always-on-top, no-taskbar window and sets `WDA_EXCLUDEFROMCAPTURE` on it before it is shown (CAP-02); centres it on the cursor's monitor (LENS-01); `Layout` (frame/toolbar insets) and `interior_region` (logical → `LogicalRect::to_physical`, CAP-04); arrow-key nudge (LENS-02) |
 | `state.rs` | `Lens`: visibility, pause and interior region in one place; forwards them to the `DriverHandle` (`show`/`hide`/`lens_moved`) and to the click-through poller |
 | `clickthrough.rs` | ~30 Hz cursor poll toggling `set_ignore_cursor_events` over the interior only; parked while hidden (ADR-0002) |
-| `commands.rs` | The only IPC commands. Lens: `lens_config`, `nudge_lens`, `set_click_through`, `set_paused`, `hide_lens`, `open_ocr_language_settings`, `open_model_manager`, `copy_translation`, `swap_languages`. Model manager window: `models_state`, `download_models`, `cancel_download`, `delete_model`, `finish_first_run`. Each checks the calling window; input validated in Rust (SEC-01) |
+| `commands.rs` | The only IPC commands. Lens: `lens_config`, `nudge_lens`, `set_click_through`, `set_paused`, `hide_lens`, `open_ocr_language_settings`, `open_model_manager`, `copy_translation`, `swap_languages`, `lens_drawn` (`--trace-timings` only). Model manager window: `models_state`, `download_models`, `cancel_download`, `delete_model`, `finish_first_run`. Each checks the calling window; input validated in Rust (SEC-01) |
 | `live.rs` | Default on Windows: `WgcCapturer` + `WindowsOcr` + `TokenGuard<Ct2Translator>`, Auto sv/en → en. Started only if the lens is excluded from capture. Without models, Swedish blocks report `tr-error-model-missing` |
 | `models.rs` | Model store at `<app local data>/models` (`%LOCALAPPDATA%\org.polyglass.desktop\models` on Windows) and the `models` window (`ui/models.html`): the model manager and, on the first live start without the sv↔en models, the first-run wizard (both directions pre-selected with their combined size; offered once, `[models] first_run_done`; MDL-06, SV-01). The manager lists the catalog, Swedish first, with size, license, attribution and source (MDL-01); one download job at a time through `pg-models` with progress, cancel and resume from `.part` files (MDL-03); delete and total disk usage (MDL-05). After a download or delete the running pipeline gets a translator with exactly the installed models. Import-only entries, and every download after one got HTTP 401/403/404/410 in this run (`mdl-error-unreachable`, e.g. while the repository is private), show the `scripts/models/opus_mt.py` command instead of a download button. The lens ⬇ (shown while the models are missing) and ⚙ open the window, as does the tray's "Translation models…" |
 | `demo.rs` | `--demo`: `StaticCapturer` over a synthetic desktop + `MockOcr` + `MockTranslator` |
-| `tray.rs` | Tray icon: show/hide lens, translation models, quit |
+| `tray.rs` | Tray icon: show/hide lens, translation models, crash reports (when there are any), quit |
+| `devflags.rs` | Developer flags (M1-APP-10): `--trace-timings[=uncached]` (`Trace`: stage timings per cycle, and at rest → drawn once the lens reports the paint through `lens_drawn`; target `pg::trace`, numbers only) and `--debug-dump-frames[=DIR]` (`DumpFrames` wraps the capturer and a writer thread saves PNGs; the lens shows a red banner, PRIV-02) |
+| `crash.rs` | Panic hook: a plain-text report per panic in `<app local data>/crash-reports`, newest 10 kept, nothing uploaded (PRIV-06) |
 
 Security: `build.rs` declares the commands in an app manifest so each needs an explicit
 `allow-*` permission; `capabilities/lens.json` grants the lens window only event listen/unlisten,
@@ -142,6 +146,10 @@ CTranslate2 is C++, and its `cxx` bridge (with its `unsafe`) lives inside `ct2rs
 ## Privacy invariants in code
 
 - `Frame` and `RenderedBlock` have hand-written `Debug` impls without pixels/text (PRIV-02/07).
+- Frames reach the disk only through `--debug-dump-frames`, with the lens's red banner on
+  (PRIV-02). The pipeline's logs hold no text even at TRACE (`pg-pipeline/tests/priv07_logs.rs`,
+  PRIV-07); `--trace-timings` logs numbers only.
+- Crash reports stay on the computer (`crash.rs`, PRIV-06); there is no telemetry code.
 - `TranslationCache` has no serialization (TR-04: never on disk).
 - Errors carry technical context only, never recognized text.
 - Model downloads accept only manifest entries; the manifest accepts only https URLs with
