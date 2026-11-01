@@ -339,7 +339,7 @@ These are verified with mocks. Each requirement is fully met only once real engi
 Newest first. Keep each entry short: what changed, what's verified, what's next, gotchas.
 
 ### 2026-11-01 — Session 12 (M0-FIX-4 + PERF-01/06; M0-SPK on macOS/Linux; M1-APP-10/11)
-- Commits on `main`, none pushed: `ae7f5a1` eval sets + chrF; `6142aa1` held-out langid check; `bfb42f1` pg-bench `--translator ct2`, `--eval`; `5507c76` manual `Measure` workflow; `0816f11` scheduler fix (CAP-03); then M1-APP-10/11 and this checklist.
+- Commits on `main`, none pushed: `ae7f5a1` eval sets + chrF; `6142aa1` held-out langid check; `bfb42f1` pg-bench `--translator ct2`, `--eval`; `5507c76` manual `Measure` workflow; `0816f11` scheduler fix (CAP-03); `9a0cf4c` trace + dump flags (M1-APP-10); `bd8d1af` PRIV-07 log test; `f1b63bb` crash reports (M1-APP-11); `c76da2e` docs; `3c603f6` + this commit, checklist.
 - M0-FIX-4 `[x]`: 2 × 200 segments; sv-en chrF 76.45, en-sv 80.71 with the app's guard (sacreBLEU-identical scorer). PERF-01/06 measured end to end in pg-bench (p50 210–215 / 203–204 ms) and in the release app (at rest → painted p50 238 / 232 ms, p95 246 / 244 ms); PERF-02 p50 36 / p95 43 ms. This machine is a Ryzen 7 7800X3D, not REF-A.
 - M1-APP-10/11 `[x]`: `--trace-timings[=uncached]`, `--debug-dump-frames` with a red banner, PRIV-07 log test, local crash reports with a tray entry.
 - Bug found with the trace and fixed: every move started a cycle at once (no rest delay, OCR while dragging), because the app's `show` after each move reset the scheduler.
