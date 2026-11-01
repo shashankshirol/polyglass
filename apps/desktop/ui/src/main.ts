@@ -4,6 +4,7 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { fitFontSize, maxHeight, startSize } from "./fit";
 import type { LensConfig, LensUpdate, ModelEvent, RenderedBlock } from "./types";
 
 type ResizeDirection =
@@ -105,11 +106,22 @@ function renderBlock(b: RenderedBlock): HTMLElement {
   return el;
 }
 
-/** Basic fit until REN-02 (M1-APP-6): shrink from 16 px towards 9 px until the block fits. */
-function fit(el: HTMLElement, rect: RenderedBlock["rect"]): void {
-  for (let size = 16; size >= 9; size--) {
-    el.style.fontSize = `${size}px`;
-    if (el.scrollHeight <= rect.h + 1 && el.scrollWidth <= rect.w + 1) return;
+/**
+ * REN-02: start at the source text's size and shrink to fit the source box, down to 9 px. Text
+ * that still doesn't fit grows the box downward to the interior's bottom edge, and the block's
+ * tooltip holds the full text (seen with click-through off; Panel view is M2-2).
+ */
+function fit(el: HTMLElement, b: RenderedBlock): void {
+  const { rect } = b;
+  const { size, overflow } = fitFontSize((px) => {
+    el.style.fontSize = `${px}px`;
+    return el.scrollHeight <= rect.h + 1 && el.scrollWidth <= rect.w + 1;
+  }, startSize(b.line_height));
+  el.style.fontSize = `${size}px`;
+  el.classList.toggle("overflow", overflow);
+  if (overflow) {
+    el.style.maxHeight = `${maxHeight(rect.y, blocksEl.clientHeight)}px`;
+    el.title = el.textContent ?? "";
   }
 }
 
@@ -121,7 +133,7 @@ function render(u: LensUpdate): void {
   setPrivacy(u.backend.local, u.backend.name);
   const els = u.blocks.map(renderBlock);
   blocksEl.replaceChildren(...els);
-  els.forEach((el, i) => fit(el, u.blocks[i]!.rect));
+  els.forEach((el, i) => fit(el, u.blocks[i]!));
 
   switch (u.status.kind) {
     case "ok":
@@ -299,8 +311,9 @@ async function start(): Promise<void> {
 }
 
 function sampleUpdate(): LensUpdate {
-  const block = (y: number, source: string, translation: string): RenderedBlock => ({
-    rect: { x: 8, y, w: 260, h: 18 },
+  const block = (y: number, source: string, translation: string, w = 260): RenderedBlock => ({
+    rect: { x: 8, y, w, h: 18 },
+    line_height: 18,
     source,
     source_lang: "sv",
     translation,
@@ -313,7 +326,12 @@ function sampleUpdate(): LensUpdate {
   return {
     generation: 1,
     status: { kind: "ok" },
-    blocks: [block(8, "Spara ändringar", "Save changes"), block(38, "Avbryt", "Cancel")],
+    blocks: [
+      block(8, "Spara ändringar", "Save changes"),
+      block(38, "Avbryt", "Cancel"),
+      // Too long for its box even at 9 px: grows downward with the full text in its tooltip.
+      block(68, "Ändringarna försvinner", "Your changes will be lost if you don't save them", 120),
+    ],
     backend: { id: "demo", name: "demo", local: true },
     notices: [],
     timings: { capture: 0, change: 0, ocr: 0, group: 0, translate: 0, total: 0 },

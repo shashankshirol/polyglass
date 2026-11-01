@@ -31,6 +31,8 @@ export interface LensRect {
 
 export interface RenderedBlock {
   rect: LensRect;
+  /** Mean height of the source lines, lens-local logical px (REN-02 starting size). */
+  line_height: number;
   source: string;
   source_lang: string;
   translation: string | null;
