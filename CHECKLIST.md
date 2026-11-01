@@ -34,7 +34,7 @@
   2. M0-SPK-1/SPK-2/SPK-3 on macOS/Linux, including the first CTranslate2 build there (the CI jobs for it have never run).
   3. M1-APP-10/11 (trace flags with the red banner, local crash reports).
 - **Known follow-ups inside done work** (not separate tasks yet):
-  - `deny.toml` allows BSL-1.0 since session 10 for `clipboard-win` and `error-code` (arboard's Windows backend, REN-05). It is permissive and OSI-approved. If the owner prefers not to allow it, the copy can call the Win32 clipboard directly (more `unsafe`).
+  - `deny.toml` allows BSL-1.0 since session 10 for `clipboard-win` and `error-code` (arboard's Windows backend, REN-05). It is permissive and OSI-approved. **Approved by the owner on 2026-11-01: "Yes, keep BSL-1.0".**
   - macOS: the hold-Option key state (REN-04) has no source yet (`hold.rs` runs on Windows only), and the ⌘⌥ hotkeys weren't tried. Do both with M1-CAP-3.
   - Change detection (M1-CAP-6): a typed narrow glyph (`l`, `I`, `|`, `1`) alone looks like a caret and waits for the next change; spinners and progress bars re-run OCR on every re-check (≈ 8–10 ms, translation cached). Over video, OCR misreads the moving background differently in each frame and each misread is translated (≈ 34–83 ms per cycle). Ignoring blocks that change on every cycle could save that. Retune when ScreenCaptureKit/X11 capture land (they may not be bit-exact).
   - `langid` scores 100% on `mixed-sv-en`, but it was tuned on that same fixture. Add a held-out set before trusting the SV-04 ≥ 90% gate.
@@ -333,7 +333,7 @@ Newest first. Keep each entry short: what changed, what's verified, what's next,
 - M1-APP-7: hold left Alt for the original (key-state poller, AltGr excluded); ⧉ copy via `arboard`. M1-APP-9: Ctrl+Alt+L/C/S/T, swap en ↔ sv, SV-09 layout test. All three checked in the release app with UI Automation and real key events.
 - M1-APP-8: settings only (`settings.toml`, lens position/size/click-through/target restored). The model manager and the first-run wizard are not started.
 - Verified: fmt, clippy `-D warnings`, 183 tests (10 ignored), `cargo +1.90 check --workspace --all-targets`, `cargo deny check`, `npm run build`, `npm test`, all locally on Windows.
-- For the owner: `deny.toml` now allows BSL-1.0 (arboard's `clipboard-win`/`error-code`); say if you'd rather not (Known follow-ups). The two M1-OCR-6 calls from session 9 are still open.
+- `deny.toml` now allows BSL-1.0 (arboard's `clipboard-win`/`error-code`; the owner approved keeping it on 2026-11-01, Known follow-ups). The two M1-OCR-6 calls from session 9 are still open.
 - Gotchas:
   - Python heredocs in Git Bash still turn `\\` into `\` (a `"\\n"` became a real newline in Rust source). Put edit scripts in a file, or use the Edit tool.
   - The Browser pane's preview tab has a 0×0 viewport while the pane is hidden; set one with `resize_window` before measuring layout.
