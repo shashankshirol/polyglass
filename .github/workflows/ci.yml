@@ -40,7 +40,7 @@ jobs:
       fail-fast: false
       matrix:
         # push/PR or os=linux → Linux; os=windows / os=macos → that OS; os=all → all four.
-        os: ${{ fromJSON((github.event_name != 'workflow_dispatch' || inputs.os == 'linux') && '["ubuntu-latest"]' || inputs.os == 'windows' && '["windows-latest"]' || inputs.os == 'macos' && '["macos-latest","macos-13"]' || '["ubuntu-latest","windows-latest","macos-latest","macos-13"]') }}
+        os: ${{ fromJSON((github.event_name != 'workflow_dispatch' || inputs.os == 'linux') && '["ubuntu-latest"]' || inputs.os == 'windows' && '["windows-latest"]' || inputs.os == 'macos' && '["macos-latest","macos-15-intel"]' || '["ubuntu-latest","windows-latest","macos-latest","macos-15-intel"]') }}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
@@ -70,8 +70,6 @@ jobs:
             "/c/Program Files (x86)/Microsoft Visual Studio/Installer/vswhere.exe" -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property displayName
           else
             c++ --version
-            # x86 ISA macros the compiler enables by default (CTranslate2's CPU kernels, ADR-0005).
-            c++ -dM -E -x c++ /dev/null | grep -E '__(SSE4_1|AVX|AVX2|FMA|AVX512F)__' || true
           fi
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace

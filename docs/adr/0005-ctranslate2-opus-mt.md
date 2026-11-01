@@ -74,27 +74,19 @@ Measured results from the implementation (M1-TR-6) are in "Verified on this mach
   - The long-path try-compile failure didn't occur with the repository at `E:\Dev\Polyglass`; the
     README advises a short checkout path. Clean debug build of `pg-ct2` with Ninja ≈ 1 min.
   - Linux: `pg-ct2` turns on ct2rs's `disable-cpu-dispatch` feature for `target_os = "linux"`
-    only. With CTranslate2's runtime CPU dispatch (`ENABLE_CPU_DISPATCH`, the default) the
-    `ubuntu-latest` CI job failed to link: the GENERIC and AVX variants of every CPU kernel
-    (`reduce_amax`, `add`, `gelu`, …) were undefined, and the AVX2 variant was found in the plain
-    `kernels.cc.o`. So the base `kernels.cc` had been compiled with `__AVX2__` defined, and every
-    copy below AVX-512 became an AVX2 copy. The flag comes from the compiler itself: the
-    `ubuntu-latest` runner (Ubuntu 26.04 image, `c++` = GCC 15.2.0-16ubuntu1) defines `__SSE4_1__`,
-    `__AVX__`, `__FMA__` and `__AVX2__` with no flags (printed by the CI step "C++ toolchain"), so
-    it targets x86-64-v3 by default. Nothing in ct2rs's `build.rs`, CTranslate2's CMake, cc-rs,
-    cmake-rs or the workflow adds it. Without dispatch, CTranslate2 compiles `kernels.cc` once,
-    and `primitives.cc` chooses it with the same `__AVX2__`-style tests under the same flags, so
-    the two can't disagree. On x86-64 the kernels get whatever ISA the compiler targets (AVX2 on
-    that runner, SSE2 with a baseline compiler); on arm64 they are NEON either way. Matrix
-    multiplications go through ruy, which keeps its own runtime AVX2/AVX-512 dispatch. On this
-    machine (Windows, the same feature turned on for the measurement only) translation latency
-    was the same within run-to-run noise: sv→en `ui-dialog-sv` p50 172–216 ms with dispatch,
-    176–208 ms without, short strings ≈ 31 ms both. Windows and macOS keep dispatch. Verified by
-    CI: the `ubuntu-latest` test job links and passes with this setting. A compiler that
-    targets x86-64-v3 by default also makes everything it builds need an AVX2 CPU, not just
-    CTranslate2. Linux release builds (M2-7) should set the target ISA themselves, e.g.
-    `CXXFLAGS_x86_64_unknown_linux_gnu = "-march=x86-64-v2"`. With such a baseline, dispatch
-    would work again.
+    only; Windows and macOS keep CTranslate2's runtime CPU dispatch. Dispatch compiles
+    `kernels.cc` once per ISA and expects the base copy to be generic. The `ubuntu-latest` runner's
+    GCC 15.2 (Ubuntu 26.04) targets x86-64-v3 by default (`__AVX2__` and `__FMA__` defined
+    without flags), so the base and AVX copies came out as AVX2. The GENERIC and AVX kernels were
+    then undefined and the link failed. Without dispatch, the kernels are compiled once for
+    whatever ISA the compiler targets, and the callers choose them with the same tests, so the
+    two always match. Cost: none measurable. Matrix multiplications go through ruy, which keeps
+    its own runtime AVX2/AVX-512 dispatch. On Windows, with the feature forced on for the
+    measurement, sv→en `ui-dialog-sv` p50 was 172–216 ms with dispatch and 176–208 ms without;
+    short strings were ≈ 31 ms both. CI on Linux passes with this setting.
+    Linux release builds (M2-7) should set the CPU baseline themselves, e.g.
+    `CXXFLAGS_x86_64_unknown_linux_gnu = "-march=x86-64-v2"`. Otherwise a v3-default compiler
+    makes the whole build need an AVX2 CPU. With such a baseline, dispatch would work again.
 - **Models:** OPUS-MT ships Marian `.npz` files, which CTranslate2's Python converter turns into
   int8. `scripts/models/opus_mt.py` does this with a hash-locked converter (ctranslate2 4.8.4,
   the version ct2rs 0.10.3 bundles) and pins the SHA-256 of its inputs (the official release
@@ -151,5 +143,6 @@ Without the models the lens showed the install command (no ⬇, since the entrie
 Not measured: macOS, Linux, arm64; `accelerate` on macOS; translation quality beyond spot checks
 (SV-07). Spot checks show the usual small-model slips (en→sv `save them` → `rädda dem`).
 
-- **Follow-ups:** macOS/Linux/arm64 builds remain untested (M0-SPK-3 stays `[~]`); German → English
+- **Follow-ups:** Linux x86_64 builds and passes the tests in CI, but nothing was measured there;
+  macOS and arm64 builds remain untested (M0-SPK-3 stays `[~]`). German → English
   (M3-9) uses the same backend.
