@@ -73,6 +73,20 @@ Measured results from the implementation (M1-TR-6) are in "Verified on this mach
     CMake's Debug compiler probe, `/RTC1`.)
   - The long-path try-compile failure didn't occur with the repository at `E:\Dev\Polyglass`; the
     README advises a short checkout path. Clean debug build of `pg-ct2` with Ninja ≈ 1 min.
+  - Linux: `pg-ct2` turns on ct2rs's `disable-cpu-dispatch` feature for `target_os = "linux"`
+    only; Windows and macOS keep CTranslate2's runtime CPU dispatch. Dispatch compiles
+    `kernels.cc` once per ISA and expects the base copy to be generic. The `ubuntu-latest` runner's
+    GCC 15.2 (Ubuntu 26.04) targets x86-64-v3 by default (`__AVX2__` and `__FMA__` defined
+    without flags), so the base and AVX copies came out as AVX2. The GENERIC and AVX kernels were
+    then undefined and the link failed. Without dispatch, the kernels are compiled once for
+    whatever ISA the compiler targets, and the callers choose them with the same tests, so the
+    two always match. Cost: none measurable. Matrix multiplications go through ruy, which keeps
+    its own runtime AVX2/AVX-512 dispatch. On Windows, with the feature forced on for the
+    measurement, sv→en `ui-dialog-sv` p50 was 172–216 ms with dispatch and 176–208 ms without;
+    short strings were ≈ 31 ms both. CI on Linux passes with this setting.
+    Linux release builds (M2-7) should set the CPU baseline themselves, e.g.
+    `CXXFLAGS_x86_64_unknown_linux_gnu = "-march=x86-64-v2"`. Otherwise a v3-default compiler
+    makes the whole build need an AVX2 CPU. With such a baseline, dispatch would work again.
 - **Models:** OPUS-MT ships Marian `.npz` files, which CTranslate2's Python converter turns into
   int8. `scripts/models/opus_mt.py` does this with a hash-locked converter (ctranslate2 4.8.4,
   the version ct2rs 0.10.3 bundles) and pins the SHA-256 of its inputs (the official release
@@ -129,5 +143,6 @@ Without the models the lens showed the install command (no ⬇, since the entrie
 Not measured: macOS, Linux, arm64; `accelerate` on macOS; translation quality beyond spot checks
 (SV-07). Spot checks show the usual small-model slips (en→sv `save them` → `rädda dem`).
 
-- **Follow-ups:** macOS/Linux/arm64 builds remain untested (M0-SPK-3 stays `[~]`); German → English
+- **Follow-ups:** Linux x86_64 builds and passes the tests in CI, but nothing was measured there;
+  macOS and arm64 builds remain untested (M0-SPK-3 stays `[~]`). German → English
   (M3-9) uses the same backend.
