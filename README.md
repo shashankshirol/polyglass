@@ -95,6 +95,10 @@ download both directions (about 170 MB) from the release. Each file is checked a
 SHA-256 before it's saved to the model store, `%LOCALAPPDATA%\org.polyglass.desktop\models` on
 Windows. Translation starts once the download finishes, without a restart.
 
+The repository is private for now, so the release can't be downloaded without a GitHub login
+and ⬇ fails ("Downloading the translation models failed"). Until it's public, install the models
+with the script below.
+
 To build the same files yourself (offline install, or a check of the release), run this from
 the repository root:
 
