@@ -56,23 +56,12 @@ impl ModelStore {
 
     /// Total bytes used by all models, including partial downloads (MDL-05).
     pub fn disk_usage(&self) -> io::Result<u64> {
-        fn walk(p: &Path) -> io::Result<u64> {
-            let mut total = 0;
-            for entry in fs::read_dir(p)? {
-                let entry = entry?;
-                let meta = entry.metadata()?;
-                total += if meta.is_dir() {
-                    walk(&entry.path())?
-                } else {
-                    meta.len()
-                };
-            }
-            Ok(total)
-        }
-        match walk(&self.root) {
-            Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(0),
-            r => r,
-        }
+        dir_size(&self.root)
+    }
+
+    /// Bytes one model uses, including a partial download that would resume (MDL-03, MDL-05).
+    pub fn model_disk_usage(&self, model: &ModelEntry) -> io::Result<u64> {
+        dir_size(&self.model_dir(model))
     }
 
     /// Install a model from local files in `dir`, verified exactly like a download (MDL-04).
@@ -91,6 +80,27 @@ impl ModelStore {
         }
         self.mark_complete(model)?;
         Ok(())
+    }
+}
+
+/// Bytes under `p`; 0 when it doesn't exist.
+fn dir_size(p: &Path) -> io::Result<u64> {
+    fn walk(p: &Path) -> io::Result<u64> {
+        let mut total = 0;
+        for entry in fs::read_dir(p)? {
+            let entry = entry?;
+            let meta = entry.metadata()?;
+            total += if meta.is_dir() {
+                walk(&entry.path())?
+            } else {
+                meta.len()
+            };
+        }
+        Ok(total)
+    }
+    match walk(p) {
+        Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(0),
+        r => r,
     }
 }
 
@@ -141,10 +151,13 @@ mod tests {
         store.import_from_dir(&m, src.path()).unwrap();
         assert!(store.is_installed(&m));
         assert!(store.disk_usage().unwrap() >= 4);
+        // The file plus the marker (holding the version).
+        assert_eq!(store.model_disk_usage(&m).unwrap(), 5);
 
         store.delete(&m).unwrap();
         assert!(!store.is_installed(&m));
         assert_eq!(store.disk_usage().unwrap(), 0);
+        assert_eq!(store.model_disk_usage(&m).unwrap(), 0);
         store.delete(&m).unwrap(); // idempotent
     }
 }
