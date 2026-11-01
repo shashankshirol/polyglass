@@ -24,7 +24,7 @@ pg-testkit (dev-only: fixture images and OCR scoring for tests and pg-bench)
 | `pg-translate` | Text → text | `Translator`, `TranslateError` (TR-06 kinds + Fluent IDs), `langid` (SV-04/TR-07), `tokens` (SV-05 check), `TokenGuard` (SV-05: masked retry, else source), `PivotTranslator`/`plan_route` (TR-03), `MockTranslator` |
 | `pg-ct2` | On-device translation (ADR-0005) | `Ct2Translator` (id `ctranslate2`, local): CTranslate2 through `ct2rs` running OPUS-MT models converted to int8; `load_installed` loads every installed `ctranslate2` model, any pair; `Options` (threads, beam); `split_sentences` |
 | `pg-pipeline` | Orchestration | `Scheduler` (CAP-03, LENS-06), `change` (CAP-03/06), `grouping` (OCR-02), `cache` (TR-04), `color` (REN-01), `Pipeline::run_cycle`, `driver::spawn`, `LensUpdate` |
-| `pg-models` | Model files | `Manifest` (MDL-01/02; entries without URLs are import-only), `ModelStore` (MDL-04/05), `Downloader` (MDL-03); `import-models` binary (MDL-04) |
+| `pg-models` | Model files | `Manifest` (MDL-01/02; entries without URLs are import-only), `ModelStore` (MDL-04/05), `Downloader` (MDL-03: Range resume, cancel; follows redirects to https URLs only); `import-models` binary (MDL-04) |
 | `pg-bench` | Measurement | CLI over `Pipeline::run_cycle` (SPEC §5) on a rendered fixture image (`--scale`, `--theme`); `--ocr mock\|windows`, the latter also prints CER/WER/å-ä-ö for the lines in the lens |
 | `pg-testkit` | Test helpers | `TextRenderer` (text into a `Frame` with the system UI font); `fixture` (`truth.json` → `FixtureImage` at 100–200%, light/dark, with line boxes; `render-fixtures` binary); `metrics` (CER, WER, å/ä/ö misreadings) |
 
@@ -60,7 +60,7 @@ A thin Tauri 2 layer; no pipeline logic lives here or in JS.
 | `clickthrough.rs` | ~30 Hz cursor poll toggling `set_ignore_cursor_events` over the interior only; parked while hidden (ADR-0002) |
 | `commands.rs` | The only IPC commands (`lens_config`, `nudge_lens`, `set_click_through`, `set_paused`, `hide_lens`, `open_ocr_language_settings`, `download_models`); input validated in Rust (SEC-01) |
 | `live.rs` | Default on Windows: `WgcCapturer` + `WindowsOcr` + `TokenGuard<Ct2Translator>`, Auto sv/en → en. Started only if the lens is excluded from capture. Without models, Swedish blocks report `tr-error-model-missing` |
-| `models.rs` | Model store at `<app local data>/models` (`%LOCALAPPDATA%\org.polyglass.desktop\models` on Windows). While the sv↔en models are import-only (D-9), `lens_config.modelsDownloadable` is false and the lens points to `scripts/models/opus_mt.py`. Once they have URLs, the toolbar ⬇ (`download_models`) downloads them through `pg-models`, reports `lens-models` progress events, then swaps the loaded translator into the running pipeline. Interim until M1-APP-8 |
+| `models.rs` | Model store at `<app local data>/models` (`%LOCALAPPDATA%\org.polyglass.desktop\models` on Windows). When the sv↔en models are missing, the toolbar ⬇ (`download_models`) downloads them from the GitHub release (D-9) through `pg-models`, reports `lens-models` progress events, then swaps the loaded translator into the running pipeline. For an import-only entry (no URLs) `lens_config.modelsDownloadable` is false and the lens points to `scripts/models/opus_mt.py` instead. Interim until M1-APP-8 |
 | `demo.rs` | `--demo`: `StaticCapturer` over a synthetic desktop + `MockOcr` + `MockTranslator` |
 | `tray.rs` | Tray icon: show/hide lens, quit |
 
@@ -91,7 +91,12 @@ CTranslate2 is C++, and its `cxx` bridge (with its `unsafe`) lives inside `ct2rs
   CC-BY-4.0 with attribution, 84.8 MB each). Each is a CTranslate2 directory: `model.bin`
   (int8), `config.json`, `shared_vocabulary.json`, `source.spm`, `target.spm` and the
   `LICENSE`. They're produced by `scripts/models/opus_mt.py` (pinned converter, pinned input and
-  output SHA-256) and, until they are hosted (D-9), installed by import (MDL-04). Nothing in
+  output SHA-256). They're hosted as assets of the GitHub pre-release `models-opus-mt-2026-11-01`
+  (D-9), named `<id>.<file>` because a release's assets share one namespace;
+  `.github/workflows/models-release.yml` builds and publishes a release when a
+  `models-opus-mt-*` tag is pushed (`scripts/models/release_assets.py` checks the manifest URLs
+  and hashes and writes the license, attribution and notes). The same script installs them
+  offline by import (MDL-04). Nothing in
   `pg-ct2` names a language: another pair (M3-8/M3-9) is a manifest entry plus a script entry.
 - Every installed direction is loaded at startup; swapping direction never reloads (SV-01).
   Each model uses `Options::default_threads()` threads (half the CPUs, at most 4). Translation

@@ -5,9 +5,9 @@
 //! through `pg-models` (SHA-256 verified, resumable), then swaps the loaded translator into the
 //! running pipeline. Nothing is downloaded without that click (MDL-06).
 //!
-//! The OPUS-MT entries are import-only until their files are hosted (D-9). Then there is no ⬇:
-//! the lens points to `scripts/models/opus_mt.py`, which converts and imports them (MDL-04),
-//! and the app loads them on its next start.
+//! The OPUS-MT files are assets of a GitHub release of this repository (D-9, M1-TR-7). A model
+//! without download URLs (import-only) gets no ⬇: the lens points to `scripts/models/opus_mt.py`,
+//! which converts and imports it (MDL-04), and the app loads it on its next start.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 

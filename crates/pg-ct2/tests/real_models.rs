@@ -1,5 +1,5 @@
-//! Tests against the real OPUS-MT sv↔en models (M1-TR-1..4). The models aren't hosted yet
-//! (D-9), so these tests need the output of `scripts/models/opus_mt.py` and are `#[ignore]`d:
+//! Tests against the real OPUS-MT sv↔en models (M1-TR-1..4). They need the output of
+//! `scripts/models/opus_mt.py` (the same files as the GitHub release, D-9) and are `#[ignore]`d:
 //!
 //! ```text
 //! python scripts/models/opus_mt.py --no-install
@@ -100,7 +100,6 @@ fn mdl04_tr2_converted_models_import_and_verify() {
     assert_eq!(models.len(), 2);
     for m in models {
         assert!(store.is_installed(m), "{}", m.id);
-        assert!(!m.is_downloadable(), "import-only until D-9");
         assert_eq!(m.license, "CC-BY-4.0");
     }
 }

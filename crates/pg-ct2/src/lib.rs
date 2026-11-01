@@ -279,6 +279,14 @@ mod tests {
             assert_eq!(m.license, "CC-BY-4.0", "{}", m.id);
             let attribution = m.attribution.as_deref().unwrap_or_default();
             assert!(attribution.contains("OPUS-MT"), "{}: {attribution}", m.id);
+            // MDL-02, D-9: downloadable from this repository's GitHub releases.
+            for f in &m.files {
+                let url = f.url.as_deref().unwrap_or_default();
+                assert!(
+                    url.starts_with("https://github.com/shashankshirol/polyglass/releases/download/models-opus-mt-"),
+                    "{}/{}: {url}", m.id, f.name
+                );
+            }
             for file in MODEL_FILES {
                 assert!(m.files.iter().any(|f| f.name == file), "{}: {file}", m.id);
             }

@@ -13,6 +13,13 @@ with 1.0, SV-08.)
 - Network traffic happens only when **you** download a translation model, or if you turn on
   update checks. Model downloads come only from addresses listed in the app's built-in
   manifest and are checked against a fingerprint (SHA-256) before use.
+- The translation models are downloaded from **GitHub**: the releases of the Polyglass
+  repository (`github.com`), which hands the file over to GitHub's download servers. Like any
+  download, GitHub sees your IP address and the files requested
+  ([GitHub's privacy statement](https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement)).
+  Polyglass sends no account, identifier or screen content with it, over HTTPS only, and only
+  when you click ⬇. You can also build and install the models yourself without contacting
+  GitHub (README, "First run").
 
 ## Online translation (opt-in)
 

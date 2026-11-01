@@ -17,8 +17,11 @@ schema_version = 1
 # Swedish ↔ English on CTranslate2 (`pg-ct2`, ADR-0005): Helsinki-NLP's OPUS-MT models, converted
 # from Marian `.npz` to CTranslate2 int8 by `scripts/models/opus_mt.py` (pinned converter, output
 # SHA-256 checked). License: CC-BY-4.0, the LICENSE in each release zip (installed with the model).
-# Import-only (no `url`) until the converted files are hosted (owner decision D-9): install them
-# with `python scripts/models/opus_mt.py` (MDL-04).
+# Hosted as assets of the GitHub pre-release `models-opus-mt-2026-11-01` of this repository
+# (owner decision D-9), named `<id>.<file>`; `.github/workflows/models-release.yml` builds and
+# publishes it with `scripts/models/release_assets.py`, which checks these URLs and hashes. A new
+# release needs a new tag here first. `python scripts/models/opus_mt.py` builds the same files
+# locally and imports them (MDL-04).
 #
 # Inputs (official release zips):
 #   sv→en https://object.pouta.csc.fi/Tatoeba-MT-models/swe-eng/opus%2Bbt-2021-04-30.zip
@@ -37,12 +40,12 @@ license = "CC-BY-4.0"
 attribution = "OPUS-MT swe-eng model opus+bt-2021-04-30 by Helsinki-NLP (Language Technology Research Group, University of Helsinki), CC-BY 4.0 (https://creativecommons.org/licenses/by/4.0/); converted to CTranslate2 int8 by Polyglass. J. Tiedemann and S. Thottingal, \"OPUS-MT – Building open translation services for the World\", EAMT 2020."
 source_url = "https://github.com/Helsinki-NLP/Tatoeba-Challenge/tree/master/models/swe-eng"
 files = [
-  { name = "model.bin", size = 81875117, sha256 = "1971f05964f526a13c76df3f1178e522a7c42818243a1b8e5272877952ae65cc" },
-  { name = "config.json", size = 231, sha256 = "95dabd564e6abdb470e95f9106766647d8dc59e1bc2a1517d292c0cee5ca5812" },
-  { name = "shared_vocabulary.json", size = 1327665, sha256 = "27f6e96e3f8266da803bf91a5b120f375b6cd00676582450c8e55c233e0c6705" },
-  { name = "source.spm", size = 811815, sha256 = "fb63614d9ec099e6fcbf1efd42cac97464c9017bc49a44181c986e9d4b18c6da" },
-  { name = "target.spm", size = 799820, sha256 = "63d083fc4aafe025d3d7bc382cce13e3df54acb23e001a37f48535dbffc44700" },
-  { name = "LICENSE", size = 18652, sha256 = "945fbcb37deca05bccd7c3ca0e261679f1f5373515504fdbad68f6f3cf6f49b9" },
+  { name = "model.bin", url = "https://github.com/shashankshirol/polyglass/releases/download/models-opus-mt-2026-11-01/opus-mt-sv-en.model.bin", size = 81875117, sha256 = "1971f05964f526a13c76df3f1178e522a7c42818243a1b8e5272877952ae65cc" },
+  { name = "config.json", url = "https://github.com/shashankshirol/polyglass/releases/download/models-opus-mt-2026-11-01/opus-mt-sv-en.config.json", size = 231, sha256 = "95dabd564e6abdb470e95f9106766647d8dc59e1bc2a1517d292c0cee5ca5812" },
+  { name = "shared_vocabulary.json", url = "https://github.com/shashankshirol/polyglass/releases/download/models-opus-mt-2026-11-01/opus-mt-sv-en.shared_vocabulary.json", size = 1327665, sha256 = "27f6e96e3f8266da803bf91a5b120f375b6cd00676582450c8e55c233e0c6705" },
+  { name = "source.spm", url = "https://github.com/shashankshirol/polyglass/releases/download/models-opus-mt-2026-11-01/opus-mt-sv-en.source.spm", size = 811815, sha256 = "fb63614d9ec099e6fcbf1efd42cac97464c9017bc49a44181c986e9d4b18c6da" },
+  { name = "target.spm", url = "https://github.com/shashankshirol/polyglass/releases/download/models-opus-mt-2026-11-01/opus-mt-sv-en.target.spm", size = 799820, sha256 = "63d083fc4aafe025d3d7bc382cce13e3df54acb23e001a37f48535dbffc44700" },
+  { name = "LICENSE", url = "https://github.com/shashankshirol/polyglass/releases/download/models-opus-mt-2026-11-01/opus-mt-sv-en.LICENSE", size = 18652, sha256 = "945fbcb37deca05bccd7c3ca0e261679f1f5373515504fdbad68f6f3cf6f49b9" },
 ]
 
 [[model]]
@@ -56,10 +59,10 @@ license = "CC-BY-4.0"
 attribution = "OPUS-MT eng-swe model opus+bt-2021-04-14 by Helsinki-NLP (Language Technology Research Group, University of Helsinki), CC-BY 4.0 (https://creativecommons.org/licenses/by/4.0/); converted to CTranslate2 int8 by Polyglass. J. Tiedemann and S. Thottingal, \"OPUS-MT – Building open translation services for the World\", EAMT 2020."
 source_url = "https://github.com/Helsinki-NLP/Tatoeba-Challenge/tree/master/models/eng-swe"
 files = [
-  { name = "model.bin", size = 81875117, sha256 = "284be38e4e010626bdef041ddbd73a27a00dc9be872df1d05078f44a6859e68c" },
-  { name = "config.json", size = 231, sha256 = "95dabd564e6abdb470e95f9106766647d8dc59e1bc2a1517d292c0cee5ca5812" },
-  { name = "shared_vocabulary.json", size = 1327665, sha256 = "27f6e96e3f8266da803bf91a5b120f375b6cd00676582450c8e55c233e0c6705" },
-  { name = "source.spm", size = 799820, sha256 = "63d083fc4aafe025d3d7bc382cce13e3df54acb23e001a37f48535dbffc44700" },
-  { name = "target.spm", size = 811815, sha256 = "fb63614d9ec099e6fcbf1efd42cac97464c9017bc49a44181c986e9d4b18c6da" },
-  { name = "LICENSE", size = 18652, sha256 = "945fbcb37deca05bccd7c3ca0e261679f1f5373515504fdbad68f6f3cf6f49b9" },
+  { name = "model.bin", url = "https://github.com/shashankshirol/polyglass/releases/download/models-opus-mt-2026-11-01/opus-mt-en-sv.model.bin", size = 81875117, sha256 = "284be38e4e010626bdef041ddbd73a27a00dc9be872df1d05078f44a6859e68c" },
+  { name = "config.json", url = "https://github.com/shashankshirol/polyglass/releases/download/models-opus-mt-2026-11-01/opus-mt-en-sv.config.json", size = 231, sha256 = "95dabd564e6abdb470e95f9106766647d8dc59e1bc2a1517d292c0cee5ca5812" },
+  { name = "shared_vocabulary.json", url = "https://github.com/shashankshirol/polyglass/releases/download/models-opus-mt-2026-11-01/opus-mt-en-sv.shared_vocabulary.json", size = 1327665, sha256 = "27f6e96e3f8266da803bf91a5b120f375b6cd00676582450c8e55c233e0c6705" },
+  { name = "source.spm", url = "https://github.com/shashankshirol/polyglass/releases/download/models-opus-mt-2026-11-01/opus-mt-en-sv.source.spm", size = 799820, sha256 = "63d083fc4aafe025d3d7bc382cce13e3df54acb23e001a37f48535dbffc44700" },
+  { name = "target.spm", url = "https://github.com/shashankshirol/polyglass/releases/download/models-opus-mt-2026-11-01/opus-mt-en-sv.target.spm", size = 811815, sha256 = "fb63614d9ec099e6fcbf1efd42cac97464c9017bc49a44181c986e9d4b18c6da" },
+  { name = "LICENSE", url = "https://github.com/shashankshirol/polyglass/releases/download/models-opus-mt-2026-11-01/opus-mt-en-sv.LICENSE", size = 18652, sha256 = "945fbcb37deca05bccd7c3ca0e261679f1f5373515504fdbad68f6f3cf6f49b9" },
 ]

@@ -25,7 +25,7 @@ pub struct LensConfig {
     pipeline_error: Option<&'static str>,
     /// Bytes of Swedish ↔ English models still to download (0 = installed).
     models_missing_bytes: u64,
-    /// `false` while the missing models are import-only (no download URLs yet, D-9).
+    /// `false` if a missing model is import-only (no download URLs in the manifest).
     models_downloadable: bool,
 }
 

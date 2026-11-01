@@ -56,7 +56,7 @@ const MESSAGES: Record<string, string> = {
     "The lens can't hide itself from screen capture (needs Windows 10 version 2004 or later), so live capture is off.",
   "tr-error-model-missing":
     "The Swedish ↔ English translation models aren't downloaded yet. Click ⬇ in the toolbar to get them (about 170 MB, once).",
-  // Until the converted OPUS-MT models are hosted (D-9) they're installed from the repository.
+  // For import-only manifest entries (no download URLs): installed from the repository.
   "tr-error-model-import":
     "The Swedish ↔ English translation models aren't installed yet. Install them once from a terminal in the Polyglass repository with: python scripts/models/opus_mt.py (about 170 MB; README → First run), then restart Polyglass.",
   "tr-error-backend": "Translation failed",
