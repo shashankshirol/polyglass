@@ -8,6 +8,7 @@
 mod clickthrough;
 mod clipboard;
 mod commands;
+mod crash;
 mod demo;
 mod devflags;
 mod hold;
@@ -88,6 +89,13 @@ fn main() {
         .setup(move |app| {
             let handle = app.handle().clone();
             let data = handle.path().app_local_data_dir()?;
+            // PRIV-06: panics leave a report on this computer, nothing is sent.
+            let crashes = data.join(crash::DIR);
+            crash::install(crashes.clone());
+            let earlier = crash::reports(&crashes).len();
+            if earlier > 0 {
+                tracing::info!(reports = earlier, dir = %crashes.display(), "earlier crash reports");
+            }
             // PRIV-02: the one way frames reach the disk; the lens shows a red banner meanwhile.
             let dump = flags.dump_frames.clone().map(|dir| {
                 dir.unwrap_or_else(|| data.join("debug-frames"))
@@ -104,7 +112,7 @@ fn main() {
             // Before the lens is first shown, so no capture ever contains it (CAP-02).
             let self_excluded = lens::exclude_from_capture(&window);
             watch_window(&window);
-            tray::create(&handle)?;
+            tray::create(&handle, (earlier > 0).then_some(crashes))?;
             lens::place_and_show(&handle, &window, &saved.lens)?;
             let state = handle.state::<Lens>();
             state.click.set_enabled(saved.lens.click_through);

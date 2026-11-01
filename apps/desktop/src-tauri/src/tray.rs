@@ -1,5 +1,8 @@
-//! Minimal tray icon: show/hide the lens, the model manager, and quit (LENS-01, LENS-06,
-//! MDL-05). The lens has no taskbar entry, so this is the way back after hiding it.
+//! Minimal tray icon: show/hide the lens, the model manager, crash reports if there are any,
+//! and quit (LENS-01, LENS-06, MDL-05, PRIV-06). The lens has no taskbar entry, so this is the
+//! way back after hiding it.
+
+use std::path::PathBuf;
 
 use tauri::AppHandle;
 use tauri::menu::{Menu, MenuItem};
@@ -7,23 +10,37 @@ use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent}
 
 const TOGGLE: &str = "toggle";
 const MODELS: &str = "models";
+const CRASHES: &str = "crashes";
 const QUIT: &str = "quit";
 
-pub fn create(app: &AppHandle) -> tauri::Result<()> {
+/// `crashes`: the crash-report folder, when it holds reports from earlier runs.
+pub fn create(app: &AppHandle, crashes: Option<PathBuf>) -> tauri::Result<()> {
     let toggle = MenuItem::with_id(app, TOGGLE, "Show/hide lens", true, None::<&str>)?;
     let models = MenuItem::with_id(app, MODELS, "Translation models…", true, None::<&str>)?;
+    let reports = MenuItem::with_id(app, CRASHES, "Crash reports…", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, QUIT, "Quit Polyglass", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&toggle, &models, &quit])?;
+    let menu = if crashes.is_some() {
+        Menu::with_items(app, &[&toggle, &models, &reports, &quit])?
+    } else {
+        Menu::with_items(app, &[&toggle, &models, &quit])?
+    };
 
     let mut tray = TrayIconBuilder::with_id("main")
         .tooltip("Polyglass")
         .menu(&menu)
         .show_menu_on_left_click(false)
-        .on_menu_event(|app, event| match event.id.as_ref() {
+        .on_menu_event(move |app, event| match event.id.as_ref() {
             TOGGLE => crate::toggle_lens(app),
             MODELS => {
                 if let Err(e) = crate::models::open_window(app) {
                     tracing::error!(error = %e, "can't open the model manager");
+                }
+            }
+            CRASHES => {
+                if let Some(dir) = &crashes
+                    && let Err(e) = crate::crash::open_folder(dir)
+                {
+                    tracing::error!(error = %e, "can't open the crash reports folder");
                 }
             }
             QUIT => app.exit(0),
