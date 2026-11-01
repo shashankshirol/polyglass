@@ -7,11 +7,14 @@
 //!
 //! The OPUS-MT files are assets of a GitHub release of this repository (D-9, M1-TR-7). A model
 //! without download URLs (import-only) gets no ⬇: the lens points to `scripts/models/opus_mt.py`,
-//! which converts and imports it (MDL-04), and the app loads it on its next start.
+//! which converts and imports it (MDL-04), and the app loads it on its next start. The same
+//! happens when the release can't be reached (HTTP 401/403/404/410, e.g. while the repository
+//! is private): ⬇ goes away for this run and the lens shows the install command
+//! (`mdl-error-unreachable`). Other failures keep ⬇ for a retry.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use pg_models::{Downloader, Manifest, ModelEntry, ModelStore};
+use pg_models::{Downloader, Manifest, ModelEntry, ModelError, ModelStore};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 use tokio_util::sync::CancellationToken;
@@ -36,6 +39,8 @@ pub struct Models {
     store: ModelStore,
     manifest: Manifest,
     downloading: AtomicBool,
+    /// Set when the release answered that the files aren't there for us (see the module docs).
+    unreachable: AtomicBool,
 }
 
 impl Models {
@@ -45,6 +50,7 @@ impl Models {
             // Validated by `pg_models` tests; an invalid bundled manifest is a build defect.
             manifest: Manifest::bundled().expect("bundled model manifest is valid"),
             downloading: AtomicBool::new(false),
+            unreachable: AtomicBool::new(false),
         }
     }
 
@@ -66,9 +72,11 @@ impl Models {
         self.missing().iter().map(ModelEntry::download_size).sum()
     }
 
-    /// Whether the missing models can be downloaded, i.e. the manifest has URLs for them.
+    /// Whether the missing models can be downloaded: the manifest has URLs for them and the
+    /// release hasn't turned out to be unreachable.
     pub fn missing_downloadable(&self) -> bool {
-        self.missing().iter().all(ModelEntry::is_downloadable)
+        !self.unreachable.load(Ordering::SeqCst)
+            && self.missing().iter().all(ModelEntry::is_downloadable)
     }
 }
 
@@ -88,9 +96,13 @@ pub fn start_download(app: &AppHandle) {
             Err(error) => {
                 // Technical context only (PRIV-07).
                 tracing::error!(%error, "model download failed");
-                ModelEvent::Error {
-                    message_id: "mdl-error-download",
+                let message_id = error_message_id(&error);
+                if message_id == UNREACHABLE {
+                    app.state::<Models>()
+                        .unreachable
+                        .store(true, Ordering::SeqCst);
                 }
+                ModelEvent::Error { message_id }
             }
         };
         app.state::<Models>()
@@ -100,11 +112,22 @@ pub fn start_download(app: &AppHandle) {
     });
 }
 
-async fn download(app: &AppHandle) -> Result<(), String> {
+/// The lens message for a failed download: the install command when the release isn't there for
+/// us, a retry hint otherwise.
+const UNREACHABLE: &str = "mdl-error-unreachable";
+
+fn error_message_id(error: &ModelError) -> &'static str {
+    match error {
+        ModelError::Http(401 | 403 | 404 | 410) | ModelError::NotHosted(_) => UNREACHABLE,
+        _ => "mdl-error-download",
+    }
+}
+
+async fn download(app: &AppHandle) -> Result<(), ModelError> {
     let models = app.state::<Models>();
     let missing = models.missing();
     let total: u64 = missing.iter().map(ModelEntry::download_size).sum();
-    let downloader = Downloader::new().map_err(|e| e.to_string())?;
+    let downloader = Downloader::new()?;
     let cancel = CancellationToken::new();
     let mut done = 0;
     for model in &missing {
@@ -123,15 +146,41 @@ async fn download(app: &AppHandle) -> Result<(), String> {
                     );
                 }
             })
-            .await
-            .map_err(|e| e.to_string())?;
+            .await?;
         done += model.download_size();
     }
     let store = models.store().clone();
     let translator = tokio::task::spawn_blocking(move || crate::live::translator(&store))
         .await
-        .map_err(|_| "loading the models panicked".to_owned())?;
+        .map_err(|_| ModelError::Io(std::io::Error::other("loading the models panicked")))?;
     // If the pipeline isn't up yet it loads the installed models itself.
     app.state::<Lens>().set_translator(translator);
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn mdl03_unreachable_release_falls_back_to_the_install_command() {
+        for status in [401, 403, 404, 410] {
+            assert_eq!(error_message_id(&ModelError::Http(status)), UNREACHABLE);
+        }
+        assert_eq!(
+            error_message_id(&ModelError::NotHosted("opus-mt-sv-en".into())),
+            UNREACHABLE
+        );
+        for error in [
+            ModelError::Http(500),
+            ModelError::Http(429),
+            ModelError::Network("timed out".into()),
+            ModelError::Cancelled,
+            ModelError::HashMismatch {
+                file: "model.bin".into(),
+            },
+        ] {
+            assert_eq!(error_message_id(&error), "mdl-error-download", "{error}");
+        }
+    }
 }

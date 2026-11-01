@@ -44,6 +44,8 @@ let mode: LensConfig["mode"] = "none";
 let downloadProgress: string | null = null;
 /** Whether the missing models can be downloaded with ⬇ (false: import-only, see README). */
 let modelsDownloadable = true;
+/** Set when ⬇ found the models release unreachable (e.g. a private repository). */
+let modelsUnreachable = false;
 
 // Fluent IDs from the pipeline; real localized strings arrive with M4-5.
 const MESSAGES: Record<string, string> = {
@@ -61,6 +63,8 @@ const MESSAGES: Record<string, string> = {
     "The Swedish ↔ English translation models aren't installed yet. Install them once from a terminal in the Polyglass repository with: python scripts/models/opus_mt.py (about 170 MB; README → First run), then restart Polyglass.",
   "tr-error-backend": "Translation failed",
   "mdl-error-download": "Downloading the translation models failed. Check the connection and click ⬇ to try again.",
+  "mdl-error-unreachable":
+    "The translation models can't be downloaded: their release isn't reachable (the Polyglass repository may be private). Install them once from a terminal in the Polyglass repository with: python scripts/models/opus_mt.py (about 170 MB; README → First run), then restart Polyglass.",
 };
 
 const MB = (bytes: number): string => `${(bytes / 1e6).toFixed(1)} MB`;
@@ -130,7 +134,9 @@ function render(u: LensUpdate): void {
     {
       const id =
         u.status.message_id === "tr-error-model-missing" && !modelsDownloadable
-          ? "tr-error-model-import"
+          ? modelsUnreachable
+            ? "mdl-error-unreachable"
+            : "tr-error-model-import"
           : u.status.message_id;
       if (id === "tr-error-model-missing") modelsBtn.hidden = false;
       showMessage(
@@ -202,6 +208,12 @@ function onModelEvent(e: ModelEvent): void {
       downloadProgress = null;
       modelsBtn.disabled = false;
       modelsBtn.textContent = "⬇";
+      if (e.message_id === "mdl-error-unreachable") {
+        // No point retrying: show the install command instead of ⬇ from now on.
+        modelsDownloadable = false;
+        modelsUnreachable = true;
+        modelsBtn.hidden = true;
+      }
       showMessage(MESSAGES[e.message_id] ?? e.message_id);
       break;
   }
