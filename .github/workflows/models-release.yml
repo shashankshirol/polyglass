@@ -1,0 +1,76 @@
+name: Models release
+
+# Publishes the converted OPUS-MT models as a GitHub pre-release of this repository (M1-TR-7,
+# owner decision D-9). It runs only when a `models-opus-mt-YYYY-MM-DD[-N]` tag is pushed, on a
+# commit whose `models/manifest.toml` already points at that tag:
+#
+#   git tag -a models-opus-mt-2026-11-01 -m "OPUS-MT sv<->en models (CTranslate2 int8)"
+#   git push origin models-opus-mt-2026-11-01
+#
+# The build job converts the models on a clean runner with only read access; the publish job,
+# which can write, runs no project code and only uploads what the build job staged.
+
+on:
+  push:
+    tags: ["models-opus-mt-*"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    # The same OS the pinned output hashes were recorded on (scripts/models/opus_mt.py).
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # Pinned input zips (SHA-256), hash-locked converter, output files checked against the
+      # pinned SHA-256s: the result is byte-identical to a local run.
+      - name: Convert the models
+        run: python scripts/models/opus_mt.py --no-install --work "$RUNNER_TEMP/opus-mt"
+      # Checks the manifest URLs name this tag and every file against the manifest's size and
+      # SHA-256; writes the license, attribution, SHA256SUMS and the release notes.
+      - name: Stage the release assets
+        env:
+          TAG: ${{ github.ref_name }}
+        run: python scripts/models/release_assets.py --tag "$TAG" --from "$RUNNER_TEMP/opus-mt/out" --dest release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release
+          path: release/
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: release
+          path: release
+      - name: Create the pre-release and upload the assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          (cd release/assets && sha256sum --check --strict SHA256SUMS)
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            echo "::error::release $TAG already exists; models releases are never replaced"
+            exit 1
+          fi
+          # A pre-release that is never "latest": it holds models, not the app.
+          gh release create "$TAG" release/assets/* \
+            --verify-tag --prerelease --latest=false \
+            --title "Models: OPUS-MT Swedish ↔ English, CTranslate2 int8 ($TAG)" \
+            --notes-file release/notes.md

@@ -15,8 +15,9 @@ One command, from the repository root:
    `cargo run -p pg-models --bin import-models`, which verifies them against the manifest again
    (MDL-04).
 
-The models are not hosted anywhere yet (owner decision D-9), so this is how they get onto a
-machine for now. Options: `--work DIR` (default `target/opus-mt`), `--store DIR` (default: the
+The app normally downloads the same files from this repository's GitHub release (owner decision
+D-9; `scripts/models/release_assets.py` stages that release from this script's output). Use this
+script to install offline, to check the release, or to build a new one. Options: `--work DIR` (default `target/opus-mt`), `--store DIR` (default: the
 app's store), `--no-install`, `--clean` (delete downloads and the venv afterwards), `--update-pins`
 (print the output hashes instead of checking them, for a new release or converter version), and
 model ids to limit the run (default: all below). Needs Python >= 3.12 and, for the install step,
