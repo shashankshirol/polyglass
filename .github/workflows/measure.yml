@@ -1,0 +1,137 @@
+name: Measure
+
+# M0-SPK-3 on every OS: builds CTranslate2 (pg-ct2), converts the OPUS-MT models with the pinned
+# converter, runs the real-model tests and times on-device translation with pg-bench (eval sets
+# and the translation stage of a pipeline cycle; OCR is the mock outside Windows). Manual only,
+# because it downloads ≈ 570 MB of model zips per OS and macOS minutes count 10×:
+# Actions → Measure → Run workflow (or `gh workflow run measure.yml -f os=macos`).
+#
+# GitHub's runners are not the SPEC reference machines (REF-A/REF-B), so these numbers show how
+# each OS builds and runs the engine, not whether PERF-01 passes there.
+on:
+  workflow_dispatch:
+    inputs:
+      os:
+        description: Which OSes to measure on
+        type: choice
+        default: all
+        options: [all, windows, macos, linux]
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  translation:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJSON(inputs.os == 'linux' && '["ubuntu-latest"]' || inputs.os == 'windows' && '["windows-latest"]' || inputs.os == 'macos' && '["macos-latest","macos-15-intel"]' || '["ubuntu-latest","windows-latest","macos-latest","macos-15-intel"]') }}
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      MODELS: ${{ github.workspace }}/target/measure/models
+      OUT: ${{ github.workspace }}/target/measure/out
+      RESULTS: ${{ github.workspace }}/target/measure/results
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: CMake and C++ (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y cmake g++
+      - name: CMake (macOS; Xcode's clang is the C++ compiler)
+        if: runner.os == 'macOS'
+        run: command -v cmake || brew install cmake
+      - name: Ninja (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: if (-not (Get-Command ninja -ErrorAction SilentlyContinue)) { choco install ninja -y --no-progress }
+      - name: Machine
+        run: |
+          mkdir -p "$RESULTS"
+          {
+            echo "runner: $RUNNER_OS $RUNNER_ARCH ($ImageOS $ImageVersion)"
+            if [ "$RUNNER_OS" = macOS ]; then sysctl -n machdep.cpu.brand_string hw.ncpu hw.memsize
+            elif [ "$RUNNER_OS" = Linux ]; then lscpu | grep -E 'Model name|^CPU\(s\)'; free -m | head -2
+            else powershell -NoProfile -Command "(Get-CimInstance Win32_Processor).Name; [Environment]::ProcessorCount"
+            fi
+            cmake --version | head -1
+            c++ --version 2>/dev/null | head -1 || true
+          } | tee "$RESULTS/machine.txt"
+      - name: Build pg-bench and the real-model tests (release)
+        run: |
+          start=$(date +%s)
+          cargo build --release -p pg-bench
+          cargo test --release -p pg-ct2 --test real_models --no-run
+          echo "build: $(( $(date +%s) - start )) s (CTranslate2 included unless rust-cache had it)" | tee "$RESULTS/build.txt"
+          ls -l target/release/pg-bench* | tee -a "$RESULTS/build.txt"
+      # Pinned input zips and a hash-locked converter; the outputs are checked against the
+      # SHA-256s recorded on Windows. A mismatch fails this step (the conversion isn't
+      # byte-identical on this OS) and the next step takes the published files instead.
+      - name: Convert the models
+        id: convert
+        continue-on-error: true
+        run: python scripts/models/opus_mt.py --no-install --work "$RUNNER_TEMP/opus-mt"
+      - name: Use the converted files
+        if: steps.convert.outcome == 'success'
+        run: |
+          mkdir -p "$(dirname "$OUT")" && mv "$RUNNER_TEMP/opus-mt/out" "$OUT"
+          echo "conversion: byte-identical to the pins recorded on Windows" | tee "$RESULTS/conversion.txt"
+      - name: Download the published files instead
+        if: steps.convert.outcome != 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "conversion: FAILED or differs from the Windows pins (see the step log)" | tee "$RESULTS/conversion.txt"
+          dl="$RUNNER_TEMP/release" && mkdir -p "$dl"
+          gh release download models-opus-mt-2026-11-01 --repo "$GITHUB_REPOSITORY" --pattern 'opus-mt-*' --dir "$dl"
+          # Assets are `<id>.<file>`; the tests import from `<id>/<file>`.
+          for f in "$dl"/*; do
+            name=$(basename "$f"); id=${name%%.*}
+            mkdir -p "$OUT/$id" && mv "$f" "$OUT/$id/${name#*.}"
+          done
+      - name: Real-model tests (import with SHA-256 check, SV-05, latency, memory)
+        env:
+          POLYGLASS_OPUS_MT_DIR: ${{ env.OUT }}
+          POLYGLASS_TEST_MODELS: ${{ env.MODELS }}
+        run: cargo test -p pg-ct2 --release --test real_models -- --ignored --test-threads 1 --nocapture 2>&1 | tee "$RESULTS/real_models.txt"
+      - name: pg-bench
+        run: |
+          b=target/release/pg-bench
+          for set in sv-en en-sv; do
+            $b --eval tests/eval/$set --translator ct2 --models "$MODELS" --json --hypotheses "$RESULTS/hyp-$set.json" > "$RESULTS/eval-$set.json"
+            $b --eval tests/eval/$set --translator ct2 --models "$MODELS" | tee -a "$RESULTS/pg-bench.txt"
+          done
+          $b --fixture tests/fixtures/ui-dialog-sv --translator ct2 --models "$MODELS" --runs 50 | tee -a "$RESULTS/pg-bench.txt"
+          $b --fixture tests/fixtures/ui-dialog-en --target sv --translator ct2 --models "$MODELS" --runs 50 | tee -a "$RESULTS/pg-bench.txt"
+          if [ "$RUNNER_OS" = Windows ]; then
+            $b --fixture tests/fixtures/ui-dialog-sv --ocr windows --translator ct2 --models "$MODELS" --runs 50 | tee -a "$RESULTS/pg-bench.txt"
+          fi
+          du -sh "$MODELS"/* | tee -a "$RESULTS/pg-bench.txt"
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## $RUNNER_OS $RUNNER_ARCH"
+            echo '```'
+            cat "$RESULTS"/machine.txt "$RESULTS"/build.txt "$RESULTS"/conversion.txt 2>/dev/null
+            grep -E 'loaded|p50|RSS|test result' "$RESULTS/real_models.txt" 2>/dev/null
+            cat "$RESULTS/pg-bench.txt" 2>/dev/null
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: measure-${{ matrix.os }}
+          path: target/measure/results/
+          retention-days: 30

@@ -233,8 +233,7 @@ fn rss_mb() -> Option<f64> {
             .ok()?;
         let bytes: f64 = String::from_utf8_lossy(&out.stdout).trim().parse().ok()?;
         Some(bytes / 1e6)
-    } else {
-        let status = std::fs::read_to_string("/proc/self/status").ok()?;
+    } else if let Ok(status) = std::fs::read_to_string("/proc/self/status") {
         let kb: f64 = status
             .lines()
             .find(|l| l.starts_with("VmRSS:"))?
@@ -243,6 +242,15 @@ fn rss_mb() -> Option<f64> {
             .parse()
             .ok()?;
         Some(kb / 1e3)
+    } else {
+        // macOS has no /proc; `ps` reports the resident size in KiB.
+        let pid = std::process::id().to_string();
+        let out = std::process::Command::new("ps")
+            .args(["-o", "rss=", "-p", &pid])
+            .output()
+            .ok()?;
+        let kib: f64 = String::from_utf8_lossy(&out.stdout).trim().parse().ok()?;
+        Some(kib * 1024.0 / 1e6)
     }
 }
 
