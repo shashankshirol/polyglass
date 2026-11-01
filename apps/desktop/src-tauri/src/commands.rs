@@ -33,6 +33,10 @@ pub struct LensConfig {
     models_downloadable: bool,
     /// The language translations are written in: `en` or `sv` (SET-01).
     target: String,
+    /// `--trace-timings`: report each drawn update with `lens_drawn`.
+    trace_timings: bool,
+    /// `--debug-dump-frames`: where frames are saved; the lens shows a red banner (PRIV-02).
+    dump_frames: Option<String>,
 }
 
 #[tauri::command]
@@ -57,7 +61,23 @@ pub fn lens_config(
             .translation
             .target_lang()
             .to_string(),
+        trace_timings: state.trace.is_some(),
+        dump_frames: app
+            .state::<crate::DumpDir>()
+            .0
+            .as_ref()
+            .map(|d| d.display().to_string()),
     })
+}
+
+/// `--trace-timings`: the lens has painted the update of `generation`. Ignored otherwise.
+#[tauri::command]
+pub fn lens_drawn(window: WebviewWindow, state: State<'_, Lens>, generation: u64) -> CmdResult<()> {
+    ensure_lens(&window)?;
+    if let Some(t) = &state.trace {
+        t.drawn(generation, std::time::Instant::now());
+    }
+    Ok(())
 }
 
 /// Open the model manager (the toolbar's ⬇ and ⚙). `async` because a window built inside a

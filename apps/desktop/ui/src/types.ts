@@ -67,6 +67,10 @@ export interface LensConfig {
   modelsDownloadable: boolean;
   /** The language translations are written in. */
   target: "en" | "sv";
+  /** `--trace-timings`: report each drawn update with `lens_drawn`. */
+  traceTimings: boolean;
+  /** `--debug-dump-frames`: the folder frames are saved to (PRIV-02 red banner). */
+  dumpFrames: string | null;
 }
 
 /** `models::ModelsView`: the model manager's state, sent with `models-changed` events. */

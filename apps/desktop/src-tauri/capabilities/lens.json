@@ -16,6 +16,7 @@
     "allow-open-ocr-language-settings",
     "allow-open-model-manager",
     "allow-copy-translation",
-    "allow-swap-languages"
+    "allow-swap-languages",
+    "allow-lens-drawn"
   ]
 }

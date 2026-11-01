@@ -12,6 +12,8 @@ fn main() {
             "open_model_manager",
             "copy_translation",
             "swap_languages",
+            // `--trace-timings` only; ignored without it.
+            "lens_drawn",
             // The model manager window (capabilities/models.json).
             "models_state",
             "download_models",

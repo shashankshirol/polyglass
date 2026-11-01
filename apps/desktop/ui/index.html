@@ -26,6 +26,8 @@
           aria-label="Download the Swedish and English translation models"
           title="Download the Swedish and English translation models">⬇</button>
         <span id="mode-badge" class="badge" hidden></span>
+        <span id="trace-badge" class="badge" hidden title="--trace-timings: cycle timings are logged (numbers only)"
+          aria-label="Timing trace on">TRACE</span>
         <span id="privacy" class="privacy" role="img" aria-label="On-device translation" title="On-device translation">
           <svg id="icon-lock" viewBox="0 0 16 16" aria-hidden="true">
             <path d="M4.5 7V5a3.5 3.5 0 0 1 7 0v2" fill="none" stroke="currentColor" stroke-width="1.6" />
@@ -47,6 +49,7 @@
         <div id="blocks"></div>
         <p id="message" role="status" hidden></p>
         <p id="notice" role="status" hidden></p>
+        <p id="debug-banner" role="alert" hidden></p>
       </main>
       <div class="rz n" data-dir="North"></div>
       <div class="rz s" data-dir="South"></div>

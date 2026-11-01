@@ -34,7 +34,12 @@ const PHRASES: &[(&str, Option<&str>)] = &[
 ];
 
 /// Build a pipeline over a synthetic desktop covering `bounds` (all monitors, physical px).
-pub fn pipeline(bounds: PhysRect, scale: f64) -> Pipeline {
+/// `dump`: the `--debug-dump-frames` folder, if set.
+pub fn pipeline(
+    bounds: PhysRect,
+    scale: f64,
+    dump: Option<std::path::PathBuf>,
+) -> pg_core::Result<Pipeline> {
     let translator = PHRASES
         .iter()
         .filter_map(|(sv, en)| en.map(|en| (*sv, en)))
@@ -42,12 +47,12 @@ pub fn pipeline(bounds: PhysRect, scale: f64) -> Pipeline {
             t.with_entry(sv, en)
         });
     let ocr = MockOcr::with_fn(read_phrases).with_delay(Duration::from_millis(80));
-    Pipeline::new(
-        Box::new(StaticCapturer::new(desktop(bounds, scale))),
+    Ok(Pipeline::new(
+        crate::devflags::capturer(StaticCapturer::new(desktop(bounds, scale)), dump)?,
         Arc::new(ocr),
         Arc::new(translator),
         PipelineConfig::new(SourceLang::AutoSvEn, LangTag::en()),
-    )
+    ))
 }
 
 /// Light grey "page" with darker text-like bars every 32 px so the change detector never sees
@@ -97,7 +102,7 @@ mod tests {
 
     #[tokio::test]
     async fn demo_pipeline_translates_swedish_and_passes_english_through() {
-        let p = pipeline(PhysRect::new(-200, 0, 1200, 600), 1.25);
+        let p = pipeline(PhysRect::new(-200, 0, 1200, 600), 1.25, None).unwrap();
         let tick = Tick {
             generation: 1,
             region: PhysRect::new(0, 0, 500, 200),

@@ -48,15 +48,16 @@ pub fn translator(store: &ModelStore) -> Arc<dyn Translator> {
 
 /// Build the live pipeline. Only call it once the lens is excluded from capture
 /// (`lens::exclude_from_capture`), or the lens would read its own translations (CAP-02).
+/// `dump`: the `--debug-dump-frames` folder, if set.
 #[cfg(windows)]
-pub fn pipeline(store: &ModelStore) -> Result<Pipeline> {
+pub fn pipeline(store: &ModelStore, dump: Option<std::path::PathBuf>) -> Result<Pipeline> {
     use pg_core::{LangTag, SourceLang};
     use pg_pipeline::PipelineConfig;
 
     let capturer = pg_capture::WgcCapturer::new()?.with_self_excluded(true);
     let ocr = pg_ocr::WindowsOcr::new()?;
     Ok(Pipeline::new(
-        Box::new(capturer),
+        crate::devflags::capturer(capturer, dump)?,
         Arc::new(ocr),
         translator(store),
         PipelineConfig::new(SourceLang::AutoSvEn, LangTag::en()),
@@ -65,7 +66,7 @@ pub fn pipeline(store: &ModelStore) -> Result<Pipeline> {
 
 /// Capture on macOS and Linux is M1-CAP-3 / M2-1.
 #[cfg(not(windows))]
-pub fn pipeline(_store: &ModelStore) -> Result<Pipeline> {
+pub fn pipeline(_store: &ModelStore, _dump: Option<std::path::PathBuf>) -> Result<Pipeline> {
     Err(Error::Capture(
         "no capture backend on this platform yet".into(),
     ))

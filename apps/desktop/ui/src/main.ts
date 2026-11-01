@@ -41,6 +41,8 @@ const ocrLangBtn = $<HTMLButtonElement>("ocr-lang");
 const modelsBtn = $<HTMLButtonElement>("models");
 const settingsBtn = $<HTMLButtonElement>("settings");
 const badge = $("mode-badge");
+const traceBadge = $("trace-badge");
+const debugBanner = $("debug-banner");
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
 let lastGeneration = -1;
@@ -58,6 +60,8 @@ let modelsDownloadable = true;
 let modelsUnreachable = false;
 /** The last model download or delete outcome already shown. */
 let modelsMessage: string | null = null;
+/** `--trace-timings`: tell Rust when each update has been painted. */
+let traceTimings = false;
 
 // Fluent IDs from the pipeline; real localized strings arrive with M4-5.
 const MESSAGES: Record<string, string> = {
@@ -157,6 +161,7 @@ function render(u: LensUpdate): void {
   setPrivacy(u.backend.local, u.backend.name);
   current = u;
   drawBlocks(u);
+  if (traceTimings) reportDrawn(u.generation);
 
   switch (u.status.kind) {
     case "ok":
@@ -191,6 +196,25 @@ function render(u: LensUpdate): void {
   ocrLangBtn.hidden = !missing;
 }
 
+/**
+ * `--trace-timings`: the DOM change above is painted in the next frame; a task queued from that
+ * frame's animation callback runs right after the paint.
+ */
+function reportDrawn(generation: number): void {
+  requestAnimationFrame(() => setTimeout(() => call("lens_drawn", { generation }), 0));
+}
+
+/** PRIV-02: a persistent red banner while `--debug-dump-frames` saves frames to disk. */
+function setDebugFlags(trace: boolean, dumpFrames: string | null): void {
+  traceTimings = trace;
+  traceBadge.hidden = !trace;
+  lensEl.classList.toggle("dumping", dumpFrames !== null);
+  debugBanner.hidden = dumpFrames === null;
+  debugBanner.textContent =
+    dumpFrames === null ? "" : `Debug: saving every captured frame to ${dumpFrames}`;
+  debugBanner.title = debugBanner.textContent;
+}
+
 function applyConfig(cfg: LensConfig): void {
   const root = document.documentElement.style;
   root.setProperty("--frame", `${cfg.layout.frame}px`);
@@ -201,6 +225,7 @@ function applyConfig(cfg: LensConfig): void {
   setModelsButton(cfg.modelsMissingBytes);
   setClickThroughUi(cfg.clickThrough);
   setTarget(cfg.target);
+  setDebugFlags(cfg.traceTimings, cfg.dumpFrames);
   if (cfg.pipelineError) {
     showMessage(MESSAGES[cfg.pipelineError] ?? cfg.pipelineError);
   } else if (!cfg.pipeline) {
@@ -360,6 +385,9 @@ async function start(): Promise<void> {
       modelsMissingBytes: 0,
       modelsDownloadable: true,
       target: "en",
+      traceTimings: false,
+      // Preview the PRIV-02 banner with ?dump in the URL.
+      dumpFrames: location.search.includes("dump") ? "C:\\frames" : null,
     });
     render(sampleUpdate());
     return;

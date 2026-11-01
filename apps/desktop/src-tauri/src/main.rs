@@ -9,6 +9,7 @@ mod clickthrough;
 mod clipboard;
 mod commands;
 mod demo;
+mod devflags;
 mod hold;
 mod hotkeys;
 mod lens;
@@ -27,6 +28,7 @@ use tauri::{AppHandle, Emitter, Manager, RunEvent, WebviewWindow, WindowEvent};
 use tokio::sync::mpsc;
 use tracing_subscriber::EnvFilter;
 
+use crate::devflags::{DevFlags, Trace};
 use crate::models::Models;
 use crate::state::{Lens, Mode};
 
@@ -35,12 +37,23 @@ const UPDATE_EVENT: &str = "lens-update";
 /// Event carrying a Fluent message ID when the pipeline can't start.
 const ERROR_EVENT: &str = "lens-error";
 
+/// Where `--debug-dump-frames` saves frames, resolved once the app's folders are known.
+#[derive(Debug, Default)]
+pub struct DumpDir(pub Option<std::path::PathBuf>);
+
 fn main() {
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
-        )
-        .init();
+    let flags = DevFlags::parse(std::env::args());
+    let mut filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
+    if flags.trace_timings {
+        filter = filter.add_directive("pg::trace=info".parse().expect("valid directive"));
+    }
+    tracing_subscriber::fmt().with_env_filter(filter).init();
+    let trace = flags.trace_timings.then(|| {
+        Arc::new(Trace::new(
+            &SchedulerConfig::default(),
+            flags.trace_uncached,
+        ))
+    });
 
     let demo = std::env::args().any(|a| a == "--demo")
         || std::env::var("POLYGLASS_DEMO").is_ok_and(|v| v == "1");
@@ -53,7 +66,7 @@ fn main() {
     };
 
     let app = tauri::Builder::default()
-        .manage(Lens::new(mode))
+        .manage(Lens::new(mode).with_trace(trace))
         .plugin(hotkeys::plugin())
         .invoke_handler(tauri::generate_handler![
             commands::lens_config,
@@ -70,10 +83,18 @@ fn main() {
             commands::cancel_download,
             commands::delete_model,
             commands::finish_first_run,
+            commands::lens_drawn,
         ])
         .setup(move |app| {
             let handle = app.handle().clone();
-            let store = ModelStore::new(handle.path().app_local_data_dir()?.join("models"));
+            let data = handle.path().app_local_data_dir()?;
+            // PRIV-02: the one way frames reach the disk; the lens shows a red banner meanwhile.
+            let dump = flags.dump_frames.clone().map(|dir| {
+                dir.unwrap_or_else(|| data.join("debug-frames"))
+                    .join(devflags::utc_stamp(std::time::SystemTime::now()))
+            });
+            handle.manage(DumpDir(dump.clone()));
+            let store = ModelStore::new(data.join("models"));
             handle.manage(Models::new(store.clone()));
             let settings =
                 settings::Store::open(handle.path().app_config_dir()?.join(settings::FILE));
@@ -103,7 +124,7 @@ fn main() {
                     tracing::warn!("demo mode: mock capture, OCR and translation");
                     let scale = window.scale_factor().unwrap_or(1.0);
                     let bounds = desktop_bounds(&handle).unwrap_or(PhysRect::new(0, 0, 1920, 1080));
-                    start_pipeline(handle, move || Ok(demo::pipeline(bounds, scale)));
+                    start_pipeline(handle, move || demo::pipeline(bounds, scale, dump));
                 }
                 // Without exclusion the lens would OCR its own translations (CAP-02).
                 Mode::Live if !self_excluded => {
@@ -111,7 +132,7 @@ fn main() {
                 }
                 Mode::Live => {
                     tracing::info!("live capture, OCR and on-device translation");
-                    start_pipeline(handle, move || live::pipeline(&store));
+                    start_pipeline(handle, move || live::pipeline(&store, dump));
                 }
                 Mode::None => tracing::warn!("no capture backend on this platform yet"),
             }
@@ -128,6 +149,9 @@ fn main() {
                 settings::remember_lens(app, &w);
             }
             let state = app.state::<Lens>();
+            if let Some(t) = &state.trace {
+                t.log_summary();
+            }
             tracing::info!(clickthrough_toggles = state.click.toggles(), "exiting");
             state.shutdown();
         }
@@ -211,6 +235,9 @@ fn start_pipeline(
         app.state::<Lens>().set_driver(handle);
         while let Some(update) = rx.recv().await {
             app.state::<Lens>().set_last_update(&update);
+            if let Some(t) = &app.state::<Lens>().trace {
+                t.sent(&update, std::time::Instant::now());
+            }
             // LensUpdate's Debug is text-free, but don't log it at all (PRIV-07).
             if app.emit_to(lens::LABEL, UPDATE_EVENT, &update).is_err() {
                 break;

@@ -12,6 +12,7 @@ use pg_translate::Translator;
 use serde::Serialize;
 
 use crate::clickthrough::ClickThrough;
+use crate::devflags::Trace;
 use crate::hold::Hold;
 
 /// What runs behind the lens.
@@ -41,6 +42,8 @@ pub struct Lens {
     region: Mutex<Option<PhysRect>>,
     /// What the copy action copies: the text of the last update drawn (REN-05).
     copy_text: Mutex<String>,
+    /// `--trace-timings`: told when the lens moves or is shown.
+    pub trace: Option<Arc<Trace>>,
 }
 
 impl Lens {
@@ -56,6 +59,25 @@ impl Lens {
             paused: AtomicBool::new(false),
             region: Mutex::new(None),
             copy_text: Mutex::new(String::new()),
+            trace: None,
+        }
+    }
+
+    /// With `--trace-timings`.
+    pub fn with_trace(mut self, trace: Option<Arc<Trace>>) -> Self {
+        self.trace = trace;
+        self
+    }
+
+    fn moved(&self) {
+        if let Some(t) = &self.trace {
+            t.lens_moved(std::time::Instant::now());
+            // `--trace-timings=uncached`: the result after coming to rest is translated afresh.
+            if t.uncached()
+                && let Some(p) = self.pipeline.get()
+            {
+                p.clear_cache();
+            }
         }
     }
 
@@ -129,6 +151,9 @@ impl Lens {
     }
 
     pub fn set_visible(&self, visible: bool) {
+        if visible && !self.is_visible() {
+            self.moved();
+        }
         self.visible.store(visible, Ordering::SeqCst);
         self.click.set_visible(visible);
         self.hold.set_visible(visible);
@@ -136,6 +161,9 @@ impl Lens {
     }
 
     pub fn set_paused(&self, paused: bool) {
+        if !paused && self.paused.load(Ordering::SeqCst) {
+            self.moved();
+        }
         self.paused.store(paused, Ordering::SeqCst);
         if paused {
             // The UI clears the blocks on pause.
@@ -155,6 +183,7 @@ impl Lens {
         if !changed {
             return;
         }
+        self.moved();
         self.click.set_region(region);
         match region {
             Some(r) => self.with_driver(|d| d.lens_moved(r)),

@@ -25,6 +25,8 @@ pg-translate.workspace = true
 pg-pipeline.workspace = true
 pg-models.workspace = true
 pg-ct2.workspace = true
+# `--debug-dump-frames` (M1-APP-10) writes PNGs; the workspace's PNG-only build.
+image.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 # `macos-private-api` is needed for transparent windows on macOS (PLAN §5; rules out the Mac App Store).

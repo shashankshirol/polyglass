@@ -180,6 +180,27 @@ body {
   opacity: 0.6;
 }
 
+/* PRIV-02: --debug-dump-frames writes captured frames to disk; say so for as long as it runs. */
+#lens.dumping #interior {
+  box-shadow: inset 0 0 0 2px #b3261e;
+}
+
+#debug-banner {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  margin: 0;
+  padding: 1px 6px;
+  background: #b3261e;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 #message,
 #notice {
   position: absolute;
