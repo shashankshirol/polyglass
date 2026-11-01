@@ -231,8 +231,16 @@ These are verified with mocks. Each requirement is fully met only once real engi
   - *Verified end to end with `--demo` (mock engines). Test: `demo_pipeline_translates_swedish_and_passes_english_through`.*
 
   *Since session 3 the default (non-demo) pipeline on Windows is real capture + Windows OCR (`live.rs`), checked with `apps/desktop/scripts/lens-read.ps1` on the 100% and 150% monitors. Not done: real translation (M1-TR-1).*
-- [ ] M1-APP-6 Font fitting down to 9 px + grow + tooltip (REN-02).
-- [ ] M1-APP-7 Hold Alt/Option to show original (REN-04); copy hotkey (REN-05, UTF-8 round-trip test).
+- [x] M1-APP-6 Font fitting down to 9 px + grow + tooltip (REN-02). *Done in session 10.*
+  - *`RenderedBlock.line_height` (mean source line height, logical px) is where fitting starts (capped to 9–48 px). `apps/desktop/ui/src/fit.ts` picks the largest whole px size from there down to 9 px at which the text stays inside the source box. Text that still overflows grows the box downward, cut at the interior's bottom edge, with the full text in the block's tooltip.*
+  - *Tests: `npm test` (`ui/test/fit.test.ts`, Node's test runner, no new dependencies; added to the CI `ui` job), `line_height_is_the_mean_of_the_lines` (pg-core), and line-height asserts in `tests/pipeline.rs` incl. 150%.*
+  - *Checked in Chromium on the plain-browser preview at 480×200: 18 px boxes fit at 15 px (line-height 1.2); a long block went to 9 px, grew to two lines with its tooltip, and was capped at the interior's edge. The live release app shows the translations (font sizes weren't read there).*
+  - *Gaps: the tooltip can only be hovered with click-through off (Panel view is M2-2); a grown box can cover the block below it.*
+- [~] M1-APP-7 Hold Alt/Option to show original (REN-04); copy hotkey (REN-05, UTF-8 round-trip test). *Done in session 10 on Windows, except the hotkey.*
+  - *REN-04: `hold.rs` reads the key state at ~30 Hz while the lens is visible (it is click-through and rarely focused, so there are no key events) and sends `lens-original` while left Alt alone is held. Right Alt and Ctrl combinations don't count, so AltGr (Ctrl + right Alt) and the Ctrl+Alt hotkeys never flash it (SV-09). It only reads, so other apps get every key. Tests: `ren04_left_alt_alone_shows_the_original`, `sv09_altgr_and_hotkeys_do_not_show_the_original`.*
+  - *REN-05: toolbar ⧉ → `copy_translation` (no webview input) → `LensUpdate::copy_text` (displayed blocks in reading order, one per line) → clipboard via `arboard` (text only). Tests: `ren05_copy_text_is_the_displayed_blocks_in_order`, `ren05_clipboard_round_trips_swedish_text` (real clipboard, puts the old text back).*
+  - *Live, release app, through UI Automation and real key events: translation → left Alt held: the Swedish source → released: translation; AltGr: no change; ⧉: both blocks on the clipboard in order.*
+  - *Not done: the Ctrl+Alt+C hotkey (M1-APP-9). macOS (Option) has no key-state source yet.*
 - [ ] M1-APP-8 Settings TOML in config dir (SET-01); model manager UI (MDL-01/03/05); first-run wizard (MDL-06, SV-01).
 - [ ] M1-APP-9 Default hotkeys (HK-01) + Swedish-layout AltGr check (SV-09).
 - [ ] M1-APP-10 `--trace-timings`, `--debug-dump-frames` with red banner (PRIV-02); default logs contain no text (PRIV-07).
