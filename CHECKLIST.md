@@ -101,7 +101,7 @@
 ### Repository and tooling
 - [x] M0-REPO-1 Cargo workspace with `crates/pg-{core,capture,ocr,translate,pipeline,models,bench}`.
 - [x] M0-REPO-2 `.gitignore`, `rustfmt.toml`, workspace lints, `deny.toml`.
-- [~] M0-REPO-3 CI skeleton `.github/workflows/ci.yml`: fmt, clippy `-D warnings`, tests on Windows/macOS (arm64 + x86_64)/Ubuntu, `pg-bench` smoke run, `cargo deny` (QUAL-01, SEC-05 skeleton). *First run in session 9 (push of `main`, run 41284802134): see the session 9 log for results. `cargo deny check` passes locally (cargo-deny 0.20.2, two documented advisory ignores, D-6). MSRV job since session 8.*
+- [~] M0-REPO-3 CI skeleton `.github/workflows/ci.yml`: fmt, clippy `-D warnings`, tests on Windows/macOS (arm64 + x86_64)/Ubuntu, `pg-bench` smoke run, `cargo deny` (QUAL-01, SEC-05 skeleton). *First run in session 9 (push of `main`, run 41284802134): see the session 9 log for results. Since session 9 (owner: the repo is private, Actions minutes), pushes and PRs run the `test` job on Linux only; Windows and macOS run only on a manual dispatch (Actions → CI → Run workflow, input `os` = all/windows/macos/linux). fmt, msrv, ui and deny run on Linux every time. `cargo deny check` passes locally (cargo-deny 0.20.2, two documented advisory ignores, D-6). MSRV job since session 8.*
 - [x] M0-REPO-4 Docs skeleton: README, CONTRIBUTING, CODE_OF_CONDUCT, SECURITY, GOVERNANCE, PRIVACY, docs/ARCHITECTURE.md, docs/adr/0000-template + ADR-0001 (OSS-03 skeleton). *Contact e-mails are `.invalid` placeholders.*
 - [ ] M0-REPO-5 Add LICENSE-MIT / LICENSE-APACHE once D-2 is decided.
 - [~] M0-REPO-6 Repo history + public remote. *Done: local repo + initial commit `8cd14de`; public remote `origin` (github.com/shashankshirol/polyglass), `main` pushed in session 9. Not done: real contact addresses, `.gitattributes` (global `core.autocrlf` converts files to CRLF on Windows checkouts).*
@@ -294,6 +294,7 @@ Newest first. Keep each entry short: what changed, what's verified, what's next,
   - `ab_glyph`'s `PxScale` is the ascent-to-descent height, not the em size; GDI's positive `lfHeight` is the same cell height, negative is the em.
 - Left on this machine: `target/opus-mt/release/` (the staged assets, 162 MB) next to session 8's `target/opus-mt/`. The app's store has the downloaded OPUS-MT models (byte-identical to the imported ones); the old `bergamot-*` dirs are still there (session 8 note).
 - Later in the session the owner decided to keep the repo private until the first app release. Added the lens fallback: a ⬇ that gets 401/403/404/410 hides ⬇ and shows the install command (checked in the release app: the real 404 from the private repo, then the message with the command, no ⬇).
+- CI: on the owner's request, the Windows and macOS `test` jobs run only on a manual dispatch (`workflow_dispatch`, input `os`); pushes and PRs run Linux only. The models release workflow still runs on `windows-latest` when a `models-opus-mt-*` tag is pushed.
 - Next: the owner's answer on the two M1-OCR-6 calls; then "Next up".
 
 ### 2026-11-01 — Session 8 (M1-TR-6: CTranslate2 + OPUS-MT)

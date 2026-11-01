@@ -17,7 +17,7 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 ```
 
-All three must pass; CI runs them on Windows, macOS and Linux.
+All three must pass. CI runs them on Linux for every push and pull request; Windows and macOS run only when the CI workflow is started by hand (Actions → CI → Run workflow), which maintainers do for large changes.
 
 ## Rules that are easy to miss
 

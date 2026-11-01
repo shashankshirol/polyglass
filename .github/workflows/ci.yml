@@ -1,9 +1,19 @@
 name: CI
 
+# Pushes and pull requests run everything on Linux only. Windows and macOS runners count 2× and
+# 10× against a private repository's Actions minutes, so their test jobs run only when started by
+# hand: Actions → CI → Run workflow (or `gh workflow run ci.yml -f os=all`), e.g. for large changes.
 on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+    inputs:
+      os:
+        description: Which OSes the test job runs on
+        type: choice
+        default: all
+        options: [all, windows, macos, linux]
 
 permissions:
   contents: read
@@ -24,11 +34,13 @@ jobs:
       - run: cargo fmt --all -- --check
 
   test:
-    # QUAL-01: clippy + unit, fixture and pipeline tests on all three OSes.
+    # QUAL-01: clippy + unit, fixture and pipeline tests; Linux on every push, Windows and macOS
+    # on a manual run (see `on:` above).
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest, macos-13]
+        # push/PR or os=linux → Linux; os=windows / os=macos → that OS; os=all → all four.
+        os: ${{ fromJSON((github.event_name != 'workflow_dispatch' || inputs.os == 'linux') && '["ubuntu-latest"]' || inputs.os == 'windows' && '["windows-latest"]' || inputs.os == 'macos' && '["macos-latest","macos-13"]' || '["ubuntu-latest","windows-latest","macos-latest","macos-13"]') }}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
