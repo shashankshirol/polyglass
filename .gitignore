@@ -8,3 +8,6 @@ apps/desktop/src-tauri/gen/
 Thumbs.db
 # Frames must never be persisted (PRIV-02); debug dumps go here and are never committed.
 /debug-frames/
+
+# Python bytecode (scripts/models)
+__pycache__/

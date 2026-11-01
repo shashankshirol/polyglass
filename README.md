@@ -86,20 +86,17 @@ In PowerShell, run `Remove-Item Env:POLYGLASS_DEMO` to go back to live mode in t
 ### 3. First run: get the translation models
 
 The translation models aren't bundled with the app (MDL-06). The converted OPUS-MT models are
-published as assets of a **GitHub Release of this repository**
-([releases](https://github.com/shashankshirol/polyglass/releases), decision D-9), and
-`models/manifest.toml` lists each file's URL and SHA-256:
+published as assets of a **GitHub pre-release of this repository**,
+[`models-opus-mt-2026-11-01`](https://github.com/shashankshirol/polyglass/releases/tag/models-opus-mt-2026-11-01)
+(decision D-9), and `models/manifest.toml` lists each file's URL and SHA-256.
 
-- **Download in the app:** on first launch the lens says the models are missing, and the toolbar
-  shows ⬇. Click it to download both directions (about 170 MB) from the release. Each file is
-  checked against its SHA-256 before it's saved to the model store,
-  `%LOCALAPPDATA%\org.polyglass.desktop\models` on Windows. Translation starts once the
-  download finishes.
-- **Until the first models release is published**, the manifest entries have no URLs yet, and the
-  lens shows the import command below instead of ⬇.
+On first launch the lens says the models are missing, and the toolbar shows ⬇. Click it to
+download both directions (about 170 MB) from the release. Each file is checked against its
+SHA-256 before it's saved to the model store, `%LOCALAPPDATA%\org.polyglass.desktop\models` on
+Windows. Translation starts once the download finishes, without a restart.
 
-To build the same files yourself (offline install, or a maintainer preparing a release), run
-this from the repository root:
+To build the same files yourself (offline install, or a check of the release), run this from
+the repository root:
 
 ```
 python scripts/models/opus_mt.py
@@ -121,6 +118,14 @@ Then restart Polyglass. Later launches load the models from disk, and nothing go
 store, and `--no-install` to only convert. The OPUS-MT models are CC-BY-4.0: the attribution is
 in `models/manifest.toml` and the release notes, and the license text is installed next to each
 model.
+
+**Publishing a new models release (maintainers):** point the manifest URLs at a new tag
+`models-opus-mt-YYYY-MM-DD` first (`releases/download/<tag>/<model id>.<file name>`), check
+locally with `python scripts/models/opus_mt.py --no-install` and
+`python scripts/models/release_assets.py --tag <tag>`, commit, then push an annotated tag of that
+name. `.github/workflows/models-release.yml` converts the models on a clean runner, checks every
+file against the manifest and creates the pre-release with the license, attribution and
+`SHA256SUMS`. It never replaces an existing release.
 
 ### 4. Use the lens
 
@@ -172,6 +177,9 @@ default. Convert them first (they're imported into a test store, not the app's):
 python scripts/models/opus_mt.py --no-install
 cargo test -p pg-ct2 --release --test real_models -- --ignored --test-threads 1 --nocapture
 ```
+
+`cargo test -p pg-models --test github_release -- --ignored --nocapture` checks the models release
+on GitHub itself (the redirect to the asset host and a resumed download; ≈ 2 MB).
 
 The MSRV is Rust 1.90: `cargo +1.90 check --workspace --all-targets`. `cargo deny check` checks
 licenses and advisories.
