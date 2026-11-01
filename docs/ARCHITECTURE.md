@@ -10,7 +10,7 @@ pg-core ◄── pg-capture ◄──┐
    ▲   ◄── pg-ocr     ◄──┼── pg-pipeline ◄── pg-bench
    │   ◄── pg-translate ◄┘                   apps/desktop
    │          ▲                                  │
-   │          └── pg-bergamot ◄──────────────────┘
+   │          └── pg-ct2 ◄───────────────────────┘
    └────── pg-models ◄┘
 
 pg-testkit (dev-only: fixture images and OCR scoring for tests and pg-bench)
@@ -22,9 +22,9 @@ pg-testkit (dev-only: fixture images and OCR scoring for tests and pg-bench)
 | `pg-capture` | Getting pixels | `ScreenCapturer` (incl. `release` while hidden), `StaticCapturer`, `FixtureCapturer` (PNG file or bytes), `WgcCapturer` + `monitors()` (Windows Graphics Capture, Windows only; ADR-0003) |
 | `pg-ocr` | Pixels → lines | `OcrEngine`, `default_engine` (OCR-01 table), `resolve_language` (OCR-06/SV-02), `MockOcr`, `WindowsOcr` (WinRT `Windows.Media.Ocr`, Windows only) |
 | `pg-translate` | Text → text | `Translator`, `TranslateError` (TR-06 kinds + Fluent IDs), `langid` (SV-04/TR-07), `tokens` (SV-05 check), `TokenGuard` (SV-05: masked retry, else source), `PivotTranslator`/`plan_route` (TR-03), `MockTranslator` |
-| `pg-bergamot` | On-device translation (ADR-0004) | `BergamotTranslator` (id `bergamot`, local): Mozilla's Firefox Translations models run by `fxtranslate` (pure Rust); `load_installed` loads every installed direction; `ModelFiles` |
+| `pg-ct2` | On-device translation (ADR-0005) | `Ct2Translator` (id `ctranslate2`, local): CTranslate2 through `ct2rs` running OPUS-MT models converted to int8; `load_installed` loads every installed `ctranslate2` model, any pair; `Options` (threads, beam); `split_sentences` |
 | `pg-pipeline` | Orchestration | `Scheduler` (CAP-03, LENS-06), `change` (CAP-03/06), `grouping` (OCR-02), `cache` (TR-04), `color` (REN-01), `Pipeline::run_cycle`, `driver::spawn`, `LensUpdate` |
-| `pg-models` | Model files | `Manifest` (MDL-01/02), `ModelStore` (MDL-04/05), `Downloader` (MDL-03) |
+| `pg-models` | Model files | `Manifest` (MDL-01/02; entries without URLs are import-only), `ModelStore` (MDL-04/05), `Downloader` (MDL-03); `import-models` binary (MDL-04) |
 | `pg-bench` | Measurement | CLI over `Pipeline::run_cycle` (SPEC §5) on a rendered fixture image (`--scale`, `--theme`); `--ocr mock\|windows`, the latter also prints CER/WER/å-ä-ö for the lines in the lens |
 | `pg-testkit` | Test helpers | `TextRenderer` (text into a `Frame` with the system UI font); `fixture` (`truth.json` → `FixtureImage` at 100–200%, light/dark, with line boxes; `render-fixtures` binary); `metrics` (CER, WER, å/ä/ö misreadings) |
 
@@ -59,8 +59,8 @@ A thin Tauri 2 layer; no pipeline logic lives here or in JS.
 | `state.rs` | `Lens`: visibility, pause and interior region in one place; forwards them to the `DriverHandle` (`show`/`hide`/`lens_moved`) and to the click-through poller |
 | `clickthrough.rs` | ~30 Hz cursor poll toggling `set_ignore_cursor_events` over the interior only; parked while hidden (ADR-0002) |
 | `commands.rs` | The only IPC commands (`lens_config`, `nudge_lens`, `set_click_through`, `set_paused`, `hide_lens`, `open_ocr_language_settings`, `download_models`); input validated in Rust (SEC-01) |
-| `live.rs` | Default on Windows: `WgcCapturer` + `WindowsOcr` + `TokenGuard<BergamotTranslator>`, Auto sv/en → en. Started only if the lens is excluded from capture. Without models, Swedish blocks report `tr-error-model-missing` |
-| `models.rs` | Model store at `<app local data>/models` (`%LOCALAPPDATA%\org.polyglass.desktop\models` on Windows). The toolbar ⬇ (`download_models`) downloads the missing sv↔en models through `pg-models`, reports `lens-models` progress events, then swaps the loaded translator into the running pipeline. Interim until M1-APP-8 |
+| `live.rs` | Default on Windows: `WgcCapturer` + `WindowsOcr` + `TokenGuard<Ct2Translator>`, Auto sv/en → en. Started only if the lens is excluded from capture. Without models, Swedish blocks report `tr-error-model-missing` |
+| `models.rs` | Model store at `<app local data>/models` (`%LOCALAPPDATA%\org.polyglass.desktop\models` on Windows). While the sv↔en models are import-only (D-9), `lens_config.modelsDownloadable` is false and the lens points to `scripts/models/opus_mt.py`. Once they have URLs, the toolbar ⬇ (`download_models`) downloads them through `pg-models`, reports `lens-models` progress events, then swaps the loaded translator into the running pipeline. Interim until M1-APP-8 |
 | `demo.rs` | `--demo`: `StaticCapturer` over a synthetic desktop + `MockOcr` + `MockTranslator` |
 | `tray.rs` | Tray icon: show/hide lens, quit |
 
@@ -78,23 +78,31 @@ pipeline can't start, `lens-error` carries a Fluent message ID (also in `lens_co
 
 `unsafe`: the workspace denies it. Allowed only in `pg-capture`'s `wgc` module (D3D11/DXGI
 interop, monitor enumeration), the one `SetWindowDisplayAffinity` call in `lens.rs`, and the
-Win32 test windows in `crates/pg-capture/tests/wgc.rs`. `WindowsOcr` and `pg-bergamot` need
-none (`fxtranslate` is pure Rust apart from an optional SIMD shim inside that crate, which
-`pg-bergamot` doesn't enable on Windows).
+Win32 test windows in `crates/pg-capture/tests/wgc.rs`. `WindowsOcr` and `pg-ct2` need none:
+CTranslate2 is C++, and its `cxx` bridge (with its `unsafe`) lives inside `ct2rs`.
 
-## On-device translation (`pg-bergamot`, ADR-0004)
+## On-device translation (`pg-ct2`, ADR-0005)
 
-- Models: `bergamot-sv-en` and `bergamot-en-sv` in `models/manifest.toml` (Mozilla, MPL-2.0,
-  30.5 MB together). Files stay gzipped on disk exactly as downloaded and verified; they are
-  decompressed in memory when loaded (≈ 110 ms per direction, ≈ 68 MB RSS for both).
-- Both directions are loaded at startup; swapping direction never reloads (SV-01).
-  Translation runs on Tokio's blocking pool, one block at a time, each split into sentences.
+- Engine: CTranslate2 (OpenNMT) built from source by `ct2rs` with CMake (ruy CPU backend,
+  SentencePiece tokenizer). On Windows it links the static MSVC runtime, so
+  `.cargo/config.toml` sets `+crt-static` for MSVC targets, and it selects the Ninja generator
+  (cmake-rs drops the optimization flags with the Visual Studio generator).
+- Models: `opus-mt-sv-en` and `opus-mt-en-sv` in `models/manifest.toml` (Helsinki-NLP OPUS-MT,
+  CC-BY-4.0 with attribution, 84.8 MB each). Each is a CTranslate2 directory: `model.bin`
+  (int8), `config.json`, `shared_vocabulary.json`, `source.spm`, `target.spm` and the
+  `LICENSE`. They're produced by `scripts/models/opus_mt.py` (pinned converter, pinned input and
+  output SHA-256) and, until they are hosted (D-9), installed by import (MDL-04). Nothing in
+  `pg-ct2` names a language: another pair (M3-8/M3-9) is a manifest entry plus a script entry.
+- Every installed direction is loaded at startup; swapping direction never reloads (SV-01).
+  Each model uses `Options::default_threads()` threads (half the CPUs, at most 4). Translation
+  runs on Tokio's blocking pool: each block is split into sentences (OPUS-MT is sentence-level)
+  and all sentences of a request go to CTranslate2 as one batch, greedy decoding.
 - `TokenGuard` (SV-05): blocks whose output fails `tokens::check_preserved` are translated
   again with URLs, e-mails and number runs masked as `{n}`. Restored numbers are reformatted
   only where the verbatim form would read as a different value in the target language. If no
   pass keeps the tokens, the source text is shown.
-- Real-model tests (`crates/pg-bergamot/tests/real_models.rs`) are `#[ignore]`d because they
-  download the models; nothing in `cargo test --workspace` touches the network.
+- Real-model tests (`crates/pg-ct2/tests/real_models.rs`) are `#[ignore]`d because they need
+  the converted models; nothing in `cargo test --workspace` touches the network.
 
 ## Windows OCR (`pg-ocr::WindowsOcr`)
 
@@ -128,5 +136,6 @@ none (`fxtranslate` is pure Rust apart from an optional SIMD shim inside that cr
 - `TranslationCache` has no serialization (TR-04: never on disk).
 - Errors carry technical context only, never recognized text.
 - Model downloads accept only manifest entries; the manifest accepts only https URLs with
-  SHA-256 (MDL-02, SEC-03). The app downloads only when the user presses ⬇ (MDL-06).
-- Translation stays on the device with `pg-bergamot` (`is_local() == true`, PRIV-05).
+  SHA-256 (MDL-02, SEC-03). The app downloads only when the user presses ⬇ (MDL-06). Imported
+  models are checked against the same SHA-256 (MDL-04).
+- Translation stays on the device with `pg-ct2` (`is_local() == true`, PRIV-05).

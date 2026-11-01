@@ -7,11 +7,11 @@ language pair for v1.
 
 **Status:** pre-alpha (milestone M0/M1). The headless core (`crates/pg-*`) builds and is tested.
 The desktop lens window (`apps/desktop`) runs on Windows with real screen capture (Windows
-Graphics Capture), Windows OCR and on-device Swedish ↔ English translation. Translation is
-moving from `fxtranslate` + Mozilla's models to CTranslate2 + OPUS-MT models
-([ADR-0005](./docs/adr/0005-ctranslate2-opus-mt.md)); until that lands, the steps below describe
-the current `fxtranslate` setup. macOS and Linux capture/OCR are not implemented yet.
-See [CHECKLIST.md](./CHECKLIST.md) for progress.
+Graphics Capture), Windows OCR and on-device Swedish ↔ English translation with CTranslate2 and
+Helsinki-NLP's OPUS-MT models ([ADR-0005](./docs/adr/0005-ctranslate2-opus-mt.md)). The models
+aren't hosted for download yet, so you convert and install them once with a script (step 3).
+macOS and Linux capture/OCR are not implemented yet. See [CHECKLIST.md](./CHECKLIST.md) for
+progress.
 
 ## Documents
 
@@ -34,10 +34,19 @@ core crates build and test, and the app runs in demo mode only.
   toolchain (`x86_64-pc-windows-msvc`).
 - **Node.js** 20 or newer (npm comes with it).
 - **The [Tauri 2 prerequisites](https://v2.tauri.app/start/prerequisites/) for your OS:**
-  - Windows: the Microsoft C++ Build Tools ("Desktop development with C++") and the WebView2
-    runtime, which Windows 11 already has.
+  - Windows: the Microsoft C++ Build Tools or Visual Studio 2022 or newer with "Desktop
+    development with C++", and the WebView2 runtime, which Windows 11 already has.
   - Linux: `libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev`.
   - macOS: the Xcode command-line tools.
+- **CMake 3.x or newer and a C++17 compiler**, on `PATH`. The translation engine
+  (CTranslate2, through the `ct2rs` crate) is C++ and is compiled during the first build.
+  - Windows: one-time setup, `winget install Kitware.CMake Ninja-build.Ninja`, then open a new
+    terminal. The C++ compiler is the MSVC one from the Build Tools above; the build finds it by
+    itself, so a normal PowerShell terminal works (no Developer Prompt needed). Visual Studio also
+    ships CMake and Ninja, but they aren't on `PATH` outside the Developer Prompt.
+  - Linux: `cmake g++` (for example `sudo apt-get install cmake g++`).
+  - macOS: `brew install cmake`; the Xcode command-line tools provide the compiler.
+- **Python 3.12 or newer**, only to convert the translation models (step 3).
 - **Swedish text recognition (Windows, optional):** Settings → Time & language → Language &
   region → add Swedish → Language options → install its optical character recognition feature.
   Without it the lens reads English only and shows ⚠ SV in the toolbar.
@@ -52,9 +61,16 @@ npm install
 npm run tauri dev
 ```
 
-The first run compiles the whole workspace, which takes a few minutes. After that the UI reloads
-when you save a change, and Rust changes trigger a rebuild. The lens opens centred on the
-monitor your cursor is on, and a tray icon appears.
+The first run compiles the whole workspace, including CTranslate2 and SentencePiece through
+CMake, which takes a few minutes. After that the UI reloads when you save a change, and Rust
+changes trigger a rebuild. The lens opens centred on the monitor your cursor is on, and a tray
+icon appears.
+
+On Windows, `.cargo/config.toml` does two things for CTranslate2, so nothing else needs setting
+up: it links the static C runtime (`+crt-static`), which CTranslate2 requires, and it makes
+CMake use Ninja. With the Visual Studio generator, the build tooling (cmake-rs) drops the
+optimization flags and translation is about 13× slower. If you set a `RUSTFLAGS` environment
+variable, it replaces the first setting, so add `-C target-feature=+crt-static` to it.
 
 To run demo mode, which uses mock capture, OCR and translation and never reads the screen:
 
@@ -67,16 +83,32 @@ POLYGLASS_DEMO=1 npm run tauri dev
 
 In PowerShell, run `Remove-Item Env:POLYGLASS_DEMO` to go back to live mode in the same terminal.
 
-### 3. First run: download the translation models
+### 3. First run: install the translation models
 
-The translation models aren't bundled with the app. On first launch the lens says they're
-missing, and the toolbar shows ⬇. Click it to download both directions:
-- about 30 MB in total, from Mozilla's model storage;
-- each file is checked against its SHA-256;
-- they're saved to `%LOCALAPPDATA%\org.polyglass.desktop\models`;
-- translation starts as soon as the download finishes.
+The translation models aren't bundled with the app (MDL-06). Until the converted models are
+hosted for download (owner decision D-9), the lens says they're missing and you install them
+once, from the repository root:
 
-Later launches load the models from disk in under a second, and nothing else goes online.
+```
+python scripts/models/opus_mt.py
+```
+
+This one command:
+- creates a Python venv under `target/opus-mt` with the pinned, hash-checked converter
+  (`scripts/models/requirements.txt`);
+- downloads Helsinki-NLP's official OPUS-MT sv→en and en→sv releases (2 × 286 MB) and checks
+  their SHA-256;
+- converts them to CTranslate2 int8 (about 20 s) and checks every output file against the
+  SHA-256 in the script, so the result is identical on every machine;
+- installs both directions (170 MB) into the app's model store,
+  `%LOCALAPPDATA%\org.polyglass.desktop\models` on Windows, through
+  `cargo run -p pg-models --bin import-models`, which verifies them against
+  `models/manifest.toml` again.
+
+Then restart Polyglass. Later launches load the models from disk, and nothing goes online. Use
+`--clean` to delete the downloads and the venv afterwards, `--store <dir>` for another model
+store, and `--no-install` to only convert. The OPUS-MT models are CC-BY-4.0: the attribution is
+in `models/manifest.toml`, and the license text is installed next to each model.
 
 ### 4. Use the lens
 
@@ -121,12 +153,16 @@ cargo run --release -p pg-bench -- --fixture tests/fixtures/ui-dialog-sv
 - it renders the fixture image from `truth.json` at `--scale` and `--theme`, and with
   `--ocr windows` it also prints OCR accuracy (CER, WER, å/ä/ö).
 
-Tests against the real translation models download those models first, so they're ignored by
-default:
+Tests against the real translation models need the converted models, so they're ignored by
+default. Convert them first (they're imported into a test store, not the app's):
 
 ```
-cargo test -p pg-bergamot --release --test real_models -- --ignored --test-threads 1
+python scripts/models/opus_mt.py --no-install
+cargo test -p pg-ct2 --release --test real_models -- --ignored --test-threads 1 --nocapture
 ```
+
+The MSRV is Rust 1.90: `cargo +1.90 check --workspace --all-targets`. `cargo deny check` checks
+licenses and advisories.
 
 ### Troubleshooting
 
@@ -143,6 +179,20 @@ cargo test -p pg-bergamot --release --test real_models -- --ignored --test-threa
   version 2004 or newer. Use demo mode on older systems.
 - **⚠ SV in the toolbar:** the Swedish OCR feature isn't installed (see step 1). Click ⚠ SV to
   open the Windows language settings.
+- **"is `cmake` not installed?", or CMake can't find `ninja`, while building `ct2rs` or
+  `sentencepiece-sys`:** CMake or Ninja isn't on `PATH` (see step 1). Open a new terminal after
+  installing them, then run `cargo clean -p ct2rs -p sentencepiece-sys` so CMake starts over.
+- **`LNK2038: mismatch detected for 'RuntimeLibrary'` (Windows):** a `RUSTFLAGS` environment
+  variable replaced `.cargo/config.toml`'s `+crt-static`; see step 2.
+- **Translation takes hundreds of milliseconds per short string (Windows):** CTranslate2 was
+  built unoptimized with the Visual Studio generator, for example because a `CMAKE_GENERATOR`
+  environment variable overrode `.cargo/config.toml`. Remove it, run
+  `cargo clean -p ct2rs -p sentencepiece-sys` and build again.
+- **CMake errors in a try-compile, or paths that are too long (Windows):** the sentencepiece
+  build fails when the target directory path is very long. Keep the checkout (or
+  `CARGO_TARGET_DIR`) at a short path such as `C:\src\polyglass`.
+- **The lens says the models aren't installed after running the script:** restart Polyglass;
+  models are loaded at startup.
 
 ## Repository layout
 
@@ -152,12 +202,13 @@ crates/pg-core       shared types (geometry, frames, lines/blocks, languages, er
 crates/pg-capture    ScreenCapturer trait, Windows Graphics Capture, fixture capturer
 crates/pg-ocr        OcrEngine trait, default-engine table, language resolution, Windows OCR
 crates/pg-translate  Translator trait, sv/en language ID, preserved-token checks + guard, pivoting
-crates/pg-bergamot   on-device sv↔en translation (Mozilla models, fxtranslate engine)
+crates/pg-ct2        on-device translation: CTranslate2 (ct2rs) running OPUS-MT models
 crates/pg-pipeline   scheduler, change detection, block grouping, cache, live driver
 crates/pg-models     model manifest, SHA-256 verification, store, resumable downloads
 crates/pg-bench      benchmark CLI
 crates/pg-testkit    test helpers (fixture images from truth.json, CER/WER scoring)
-models/manifest.toml pinned model URLs + hashes + licenses
+models/manifest.toml pinned model files + hashes + licenses (URLs once hosted, D-9)
+scripts/models/      pinned OPUS-MT → CTranslate2 int8 conversion + install script
 tests/fixtures/      ground-truth fixtures (CC0)
 docs/                architecture notes and ADRs
 ```
@@ -165,5 +216,5 @@ docs/                architecture notes and ADRs
 ## License
 
 [Apache-2.0](./LICENSE). Fixtures under `tests/fixtures` are CC0-1.0. Translation models are
-downloaded at runtime, not bundled, and carry their own licenses (listed in
-`models/manifest.toml`; Mozilla's sv↔en models are MPL-2.0).
+installed separately, not bundled, and carry their own licenses (listed in
+`models/manifest.toml`; the OPUS-MT sv↔en models by Helsinki-NLP are CC-BY-4.0).
