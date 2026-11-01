@@ -9,8 +9,10 @@
 //!
 //! Scores add up ([`Score`] implements `AddAssign`), so a fixture set's rate is total errors over
 //! total reference characters, not a mean of per-image rates.
+//!
+//! Translations are scored with chrF ([`chrf_stats`], SV-07), which adds up the same way.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fmt;
 use std::ops::AddAssign;
 
@@ -196,6 +198,95 @@ pub fn cer(recognized: &str, reference: &str) -> f64 {
     score(recognized, reference).cer()
 }
 
+/// Highest character n-gram order chrF counts.
+pub const CHRF_ORDER: usize = 6;
+/// chrF's β: recall weighs β² = 4 times as much as precision.
+pub const CHRF_BETA: f64 = 2.0;
+
+/// chrF statistics (SV-07) of one translation, or of several added together.
+///
+/// chrF (Popović 2015) as sacreBLEU computes it by default (`chrF2`): character n-grams of
+/// orders 1–6 with all whitespace removed, word n-grams off, β = 2. For each order it keeps the
+/// hypothesis's n-grams, the reference's and the matches (clipped counts). Adding statistics up
+/// over a set and then calling [`ChrfStats::score`] gives the corpus score, as sacreBLEU does.
+/// Both texts are NFC-normalized first.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
+pub struct ChrfStats {
+    pub hyp: [usize; CHRF_ORDER],
+    pub reference: [usize; CHRF_ORDER],
+    pub matched: [usize; CHRF_ORDER],
+}
+
+impl ChrfStats {
+    /// chrF in 0–100: precision and recall averaged over the orders both texts have n-grams
+    /// of, then their F-β.
+    pub fn score(&self) -> f64 {
+        const EPS: f64 = 1e-16;
+        let (mut precision, mut recall, mut orders) = (0.0, 0.0, 0);
+        for n in 0..CHRF_ORDER {
+            let (hyp, reference) = (self.hyp[n], self.reference[n]);
+            let matched = self.matched[n] as f64;
+            precision += if hyp > 0 { matched / hyp as f64 } else { EPS };
+            recall += if reference > 0 {
+                matched / reference as f64
+            } else {
+                EPS
+            };
+            if hyp > 0 && reference > 0 {
+                orders += 1;
+            }
+        }
+        if orders == 0 {
+            return 0.0;
+        }
+        let (precision, recall) = (precision / orders as f64, recall / orders as f64);
+        let b2 = CHRF_BETA * CHRF_BETA;
+        if precision + recall == 0.0 {
+            return 0.0;
+        }
+        100.0 * (1.0 + b2) * precision * recall / (b2 * precision + recall)
+    }
+}
+
+impl AddAssign<&ChrfStats> for ChrfStats {
+    fn add_assign(&mut self, rhs: &ChrfStats) {
+        for n in 0..CHRF_ORDER {
+            self.hyp[n] += rhs.hyp[n];
+            self.reference[n] += rhs.reference[n];
+            self.matched[n] += rhs.matched[n];
+        }
+    }
+}
+
+/// chrF statistics of `hypothesis` against `reference`.
+pub fn chrf_stats(hypothesis: &str, reference: &str) -> ChrfStats {
+    let chars = |s: &str| -> Vec<char> { s.nfc().filter(|c| !c.is_whitespace()).collect() };
+    let (hyp, reference) = (chars(hypothesis), chars(reference));
+    let mut stats = ChrfStats::default();
+    for n in 1..=CHRF_ORDER {
+        let mut want: HashMap<&[char], usize> = HashMap::new();
+        for g in reference.windows(n) {
+            *want.entry(g).or_default() += 1;
+        }
+        let mut got: HashMap<&[char], usize> = HashMap::new();
+        for g in hyp.windows(n) {
+            *got.entry(g).or_default() += 1;
+        }
+        stats.hyp[n - 1] = hyp.len().saturating_sub(n - 1);
+        stats.reference[n - 1] = reference.len().saturating_sub(n - 1);
+        stats.matched[n - 1] = got
+            .iter()
+            .map(|(g, k)| (*k).min(want.get(g).copied().unwrap_or(0)))
+            .sum();
+    }
+    stats
+}
+
+/// Sentence chrF of `hypothesis` against `reference`.
+pub fn chrf(hypothesis: &str, reference: &str) -> f64 {
+    chrf_stats(hypothesis, reference).score()
+}
+
 /// Levenshtein distance between `hyp` and `reference`, and for each reference item the
 /// hypothesis item aligned to it (`None` where it was deleted). Ties prefer a match or
 /// substitution over a deletion or insertion.
@@ -363,5 +454,44 @@ mod tests {
         assert!(total.to_string().contains("ö→o×3"), "{total}");
         let json = serde_json::to_value(&total).unwrap();
         assert_eq!(json["misreads"]["ö→o"], 3);
+    }
+
+    fn close(a: f64, b: f64) -> bool {
+        (a - b).abs() < 1e-9
+    }
+
+    #[test]
+    fn chrf_by_hand() {
+        assert!(close(chrf("Save changes", "Save changes"), 100.0));
+        // Whitespace is removed before counting.
+        assert!(close(chrf("Savechanges", "Save  changes"), 100.0));
+        assert_eq!(chrf("", "Save"), 0.0);
+        // sacreBLEU adds ε for orders without n-grams, so "nothing matches" is ≈ 1e-14.
+        assert!(close(chrf("xyz", "abc"), 0.0));
+        // "abc" vs "abd": unigrams 2/3, bigrams 1/2, trigrams 0/1 both ways; orders 4–6 have
+        // no n-grams. Precision = recall = (2/3 + 1/2 + 0) / 3 = 7/18, so F2 = 7/18 too.
+        let s = chrf_stats("abc", "abd");
+        assert_eq!(s.hyp[..3], [3, 2, 1]);
+        assert_eq!(s.matched[..3], [2, 1, 0]);
+        assert!(close(s.score(), 700.0 / 18.0), "{}", s.score());
+        // Recall weighs more than precision: a hypothesis missing half the reference scores
+        // lower than one with the reference plus as much again.
+        assert!(chrf("abcdef", "abcdefghijkl") < chrf("abcdefghijklmnopqrstuvwx", "abcdefghijkl"));
+        // Clipped counts: repeating a matched n-gram doesn't add matches.
+        assert_eq!(chrf_stats("aaaa", "a").matched[0], 1);
+        // NFC: a + combining diaeresis is ä.
+        assert!(close(chrf("a\u{308}ndra", "ändra"), 100.0));
+    }
+
+    #[test]
+    fn chrf_corpus_score_adds_statistics_not_scores() {
+        let mut total = chrf_stats("abc", "abc");
+        total += &chrf_stats("xyz", "abc");
+        // Not the mean of 100 and 0: every order's counts are added first.
+        assert!(close(total.score(), 50.0), "{}", total.score());
+        let mean = (chrf("abcdefgh", "abcdefgh") + chrf("ab", "xy")) / 2.0;
+        let mut corpus = chrf_stats("abcdefgh", "abcdefgh");
+        corpus += &chrf_stats("ab", "xy");
+        assert!(corpus.score() > mean, "{} vs {mean}", corpus.score());
     }
 }

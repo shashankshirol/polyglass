@@ -5,7 +5,9 @@
 //!   The font is read from the OS at run time and never copied into the repository.
 //! - [`fixture`] renders the ground truth in `tests/fixtures/*/truth.json` into fixture images at
 //!   100–200% scale in a light and a dark theme (M0-FIX-2).
-//! - [`metrics`] scores OCR output against ground truth: CER, WER and the å/ä/ö report (M0-FIX-3).
+//! - [`metrics`] scores OCR output against ground truth: CER, WER and the å/ä/ö report (M0-FIX-3),
+//!   and translations against references with chrF (SV-07).
+//! - [`eval`] loads the translation evaluation sets in `tests/eval` (M0-FIX-4).
 
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -14,6 +16,7 @@ use ab_glyph::{Font, FontVec, PxScale, ScaleFont, point};
 use pg_core::{Frame, PixelFormat, Rect};
 use sha2::{Digest, Sha256};
 
+pub mod eval;
 pub mod fixture;
 pub mod metrics;
 
