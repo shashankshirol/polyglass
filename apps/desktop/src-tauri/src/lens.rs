@@ -8,6 +8,8 @@ use tauri::{
     WebviewWindowBuilder,
 };
 
+use crate::settings::LensSettings;
+
 pub const LABEL: &str = "lens";
 
 /// First-launch size in logical px (LENS-01).
@@ -85,27 +87,73 @@ pub fn create(app: &AppHandle) -> tauri::Result<WebviewWindow> {
         .build()
 }
 
-/// Centre the lens on the monitor under the cursor (LENS-01), cap it to that monitor's work
-/// area (LENS-03), then show it. Restoring the last position is M1-APP-2 follow-up work.
-pub fn place_and_show(app: &AppHandle, window: &WebviewWindow) -> tauri::Result<()> {
-    let monitor = app
-        .cursor_position()
-        .ok()
-        .and_then(|c| app.monitor_from_point(c.x, c.y).ok().flatten())
-        .or_else(|| app.primary_monitor().ok().flatten());
+/// Where the lens was last (outer position, physical px) and its size (logical px).
+pub fn geometry(window: &WebviewWindow) -> Option<(i32, i32, f64, f64)> {
+    let pos = window.outer_position().ok()?;
+    let scale = window.scale_factor().ok()?;
+    let size: LogicalSize<f64> = window.inner_size().ok()?.to_logical(scale);
+    Some((pos.x, pos.y, size.width, size.height))
+}
+
+/// Whether a lens whose outer top-left corner was at (`x`, `y`) can go back there: its toolbar
+/// (where it is dragged from) must start on one of `monitors` (physical px), e.g. not on a
+/// monitor that has been unplugged.
+pub fn restorable(x: i32, y: i32, monitors: &[PhysRect]) -> bool {
+    let (px, py) = (i64::from(x) + 16, i64::from(y) + 8);
+    monitors
+        .iter()
+        .any(|m| px >= i64::from(m.x) && py >= i64::from(m.y) && px < m.right() && py < m.bottom())
+}
+
+/// Put the lens back where it was (LENS-01) when that spot is still on a monitor; otherwise
+/// centre it on the monitor under the cursor. Cap it to that monitor's work area (LENS-03),
+/// then show it.
+pub fn place_and_show(
+    app: &AppHandle,
+    window: &WebviewWindow,
+    saved: &LensSettings,
+) -> tauri::Result<()> {
+    let monitors: Vec<PhysRect> = app
+        .available_monitors()
+        .unwrap_or_default()
+        .iter()
+        .map(|m| {
+            let (p, s) = (m.position(), m.size());
+            PhysRect::new(p.x, p.y, s.width, s.height)
+        })
+        .collect();
+    let restore = match (saved.x, saved.y) {
+        (Some(x), Some(y)) if restorable(x, y, &monitors) => Some((x, y)),
+        _ => None,
+    };
+    let size = (saved.width.max(MIN_SIZE.0), saved.height.max(MIN_SIZE.1));
+    let monitor = match restore {
+        Some((x, y)) => app
+            .monitor_from_point(f64::from(x) + 16.0, f64::from(y) + 8.0)
+            .ok()
+            .flatten(),
+        None => app
+            .cursor_position()
+            .ok()
+            .and_then(|c| app.monitor_from_point(c.x, c.y).ok().flatten()),
+    }
+    .or_else(|| app.primary_monitor().ok().flatten());
 
     if let Some(m) = monitor {
         let scale = m.scale_factor();
         let area = m.work_area();
         let area_w = f64::from(area.size.width) / scale;
         let area_h = f64::from(area.size.height) / scale;
-        let w = DEFAULT_SIZE.0.min(area_w);
-        let h = DEFAULT_SIZE.1.min(area_h);
+        let w = size.0.min(area_w);
+        let h = size.1.min(area_h);
         window.set_max_size(Some(LogicalSize::new(area_w, area_h)))?;
         window.set_size(LogicalSize::new(w, h))?;
-        let x = f64::from(area.position.x) + (area_w - w) / 2.0 * scale;
-        let y = f64::from(area.position.y) + (area_h - h) / 2.0 * scale;
-        window.set_position(PhysicalPosition::new(x.round() as i32, y.round() as i32))?;
+        let (x, y) = restore.unwrap_or_else(|| {
+            let x = f64::from(area.position.x) + (area_w - w) / 2.0 * scale;
+            let y = f64::from(area.position.y) + (area_h - h) / 2.0 * scale;
+            (x.round() as i32, y.round() as i32)
+        });
+        window.set_position(PhysicalPosition::new(x, y))?;
     } else {
         window.center()?;
     }
@@ -161,6 +209,21 @@ pub fn exclude_from_capture(_window: &WebviewWindow) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn lens01_restores_only_onto_a_monitor_that_is_there() {
+        // This machine: 2560×1440 primary, 2160×3840 above-left at negative coordinates.
+        let monitors = [
+            PhysRect::new(0, 0, 2560, 1440),
+            PhysRect::new(-2160, -2398, 2160, 3840),
+        ];
+        assert!(restorable(1040, 596, &monitors));
+        assert!(restorable(-1500, -2000, &monitors));
+        // The second monitor unplugged: its old spot is off every monitor.
+        assert!(!restorable(-1500, -2000, &monitors[..1]));
+        // Toolbar off the right edge.
+        assert!(!restorable(2550, 100, &monitors[..1]));
+    }
 
     #[test]
     fn interior_excludes_frame_and_toolbar() {

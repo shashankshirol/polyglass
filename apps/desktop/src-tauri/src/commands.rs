@@ -2,11 +2,12 @@
 //! allowed per window in `capabilities/lens.json`. All input is validated here, in Rust.
 
 use serde::Serialize;
-use tauri::{AppHandle, State, WebviewWindow};
+use tauri::{AppHandle, Manager, State, WebviewWindow};
 
 use crate::clipboard;
 use crate::lens::{self, LAYOUT, Layout};
 use crate::models::{self, Models};
+use crate::settings;
 use crate::state::{Lens, Mode};
 
 type CmdResult<T> = Result<T, String>;
@@ -99,11 +100,14 @@ pub fn nudge_lens(window: WebviewWindow, dx: i32, dy: i32) -> CmdResult<()> {
 #[tauri::command]
 pub fn set_click_through(
     window: WebviewWindow,
+    app: AppHandle,
     state: State<'_, Lens>,
     enabled: bool,
 ) -> CmdResult<()> {
     ensure_lens(&window)?;
     state.click.set_enabled(enabled);
+    app.state::<settings::Store>()
+        .update(|s| s.lens.click_through = enabled);
     Ok(())
 }
 
@@ -118,6 +122,7 @@ pub fn set_paused(window: WebviewWindow, state: State<'_, Lens>, paused: bool) -
 #[tauri::command]
 pub fn hide_lens(window: WebviewWindow, state: State<'_, Lens>) -> CmdResult<()> {
     ensure_lens(&window)?;
+    settings::remember_lens(window.app_handle(), &window);
     window.hide().map_err(|e| e.to_string())?;
     state.set_visible(false);
     Ok(())

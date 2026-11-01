@@ -13,6 +13,7 @@ mod hold;
 mod lens;
 mod live;
 mod models;
+mod settings;
 mod state;
 mod tray;
 
@@ -20,7 +21,7 @@ use std::sync::Arc;
 
 use pg_core::PhysRect;
 use pg_models::ModelStore;
-use pg_pipeline::{LensUpdate, Pipeline, SchedulerConfig, driver};
+use pg_pipeline::{LensUpdate, Pipeline, PipelineConfig, SchedulerConfig, driver};
 use tauri::{AppHandle, Emitter, Manager, RunEvent, WebviewWindow, WindowEvent};
 use tokio::sync::mpsc;
 use tracing_subscriber::EnvFilter;
@@ -66,13 +67,18 @@ fn main() {
             let handle = app.handle().clone();
             let store = ModelStore::new(handle.path().app_local_data_dir()?.join("models"));
             handle.manage(Models::new(store.clone()));
+            let settings =
+                settings::Store::open(handle.path().app_config_dir()?.join(settings::FILE));
+            let saved = settings.get();
+            handle.manage(settings);
             let window = lens::create(&handle)?;
             // Before the lens is first shown, so no capture ever contains it (CAP-02).
             let self_excluded = lens::exclude_from_capture(&window);
             watch_window(&window);
             tray::create(&handle)?;
-            lens::place_and_show(&handle, &window)?;
+            lens::place_and_show(&handle, &window, &saved.lens)?;
             let state = handle.state::<Lens>();
+            state.click.set_enabled(saved.lens.click_through);
             state.set_region(lens::interior_region(&window));
             state.set_visible(true);
             state.click.spawn(handle.clone(), window.clone());
@@ -101,6 +107,11 @@ fn main() {
 
     app.run(|app, event| {
         if let RunEvent::Exit = event {
+            if let Some(w) = lens::get(app)
+                && w.is_visible().unwrap_or(false)
+            {
+                settings::remember_lens(app, &w);
+            }
             let state = app.state::<Lens>();
             tracing::info!(clickthrough_toggles = state.click.toggles(), "exiting");
             state.shutdown();
@@ -122,6 +133,7 @@ fn watch_window(window: &WebviewWindow) {
             WindowEvent::CloseRequested { api, .. } => {
                 // Alt+F4 hides to the tray; Quit lives in the tray menu.
                 api.prevent_close();
+                settings::remember_lens(w.app_handle(), &w);
                 if w.hide().is_ok() {
                     state.set_visible(false);
                 }
@@ -136,6 +148,7 @@ pub fn toggle_lens(app: &AppHandle) {
     let Some(window) = lens::get(app) else { return };
     let state = app.state::<Lens>();
     if state.is_visible() {
+        settings::remember_lens(app, &window);
         if window.hide().is_ok() {
             state.set_visible(false);
         }
@@ -166,6 +179,16 @@ fn start_pipeline(
                 return;
             }
         };
+        // SET-01: translate into the saved target language.
+        let target = app
+            .state::<settings::Store>()
+            .get()
+            .translation
+            .target_lang();
+        pipeline.set_config(PipelineConfig {
+            target,
+            ..pipeline.config()
+        });
         let pipeline = Arc::new(pipeline);
         app.state::<Lens>().set_pipeline(pipeline.clone());
         let (tx, mut rx) = mpsc::unbounded_channel::<LensUpdate>();
