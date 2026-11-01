@@ -31,6 +31,7 @@ allow = [
   "MPL-2.0",          # cssparser, dtoa-short etc. via Tauri (file-level copyleft, PLAN §8)
   "CDLA-Permissive-2.0",
   "OpenSSL",          # aws-lc
+  "BSL-1.0",          # clipboard-win, error-code via arboard (REN-05 copy); permissive, OSI
 ]
 
 [bans]
