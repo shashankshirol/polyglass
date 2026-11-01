@@ -38,10 +38,12 @@ Each directory holds a `truth.json`:
 - at 100%, 125%, 150% and 200% scale, in a light theme (`#F3F3F3` background, `#1B1B1B` text)
   and a dark one (`#202020`, white), the Windows 11 defaults;
 - on a page 600 logical px wide (the SPEC §5 lens width) with a 12 px margin, as tall as the text;
-- block *i* in 12, 13, 14, 15 or 16 logical px (`i % 5`), word-wrapped, with a gap of 0.8 line
-  heights after each block. Logical px × scale = physical px; line tops are whole pixels;
+- block *i* at a font size (em, as in CSS) of 12, 13, 14, 15 or 16 logical px (`i % 5`),
+  word-wrapped, with a gap of 0.8 line heights after each block. Logical px × scale = physical
+  px; line tops are whole pixels;
 - grayscale anti-aliasing with `ab_glyph`, no hinting and no ClearType, so the images are
-  smoother than real screen text.
+  smoother than real screen text. `crates/pg-capture/tests/cleartype.rs` draws the same layout
+  with GDI ClearType in real windows instead.
 
 The renderer also returns each line's text and box, which are the ground truth for the CER
 scores (`pg_testkit::metrics`) and for mock OCR in `pg-bench`.

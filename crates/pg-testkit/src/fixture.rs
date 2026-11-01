@@ -26,7 +26,7 @@ use crate::TextRenderer;
 
 /// Monitor scales every fixture is rendered at (CAP-04, OCR-04, SV-03).
 pub const SCALES: [f64; 4] = [1.0, 1.25, 1.5, 2.0];
-/// UI font sizes in logical px, used block by block in this order.
+/// UI font sizes (em, like CSS `font-size`) in logical px, used block by block in this order.
 pub const FONT_SIZES: [f32; 5] = [12.0, 13.0, 14.0, 15.0, 16.0];
 /// Page width in logical px.
 pub const PAGE_WIDTH: f32 = 600.0;

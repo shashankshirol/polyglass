@@ -9,6 +9,9 @@
 //! missing the gates print why and pass without checking, so CI runners without Swedish OCR
 //! don't fail; set `POLYGLASS_REQUIRE_OCR_GATES=1` to make a missing prerequisite a failure.
 //! Run with `--nocapture` to see the per-image table.
+//!
+//! The same gates on the fixtures drawn as real screen text (GDI ClearType, captured with WGC)
+//! are in `crates/pg-capture/tests/cleartype.rs`; there SV-03 passes in full.
 #![cfg(windows)]
 
 use pg_core::LangTag;
@@ -95,21 +98,22 @@ fn ocr04_english_fixture_set_cer() {
 /// SV-03, first part: CER ≤ 3% on the Swedish fixture set (including `mixed-sv-en`, read with
 /// the Swedish recognizer as Auto mode does).
 ///
-/// The letter part fails today (`sv03_swedish_letters`), so this also holds the å/ä/ö error rate
-/// at the level measured in session 6 (7.3%, CHECKLIST M1-OCR-6) to catch regressions. That bound
-/// is not the SPEC's.
+/// The repeated-misread part of the letter gate fails on these images (`sv03_swedish_letters`),
+/// so this also holds the å/ä/ö error rate near the level measured in session 9 (1.88%,
+/// CHECKLIST M1-OCR-6) to catch regressions. That bound is not the SPEC's.
 #[test]
 fn sv03_swedish_fixture_set_cer() {
     let Some(total) = measure(true) else { return };
     assert!(total.cer() <= 0.03, "Swedish set: {total}");
-    assert!(total.swedish.value() <= 0.10, "Swedish set: {total}");
+    assert!(total.swedish.value() <= 0.05, "Swedish set: {total}");
 }
 
 /// SV-03, second part: ≤ 2% errors on å ä ö Å Ä Ö and no misreading of one of those letters that
-/// repeats (3 or more times across the set). Ignored because Windows OCR doesn't meet it on the
-/// rendered fixtures: 7.3%, mostly ä→å and ä→a in 12–16 px text at 100% and 125%.
+/// repeats (3 or more times across the set). Ignored because Windows OCR doesn't meet it on these
+/// grayscale, unhinted images: 1.88%, but ä→a 8 times, all in 12 px text at 100%. On the same
+/// text drawn by GDI with ClearType (`pg-capture/tests/cleartype.rs`) it reads 0 of 480 wrong.
 #[test]
-#[ignore = "fails: å/ä/ö 7.3% vs SV-03's 2% on rendered fixtures (CHECKLIST M1-OCR-6)"]
+#[ignore = "fails on the synthetic renderer only: ä→a×8 at 100% (CHECKLIST M1-OCR-6)"]
 fn sv03_swedish_letters() {
     let Some(total) = measure(true) else { return };
     assert!(total.swedish.value() <= 0.02, "Swedish set: {total}");

@@ -64,15 +64,29 @@ impl TextRenderer {
             .find_map(|p| Self::from_file(&p).ok())
     }
 
+    /// The `ab_glyph` scale for a font size of `px`. Sizes here are em sizes, like CSS
+    /// `font-size` and GDI's negative `lfHeight`; `ab_glyph`'s own pixel scale is the
+    /// ascent-to-descent height, which is about 1.33 em for Segoe UI.
+    fn scale(&self, px: f32) -> PxScale {
+        let height = self.font.height_unscaled();
+        PxScale::from(px * height / self.font.units_per_em().unwrap_or(height))
+    }
+
     /// Distance between the tops of consecutive lines at `px`.
     pub fn line_height(&self, px: f32) -> f32 {
-        let f = self.font.as_scaled(PxScale::from(px));
+        let f = self.font.as_scaled(self.scale(px));
         f.ascent() - f.descent() + f.line_gap()
+    }
+
+    /// Distance from a line's top to its baseline at `px` ([`draw`](Self::draw) puts the
+    /// baseline here).
+    pub fn ascent(&self, px: f32) -> f32 {
+        self.font.as_scaled(self.scale(px)).ascent()
     }
 
     /// Advance width of `text` at `px`.
     pub fn text_width(&self, px: f32, text: &str) -> f32 {
-        let f = self.font.as_scaled(PxScale::from(px));
+        let f = self.font.as_scaled(self.scale(px));
         let mut width = 0.0;
         let mut prev = None;
         for c in text.chars() {
@@ -97,7 +111,7 @@ impl TextRenderer {
         text: &str,
         rgb: [u8; 3],
     ) -> Rect {
-        let scaled = self.font.as_scaled(PxScale::from(px));
+        let scaled = self.font.as_scaled(self.scale(px));
         let baseline = top + scaled.ascent();
         let (w, h, stride) = (frame.width(), frame.height(), frame.stride());
         let color = match frame.format() {
@@ -113,7 +127,7 @@ impl TextRenderer {
             if let Some(p) = prev {
                 pen += scaled.kern(p, id);
             }
-            let glyph = id.with_scale_and_position(PxScale::from(px), point(pen, baseline));
+            let glyph = id.with_scale_and_position(self.scale(px), point(pen, baseline));
             pen += scaled.h_advance(id);
             prev = Some(id);
             let Some(outline) = self.font.outline_glyph(glyph) else {
