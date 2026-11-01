@@ -421,6 +421,53 @@ mod tests {
         assert!(acc >= 0.9, "accuracy {acc}");
     }
 
+    #[derive(serde::Deserialize)]
+    struct EvalSet {
+        source: LangTag,
+        segments: Vec<EvalSegment>,
+    }
+
+    #[derive(serde::Deserialize)]
+    struct EvalSegment {
+        source: String,
+    }
+
+    /// Held-out check: the scorer was tuned on `mixed-sv-en`, never on the SV-07 evaluation
+    /// sets. Their 400 sources (UI, web and document text, one language per set) are decided
+    /// against both targets; blocks under 20 characters follow the fallback rule instead, so
+    /// only longer blocks are counted.
+    #[test]
+    fn sv04_held_out_eval_sources() {
+        let sets: Vec<EvalSet> = [
+            include_str!("../../../tests/eval/sv-en/segments.json"),
+            include_str!("../../../tests/eval/en-sv/segments.json"),
+        ]
+        .iter()
+        .map(|raw| serde_json::from_str(raw).expect("eval set parses"))
+        .collect();
+        let (mut correct, mut total) = (0, 0);
+        for set in &sets {
+            for s in &set.segments {
+                if s.source.chars().count() < MIN_IDENTIFY_CHARS {
+                    continue;
+                }
+                for target in [LangTag::en(), LangTag::sv()] {
+                    total += 1;
+                    let got = decide_sv_en(&s.source, &target);
+                    if got == set.source {
+                        correct += 1;
+                    } else {
+                        eprintln!("wrong: {:?} → {got} (target {target})", s.source);
+                    }
+                }
+            }
+        }
+        let acc = correct as f32 / total as f32;
+        eprintln!("held-out: {correct}/{total} = {acc}");
+        assert!(total > 300, "{total}");
+        assert!(acc >= 0.9, "accuracy {acc}");
+    }
+
     #[test]
     fn short_blocks_are_non_target() {
         assert_eq!(decide_sv_en("Cancel", &LangTag::en()), LangTag::sv());
