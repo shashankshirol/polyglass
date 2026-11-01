@@ -174,7 +174,12 @@ cargo run --release -p pg-bench -- --fixture tests/fixtures/ui-dialog-sv
 `pg-bench` runs the pipeline on a fixture and prints latency percentiles for each stage:
 - the default, `--ocr mock`, measures only the pipeline's own overhead;
 - `--ocr windows` runs Windows OCR;
-- translation in `pg-bench` is still a mock;
+- `--translator ct2` translates with the on-device models from the app's model store (install
+  them with `python scripts/models/opus_mt.py`), so `--ocr windows --translator ct2` measures a
+  whole uncached cycle as the lens runs it (PERF-01; add `--fixture tests/fixtures/ui-dialog-en
+  --target sv` for PERF-06); the default `--translator mock` answers instantly;
+- `--eval tests/eval/sv-en --translator ct2` translates an evaluation set instead and prints its
+  chrF score (SV-07, `tests/eval/README.md`);
 - it renders the fixture image from `truth.json` at `--scale` and `--theme`, and with
   `--ocr windows` it also prints OCR accuracy (CER, WER, å/ä/ö).
 

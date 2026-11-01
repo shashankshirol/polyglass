@@ -4,7 +4,13 @@
 //! at `--scale` in `--theme` (M0-FIX-2), served by `FixtureCapturer`. `--ocr mock` replays the
 //! ground truth so the pipeline overhead itself can be measured and regression-gated (QUAL-02);
 //! `--ocr windows` runs Windows OCR on the pixels and also reports its accuracy on the whole lines
-//! inside the lens (CER, WER, å/ä/ö; M0-FIX-3). Translation is still `MockTranslator`.
+//! inside the lens (CER, WER, å/ä/ö; M0-FIX-3). `--translator mock` (the default) answers
+//! instantly; `--translator ct2` is the app's on-device backend (CTranslate2 + the installed
+//! OPUS-MT models behind the SV-05 token guard), so `--ocr windows --translator ct2` runs capture
+//! → change detection → OCR → grouping → translation as the lens does (PERF-01, PERF-06; drawing
+//! the result in the webview is not part of it).
+//!
+//! `--eval tests/eval/sv-en` translates an evaluation set instead and reports chrF (SV-07).
 
 #![allow(clippy::print_stdout)]
 
@@ -15,14 +21,18 @@ use std::time::Duration;
 
 use clap::{Parser, ValueEnum};
 use pg_capture::{FixtureCapturer, ScreenCapturer};
-use pg_core::{LangTag, Line, SourceLang};
+use pg_core::{LangPair, LangTag, Line, SourceLang};
 use pg_ocr::{MockOcr, OcrEngine};
 use pg_pipeline::{CycleOutcome, Pipeline, PipelineConfig, Tick, Timings};
 use pg_testkit::TextRenderer;
 use pg_testkit::fixture::{FixtureImage, Theme, Truth};
 use pg_testkit::metrics::{Score, score};
-use pg_translate::MockTranslator;
 use serde::Serialize;
+
+mod backend;
+mod eval;
+
+use backend::Backend;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 enum Ocr {
@@ -67,6 +77,24 @@ struct Args {
     target: String,
     #[arg(long, value_enum, default_value = "mock")]
     ocr: Ocr,
+    #[arg(long, value_enum, default_value = "mock")]
+    translator: Backend,
+    /// Model store for `--translator ct2` (default: the app's, where `opus_mt.py` installs).
+    #[arg(long)]
+    models: Option<PathBuf>,
+    /// CPU threads per model for `--translator ct2` (default: the app's, half the CPUs, ≤ 4).
+    #[arg(long)]
+    threads: Option<usize>,
+    /// Leave out the SV-05 token guard the app wraps `--translator ct2` in (to measure it).
+    #[arg(long)]
+    no_guard: bool,
+    /// Translate this evaluation set (`tests/eval/<set>`) and report chrF instead of running
+    /// the pipeline on a fixture.
+    #[arg(long)]
+    eval: Option<PathBuf>,
+    /// With `--eval`: write every segment's output and chrF to this JSON file.
+    #[arg(long, requires = "eval")]
+    hypotheses: Option<PathBuf>,
     #[arg(long, value_enum, default_value = "uncached")]
     cache: Cache,
     /// Simulated OCR latency in ms for the mock engine.
@@ -102,12 +130,24 @@ struct StageStats {
 }
 
 #[derive(Debug, Serialize)]
+struct BackendInfo {
+    id: String,
+    load_ms: f64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    threads: Option<usize>,
+    /// SV-05 guard counters over all cycles, warm-up included.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    guard: Option<backend::GuardCounts>,
+}
+
+#[derive(Debug, Serialize)]
 struct Report {
     fixture: String,
     /// Which rendering, e.g. `ui-dialog-sv@100-light`.
     image: String,
     pair: String,
     ocr: String,
+    translator: BackendInfo,
     cache: String,
     runs: usize,
     stages: Vec<StageStats>,
@@ -151,7 +191,17 @@ fn main() -> ExitCode {
     }
 }
 
+fn runtime() -> Result<tokio::runtime::Runtime, String> {
+    tokio::runtime::Builder::new_multi_thread()
+        .enable_time()
+        .build()
+        .map_err(|e| e.to_string())
+}
+
 fn run(args: &Args) -> Result<(), String> {
+    if let Some(set) = &args.eval {
+        return run_eval(args, set);
+    }
     let truth = Truth::load(&args.fixture).map_err(|e| e.to_string())?;
     let target = LangTag::parse(&args.target).map_err(|e| e.to_string())?;
 
@@ -196,14 +246,22 @@ fn run(args: &Args) -> Result<(), String> {
         Some(lang) => SourceLang::Fixed(lang.clone()),
         None => SourceLang::AutoSvEn,
     };
-    let translator = MockTranslator::new();
+    // Auto mode translates the non-target language of the pair (SV-04).
+    let from = match &truth.lang {
+        Some(lang) => lang.clone(),
+        None => pg_translate::langid::other_of_sv_en(&target),
+    };
+    let loaded = backend::load(
+        args.translator,
+        args.models.clone(),
+        args.threads,
+        !args.no_guard,
+        &LangPair::new(from, target.clone()),
+    )?;
     let config = PipelineConfig::new(source, target.clone());
-    let pipeline = Pipeline::new(Box::new(capturer), ocr, Arc::new(translator), config);
+    let pipeline = Pipeline::new(Box::new(capturer), ocr, loaded.translator.clone(), config);
 
-    let rt = tokio::runtime::Builder::new_multi_thread()
-        .enable_time()
-        .build()
-        .map_err(|e| e.to_string())?;
+    let rt = runtime()?;
     let mut samples: Vec<Timings> = Vec::with_capacity(args.runs);
     rt.block_on(async {
         for i in 0..args.warmup + args.runs {
@@ -239,6 +297,12 @@ fn run(args: &Args) -> Result<(), String> {
             target
         ),
         ocr: format!("{:?}", args.ocr).to_lowercase(),
+        translator: BackendInfo {
+            id: loaded.translator.id().to_string(),
+            load_ms: loaded.load_ms,
+            threads: loaded.threads,
+            guard: loaded.guard_counts(),
+        },
         cache: format!("{:?}", args.cache).to_lowercase(),
         runs: samples.len(),
         stages: vec![
@@ -258,9 +322,21 @@ fn run(args: &Args) -> Result<(), String> {
             serde_json::to_string_pretty(&report).map_err(|e| e.to_string())?
         );
     } else {
+        let threads = report
+            .translator
+            .threads
+            .map(|n| format!(", {n} threads"))
+            .unwrap_or_default();
         println!(
-            "{} ({})  {}  ocr={}  cache={}  runs={}",
-            report.fixture, report.image, report.pair, report.ocr, report.cache, report.runs
+            "{} ({})  {}  ocr={}  translator={} (loaded in {:.0} ms{threads})  cache={}  runs={}",
+            report.fixture,
+            report.image,
+            report.pair,
+            report.ocr,
+            report.translator.id,
+            report.translator.load_ms,
+            report.cache,
+            report.runs
         );
         println!(
             "{:<10} {:>9} {:>9} {:>9} {:>9}",
@@ -275,6 +351,46 @@ fn run(args: &Args) -> Result<(), String> {
         if let Some(a) = &report.accuracy {
             println!("accuracy   {a}");
         }
+        if let Some(g) = &report.translator.guard {
+            print_guard(g);
+        }
+    }
+    Ok(())
+}
+
+fn print_guard(g: &backend::GuardCounts) {
+    println!(
+        "SV-05      {} masked retries, {} blocks left untranslated",
+        g.masked_retries, g.fallbacks
+    );
+}
+
+fn run_eval(args: &Args, set: &std::path::Path) -> Result<(), String> {
+    let pair = pg_testkit::eval::EvalSet::load(set)
+        .map_err(|e| e.to_string())?
+        .pair();
+    let loaded = backend::load(
+        args.translator,
+        args.models.clone(),
+        args.threads,
+        !args.no_guard,
+        &pair,
+    )?;
+    let rt = runtime()?;
+    let mut report = eval::run(
+        set,
+        loaded.translator.as_ref(),
+        &rt,
+        args.hypotheses.as_deref(),
+    )?;
+    report.guard = loaded.guard_counts();
+    if args.json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&report).map_err(|e| e.to_string())?
+        );
+    } else {
+        eval::print(&report);
     }
     Ok(())
 }

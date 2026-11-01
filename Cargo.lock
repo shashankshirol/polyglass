@@ -2757,6 +2757,8 @@ dependencies = [
  "clap",
  "pg-capture",
  "pg-core",
+ "pg-ct2",
+ "pg-models",
  "pg-ocr",
  "pg-pipeline",
  "pg-testkit",
