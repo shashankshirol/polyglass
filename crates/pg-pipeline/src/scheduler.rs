@@ -86,7 +86,12 @@ impl Scheduler {
         self.region
     }
 
+    /// Capture now if the lens was hidden. Already shown: nothing changes, so a `show` that
+    /// follows a move doesn't cut the rest delay short (CAP-03).
     pub fn show(&mut self, now: Instant) {
+        if self.visible {
+            return;
+        }
         self.visible = true;
         self.generation += 1;
         self.rest_now(now);
@@ -238,6 +243,20 @@ mod tests {
         assert_eq!(s.poll(t0 + ms(1000)), None);
         s.show(t0 + ms(2000));
         assert!(s.poll(t0 + ms(2000)).unwrap().force);
+    }
+
+    #[test]
+    fn show_while_shown_keeps_the_rest_delay() {
+        let t0 = Instant::now();
+        let mut s = Scheduler::new(SchedulerConfig::default());
+        s.show(t0);
+        s.lens_moved(R, t0);
+        let generation = s.generation();
+        s.show(t0 + ms(10));
+        assert_eq!(s.generation(), generation);
+        assert_eq!(s.poll(t0 + ms(10)), None, "still moving");
+        assert_eq!(s.next_deadline(), Some(t0 + ms(150)));
+        assert!(s.poll(t0 + ms(150)).is_some());
     }
 
     #[test]

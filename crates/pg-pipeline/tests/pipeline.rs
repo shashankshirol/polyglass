@@ -419,6 +419,35 @@ async fn cap03_no_ocr_while_moving() {
     j.await.unwrap();
 }
 
+/// The app sends `show` after every move (`Lens::set_region` → `sync_driver`). A `show` while
+/// already shown must not cut the rest delay short (found with `--trace-timings`, session 12).
+#[tokio::test(start_paused = true)]
+async fn cap03_show_while_shown_keeps_waiting_for_rest() {
+    let r = rig();
+    let (h, j, mut rx) = start(&r);
+    h.lens_moved(LEFT);
+    h.show();
+    next_update(&mut rx).await;
+    let ocr = r.ocr.calls();
+    for i in 1..=20 {
+        h.lens_moved(PhysRect::new(i * 10, 0, 600, 300));
+        h.show();
+        sleep(Duration::from_millis(30)).await;
+    }
+    assert_eq!(r.ocr.calls(), ocr, "no OCR while moving");
+    let moved = tokio::time::Instant::now();
+    h.lens_moved(RIGHT);
+    h.show();
+    next_update(&mut rx).await;
+    assert!(
+        moved.elapsed() >= SchedulerConfig::default().rest_delay,
+        "captured {:?} after the last move",
+        moved.elapsed()
+    );
+    h.shutdown();
+    j.await.unwrap();
+}
+
 #[tokio::test(start_paused = true)]
 async fn cap03_content_change_is_picked_up() {
     let r = rig();
