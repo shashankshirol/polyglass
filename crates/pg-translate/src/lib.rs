@@ -22,7 +22,7 @@ use pg_core::LangPair;
 
 #[async_trait]
 pub trait Translator: Send + Sync {
-    /// Stable identifier, used in cache keys and settings (`"bergamot"`, `"deepl"`, ...).
+    /// Stable identifier, used in cache keys and settings (`"ctranslate2"`, `"deepl"`, ...).
     fn id(&self) -> &str;
 
     /// Name shown next to the privacy indicator for online backends (PRIV-05).

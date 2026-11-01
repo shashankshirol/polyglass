@@ -107,7 +107,7 @@ pub trait Translator: Send + Sync {
 | Capture (Linux X11) | x11rb + MIT-SHM | XComposite per-window | Simple and fast; self-exclusion handled by mode design (§5). |
 | Capture (Wayland) | xdg-desktop-portal Screenshot → Freeze mode | Portal ScreenCast via PipeWire | Only sanctioned path; live mode is a post-v1 stretch. |
 | OCR | WinRT `Windows.Media.Ocr` / Apple Vision / Tesseract 5 on Linux; **Tesseract `swe` for Swedish on macOS** | PaddleOCR via ONNX, `ocrs` | Built into the OS where possible; Apple Vision doesn't support Swedish, so macOS bundles Tesseract for it (SPEC §3, OCR-01). |
-| On-device translation | **CTranslate2** (OpenNMT) via `ct2rs`, with OPUS-MT models converted to int8 | `fxtranslate` / Bergamot + Mozilla models (ADR-0004, superseded) | Actively maintained and widely deployed runtime; OPUS-MT has per-pair models for well over a thousand pairs (MDL-07). ≈ 80 MB per direction; 27 ms short / 199 ms paragraph measured. Decided in ADR-0005 (D-8). |
+| On-device translation | **CTranslate2** (OpenNMT) via `ct2rs`, with OPUS-MT models converted to int8 | The pure-Rust engine and models of ADR-0004 (superseded) | Actively maintained and widely deployed runtime; OPUS-MT has per-pair models for well over a thousand pairs (MDL-07). ≈ 80 MB per direction; 27 ms short / 199 ms paragraph measured. Decided in ADR-0005 (D-8). |
 | Online translation | LibreTranslate (self-hosted), DeepL API, Google Cloud Translation | — | As requested; all via `reqwest` with rustls. |
 | Secrets | OS keychain via `keyring` crate | Encrypted config file | Never store API keys in plain files. |
 | Settings | TOML in platform config dir | JSON, SQLite | Human-readable and diffable. |
@@ -150,7 +150,7 @@ Rough sizing assumes one or two part-time contributors. Each milestone ends with
 **M0 — Spikes and foundations (≈ 3 weeks).** Public repo from day one with this plan, the spec, license, and CONTRIBUTING.
 - Spike 1: transparent, frameless, always-on-top, click-through Tauri window on Win/mac/Linux.
 - Spike 2: self-excluding region capture on Windows and macOS; X11 hide-capture-show flicker measurement.
-- Spike 3: Bergamot vs CTranslate2 built from Rust on all three OSes, using the sv↔en models. Compare build complexity, binary size, latency, memory. Result: ADR-0004 (Windows), then ADR-0005 chose CTranslate2 + OPUS-MT.
+- Spike 3: on-device translation engines built from Rust on all three OSes, using the sv↔en models. Compare build complexity, binary size, latency, memory. Result: ADR-0004 (Windows), then ADR-0005 chose CTranslate2 + OPUS-MT.
 - Spike 4: create the Swedish fixtures; measure OCR latency and accuracy per engine, including Vision vs Tesseract `swe` for Swedish on macOS.
 - Spike 5: Wayland portal screenshot + fullscreen Freeze window on GNOME and KDE.
 - Output: ADRs in `docs/adr/`, CI skeleton, `pg-bench` harness.

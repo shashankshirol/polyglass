@@ -110,9 +110,9 @@ mod tests {
 
     #[test]
     fn keys_differ_by_backend_and_pair() {
-        let a = CacheKey::new("bergamot", &LangPair::sv_en(), "Hej");
+        let a = CacheKey::new("ctranslate2", &LangPair::sv_en(), "Hej");
         assert_ne!(a, CacheKey::new("deepl", &LangPair::sv_en(), "Hej"));
-        assert_ne!(a, CacheKey::new("bergamot", &LangPair::en_sv(), "Hej"));
+        assert_ne!(a, CacheKey::new("ctranslate2", &LangPair::en_sv(), "Hej"));
     }
 
     #[test]

@@ -1,53 +1,18 @@
 # Polyglass model manifest (MDL-02).
 #
 # The app downloads models ONLY from URLs listed here, and verifies every file against its
-# SHA-256 before use. Changes to this file are reviewed via PR; each entry must record the
-# model's license and where it comes from (PLAN §8).
+# SHA-256 before use; imported models (MDL-04) are verified the same way. Changes to this file are
+# reviewed via PR; each entry must record the model's license and where it comes from (PLAN §8).
 #
 # Rules enforced by pg-models (Manifest::parse):
 #   - https URLs only; source_url is https
+#   - a model has a `url` for every file or for none (import-only until hosted)
+#   - CC-BY licenses need an `attribution`
 #   - file names are plain (no paths), unique per model; sizes > 0
 #   - sha256 is 64 lowercase hex characters
 #   - model ids are unique and filesystem-safe
-#
-# Swedish ↔ English (MDL-01, SV-01): Mozilla's Firefox Translations models ("tiny" student
-# architecture, int8 `intgemm.alphas`), run by the `bergamot` engine (`pg-bergamot`, ADR-0004).
-# Files are kept gzip-compressed on disk exactly as downloaded and verified; the engine
-# decompresses them when it loads. Uncompressed SHA-256 of the model files, from Mozilla's
-# registry: sv-en 92d79e2725718b84aed486473bdfcbe6bba3e7094922d4bead8a121cfa346372,
-# en-sv 65ea0db8e658435846f297384face62dbf1804cfc92de8388b0e368e6ecc25a7.
 
 schema_version = 1
-
-[[model]]
-id = "bergamot-sv-en"
-engine = "bergamot"
-source = "sv"
-target = "en"
-# Mozilla training run; listed in https://storage.googleapis.com/moz-fx-translations-data--303e-prod-translations-data/db/models.json
-version = "spring-2024_ObaRXwXeSW6HA_-J5_dE-g"
-license = "MPL-2.0"
-source_url = "https://mozilla.github.io/translations/firefox-models/"
-files = [
-  { name = "model.sven.intgemm.alphas.bin.gz", url = "https://storage.googleapis.com/moz-fx-translations-data--303e-prod-translations-data/models/sv-en/spring-2024_ObaRXwXeSW6HA_-J5_dE-g/exported/model.sven.intgemm.alphas.bin.gz", size = 12847259, sha256 = "5a5351596bc22c517908628924ac63bec5f81e7225c62bf6e42bb7c66cb41987" },
-  { name = "lex.50.50.sven.s2t.bin.gz", url = "https://storage.googleapis.com/moz-fx-translations-data--303e-prod-translations-data/models/sv-en/spring-2024_ObaRXwXeSW6HA_-J5_dE-g/exported/lex.50.50.sven.s2t.bin.gz", size = 2165215, sha256 = "aedabe4633446cf85b3e2ecc4139b88efed4c5a39b41d2f0d0bb99494c6b950c" },
-  { name = "vocab.sven.spm.gz", url = "https://storage.googleapis.com/moz-fx-translations-data--303e-prod-translations-data/models/sv-en/spring-2024_ObaRXwXeSW6HA_-J5_dE-g/exported/vocab.sven.spm.gz", size = 397625, sha256 = "75c1784afa8d4b94d2f6ce064fb2facc2044c3cedfc0fbe25acd85f32b06589e" },
-]
-
-[[model]]
-id = "bergamot-en-sv"
-engine = "bergamot"
-source = "en"
-target = "sv"
-# Mozilla training run; listed in https://storage.googleapis.com/moz-fx-translations-data--303e-prod-translations-data/db/models.json
-version = "spring-2024_bQQme71PS4eZRDl3NM-kgA"
-license = "MPL-2.0"
-source_url = "https://mozilla.github.io/translations/firefox-models/"
-files = [
-  { name = "model.ensv.intgemm.alphas.bin.gz", url = "https://storage.googleapis.com/moz-fx-translations-data--303e-prod-translations-data/models/en-sv/spring-2024_bQQme71PS4eZRDl3NM-kgA/exported/model.ensv.intgemm.alphas.bin.gz", size = 12775086, sha256 = "f2fee438e0770428c06a4fa1e938175bf7c37f3a288313c317853b646437eb81" },
-  { name = "lex.50.50.ensv.s2t.bin.gz", url = "https://storage.googleapis.com/moz-fx-translations-data--303e-prod-translations-data/models/en-sv/spring-2024_bQQme71PS4eZRDl3NM-kgA/exported/lex.50.50.ensv.s2t.bin.gz", size = 1921270, sha256 = "0480c83e15f1d2dcee68873eee5fb66c2912884ab2757ff201e6b6ab9be38ed7" },
-  { name = "vocab.ensv.spm.gz", url = "https://storage.googleapis.com/moz-fx-translations-data--303e-prod-translations-data/models/en-sv/spring-2024_bQQme71PS4eZRDl3NM-kgA/exported/vocab.ensv.spm.gz", size = 398384, sha256 = "534e7f952f6bb97903301332836bab5d76cbc965592a9f1af77ace05e84e2edf" },
-]
 
 # Swedish ↔ English on CTranslate2 (`pg-ct2`, ADR-0005): Helsinki-NLP's OPUS-MT models, converted
 # from Marian `.npz` to CTranslate2 int8 by `scripts/models/opus_mt.py` (pinned converter, output

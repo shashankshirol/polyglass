@@ -28,7 +28,7 @@ allow = [
   "Zlib",
   "Unicode-3.0",
   "Unicode-DFS-2016",
-  "MPL-2.0",          # Bergamot (file-level copyleft, PLAN §8)
+  "MPL-2.0",          # cssparser, dtoa-short etc. via Tauri (file-level copyleft, PLAN §8)
   "CDLA-Permissive-2.0",
   "OpenSSL",          # aws-lc
 ]

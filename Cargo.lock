@@ -1220,15 +1220,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "fxtranslate"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4dfa6e74911486c9d59495e595163d4965dec37aa92b08545782b696b3eec2eb"
-dependencies = [
- "cc",
-]
-
-[[package]]
 name = "gdk"
 version = "0.18.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2702,27 +2693,6 @@ dependencies = [
  "serde_json",
  "tokio",
  "tracing-subscriber",
-]
-
-[[package]]
-name = "pg-bergamot"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "flate2",
- "fxtranslate",
- "hex",
- "pg-core",
- "pg-models",
- "pg-translate",
- "serde",
- "serde_json",
- "sha2 0.11.1",
- "tempfile",
- "thiserror 2.0.21",
- "tokio",
- "tokio-util",
- "tracing",
 ]
 
 [[package]]
