@@ -18,7 +18,7 @@ with 1.0, SV-08.)
   download, GitHub sees your IP address and the files requested
   ([GitHub's privacy statement](https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement)).
   Polyglass sends no account, identifier or screen content with it, over HTTPS only, and only
-  when you click ⬇. You can also build and install the models yourself without contacting
+  when you choose Download in the welcome window or the model manager. You can also build and install the models yourself without contacting
   GitHub (README, "First run").
 
 ## Online translation (opt-in)

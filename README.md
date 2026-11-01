@@ -90,14 +90,18 @@ published as assets of a **GitHub pre-release of this repository**,
 [`models-opus-mt-2026-11-01`](https://github.com/shashankshirol/polyglass/releases/tag/models-opus-mt-2026-11-01)
 (decision D-9), and `models/manifest.toml` lists each file's URL and SHA-256.
 
-On first launch the lens says the models are missing, and the toolbar shows ⬇. Click it to
-download both directions (about 170 MB) from the release. Each file is checked against its
-SHA-256 before it's saved to the model store, `%LOCALAPPDATA%\org.polyglass.desktop\models` on
-Windows. Translation starts once the download finishes, without a restart.
+On first launch a welcome window offers both directions (about 170 MB together) with
+**Download** and **Not now**; nothing is downloaded until you choose Download. Each file is
+checked against its SHA-256 before it's saved to the model store,
+`%LOCALAPPDATA%\org.polyglass.desktop\models` on Windows. Translation starts once the download
+finishes, without a restart. Later, ⚙ in the lens toolbar (or ⬇ while the models are missing,
+or "Translation models…" in the tray menu) opens the model manager: download with progress,
+cancel and resume, delete, licenses and disk usage.
 
 The repository is private until the first app release, so the models release can't be
-downloaded without a GitHub login: after ⬇ the lens says the release isn't reachable and shows
-the install command instead. Until then, install the models with the script below.
+downloaded without a GitHub login: after a download attempt the window and the lens say the
+release isn't reachable and show the install command instead. Until then, install the models
+with the script below.
 
 To build the same files yourself (offline install, or a check of the release), run this from
 the repository root:

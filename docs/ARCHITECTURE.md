@@ -59,15 +59,17 @@ A thin Tauri 2 layer; no pipeline logic lives here or in JS.
 | `lens.rs` | Creates the frameless, transparent, always-on-top, no-taskbar window and sets `WDA_EXCLUDEFROMCAPTURE` on it before it is shown (CAP-02); centres it on the cursor's monitor (LENS-01); `Layout` (frame/toolbar insets) and `interior_region` (logical → `LogicalRect::to_physical`, CAP-04); arrow-key nudge (LENS-02) |
 | `state.rs` | `Lens`: visibility, pause and interior region in one place; forwards them to the `DriverHandle` (`show`/`hide`/`lens_moved`) and to the click-through poller |
 | `clickthrough.rs` | ~30 Hz cursor poll toggling `set_ignore_cursor_events` over the interior only; parked while hidden (ADR-0002) |
-| `commands.rs` | The only IPC commands (`lens_config`, `nudge_lens`, `set_click_through`, `set_paused`, `hide_lens`, `open_ocr_language_settings`, `download_models`); input validated in Rust (SEC-01) |
+| `commands.rs` | The only IPC commands. Lens: `lens_config`, `nudge_lens`, `set_click_through`, `set_paused`, `hide_lens`, `open_ocr_language_settings`, `open_model_manager`, `copy_translation`, `swap_languages`. Model manager window: `models_state`, `download_models`, `cancel_download`, `delete_model`, `finish_first_run`. Each checks the calling window; input validated in Rust (SEC-01) |
 | `live.rs` | Default on Windows: `WgcCapturer` + `WindowsOcr` + `TokenGuard<Ct2Translator>`, Auto sv/en → en. Started only if the lens is excluded from capture. Without models, Swedish blocks report `tr-error-model-missing` |
-| `models.rs` | Model store at `<app local data>/models` (`%LOCALAPPDATA%\org.polyglass.desktop\models` on Windows). When the sv↔en models are missing, the toolbar ⬇ (`download_models`) downloads them from the GitHub release (D-9) through `pg-models`, reports `lens-models` progress events, then swaps the loaded translator into the running pipeline. For an import-only entry (no URLs) `lens_config.modelsDownloadable` is false and the lens points to `scripts/models/opus_mt.py` instead; the same happens for the rest of the run after a download gets HTTP 401/403/404/410 (`mdl-error-unreachable`, e.g. while the repository is private). Other failures keep ⬇ for a retry. Interim until M1-APP-8 |
+| `models.rs` | Model store at `<app local data>/models` (`%LOCALAPPDATA%\org.polyglass.desktop\models` on Windows) and the `models` window (`ui/models.html`): the model manager and, on the first live start without the sv↔en models, the first-run wizard (both directions pre-selected with their combined size; offered once, `[models] first_run_done`; MDL-06, SV-01). The manager lists the catalog, Swedish first, with size, license, attribution and source (MDL-01); one download job at a time through `pg-models` with progress, cancel and resume from `.part` files (MDL-03); delete and total disk usage (MDL-05). After a download or delete the running pipeline gets a translator with exactly the installed models. Import-only entries, and every download after one got HTTP 401/403/404/410 in this run (`mdl-error-unreachable`, e.g. while the repository is private), show the `scripts/models/opus_mt.py` command instead of a download button. The lens ⬇ (shown while the models are missing) and ⚙ open the window, as does the tray's "Translation models…" |
 | `demo.rs` | `--demo`: `StaticCapturer` over a synthetic desktop + `MockOcr` + `MockTranslator` |
-| `tray.rs` | Tray icon: show/hide lens, quit |
+| `tray.rs` | Tray icon: show/hide lens, translation models, quit |
 
 Security: `build.rs` declares the commands in an app manifest so each needs an explicit
 `allow-*` permission; `capabilities/lens.json` grants the lens window only event listen/unlisten,
-start-dragging/resize-dragging and those seven commands — no `core:default`. The CSP in
+start-dragging/resize-dragging and the lens commands, and `capabilities/models.json` grants the
+model manager window only event listen/unlisten and the model commands — no `core:default`.
+Every command also checks the label of the window that called it. The CSP in
 `tauri.conf.json` allows bundled scripts/styles only, no frames, objects or remote connections
 besides Tauri IPC (SEC-02). The UI renders recognized text with `textContent` only and accepts
 colours only as `#rrggbb`.
@@ -75,7 +77,8 @@ colours only as `#rrggbb`.
 Events: the driver's `LensUpdate`s are emitted to the lens window as `lens-update` (JSON as in
 `pg_pipeline::update`) and drawn as absolutely positioned DOM blocks in the interior. If the
 pipeline can't start, `lens-error` carries a Fluent message ID (also in `lens_config`).
-`lens-models` carries model-download progress (`downloading` / `ready` / `error`).
+`models-changed` carries a `ModelsView` (catalog rows with install state, disk usage, the running
+job's progress, the last outcome's message ID) to both windows whenever it changes.
 
 `unsafe`: the workspace denies it. Allowed only in `pg-capture`'s `wgc` module (D3D11/DXGI
 interop, monitor enumeration), the one `SetWindowDisplayAffinity` call in `lens.rs`, and the
@@ -142,6 +145,7 @@ CTranslate2 is C++, and its `cxx` bridge (with its `unsafe`) lives inside `ct2rs
 - `TranslationCache` has no serialization (TR-04: never on disk).
 - Errors carry technical context only, never recognized text.
 - Model downloads accept only manifest entries; the manifest accepts only https URLs with
-  SHA-256 (MDL-02, SEC-03). The app downloads only when the user presses ⬇ (MDL-06). Imported
+  SHA-256 (MDL-02, SEC-03). The app downloads only when the user presses a download button in the model manager or
+  the first-run wizard (MDL-06). Imported
   models are checked against the same SHA-256 (MDL-04).
 - Translation stays on the device with `pg-ct2` (`is_local() == true`, PRIV-05).
