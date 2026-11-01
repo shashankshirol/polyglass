@@ -65,6 +65,8 @@ export interface LensConfig {
   modelsMissingBytes: number;
   /** False if a missing model is import-only (no download URLs in the manifest). */
   modelsDownloadable: boolean;
+  /** The language translations are written in. */
+  target: "en" | "sv";
 }
 
 /** `models::ModelEvent`: progress of the toolbar's model download. */

@@ -10,6 +10,7 @@ mod clipboard;
 mod commands;
 mod demo;
 mod hold;
+mod hotkeys;
 mod lens;
 mod live;
 mod models;
@@ -53,6 +54,7 @@ fn main() {
 
     let app = tauri::Builder::default()
         .manage(Lens::new(mode))
+        .plugin(hotkeys::plugin())
         .invoke_handler(tauri::generate_handler![
             commands::lens_config,
             commands::nudge_lens,
@@ -62,6 +64,7 @@ fn main() {
             commands::open_ocr_language_settings,
             commands::download_models,
             commands::copy_translation,
+            commands::swap_languages,
         ])
         .setup(move |app| {
             let handle = app.handle().clone();
@@ -83,6 +86,7 @@ fn main() {
             state.set_visible(true);
             state.click.spawn(handle.clone(), window.clone());
             state.hold.spawn(handle.clone());
+            hotkeys::register(&handle);
             match mode {
                 Mode::Demo => {
                     tracing::warn!("demo mode: mock capture, OCR and translation");
@@ -143,7 +147,7 @@ fn watch_window(window: &WebviewWindow) {
     });
 }
 
-/// Show or hide the lens from the tray (LENS-06; the global hotkey is M1-APP-4/M1-APP-9).
+/// Show or hide the lens from the tray or the hotkey (LENS-06, HK-01).
 pub fn toggle_lens(app: &AppHandle) {
     let Some(window) = lens::get(app) else { return };
     let state = app.state::<Lens>();

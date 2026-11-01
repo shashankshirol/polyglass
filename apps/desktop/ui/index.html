@@ -15,8 +15,8 @@
           aria-label="Source language: automatic, Swedish or English">Auto</button>
         <span class="arrow" data-tauri-drag-region aria-hidden="true">→</span>
         <button id="target-lang" type="button" class="lang" aria-disabled="true"
-          aria-label="Target language: English">EN</button>
-        <button id="swap" type="button" aria-disabled="true" aria-label="Swap languages" title="Swap languages">⇄</button>
+          aria-label="Target language: English" title="Target language: English">EN</button>
+        <button id="swap" type="button" aria-label="Swap languages" title="Swap languages (Ctrl+Alt+S)">⇄</button>
         <button id="mode" type="button" aria-disabled="true" aria-label="Mode: Overlay" title="Mode: Overlay">Overlay</button>
         <span class="spacer" data-tauri-drag-region></span>
         <button id="ocr-lang" type="button" class="warn" hidden
@@ -36,12 +36,12 @@
           </svg>
           <span id="privacy-name" class="privacy-name"></span>
         </span>
-        <button id="copy" type="button" aria-label="Copy translation" title="Copy translation">⧉</button>
+        <button id="copy" type="button" aria-label="Copy translation" title="Copy translation (Ctrl+Alt+C)">⧉</button>
         <button id="pause" type="button" aria-pressed="false" aria-label="Pause translation" title="Pause translation">❚❚</button>
         <button id="click-through" type="button" aria-pressed="true" aria-label="Click-through interior"
-          title="Click-through interior">⇲</button>
+          title="Click-through interior (Ctrl+Alt+T)">⇲</button>
         <button id="settings" type="button" aria-disabled="true" aria-label="Settings" title="Settings">⚙</button>
-        <button id="close" type="button" aria-label="Hide lens" title="Hide lens (reopen from the tray)">✕</button>
+        <button id="close" type="button" aria-label="Hide lens" title="Hide lens (Ctrl+Alt+L or the tray brings it back)">✕</button>
       </header>
       <main id="interior">
         <div id="blocks"></div>

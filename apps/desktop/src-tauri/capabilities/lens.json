@@ -15,6 +15,7 @@
     "allow-hide-lens",
     "allow-open-ocr-language-settings",
     "allow-download-models",
-    "allow-copy-translation"
+    "allow-copy-translation",
+    "allow-swap-languages"
   ]
 }

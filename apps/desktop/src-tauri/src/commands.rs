@@ -5,6 +5,7 @@ use serde::Serialize;
 use tauri::{AppHandle, Manager, State, WebviewWindow};
 
 use crate::clipboard;
+use crate::hotkeys;
 use crate::lens::{self, LAYOUT, Layout};
 use crate::models::{self, Models};
 use crate::settings;
@@ -29,11 +30,14 @@ pub struct LensConfig {
     models_missing_bytes: u64,
     /// `false` if a missing model is import-only (no download URLs in the manifest).
     models_downloadable: bool,
+    /// The language translations are written in: `en` or `sv` (SET-01).
+    target: String,
 }
 
 #[tauri::command]
 pub fn lens_config(
     window: WebviewWindow,
+    app: AppHandle,
     state: State<'_, Lens>,
     models: State<'_, Models>,
 ) -> CmdResult<LensConfig> {
@@ -46,6 +50,12 @@ pub fn lens_config(
         pipeline_error: state.pipeline_error(),
         models_missing_bytes: models.missing_bytes(),
         models_downloadable: models.missing_downloadable(),
+        target: app
+            .state::<settings::Store>()
+            .get()
+            .translation
+            .target_lang()
+            .to_string(),
     })
 }
 
@@ -69,6 +79,13 @@ pub fn copy_translation(window: WebviewWindow, state: State<'_, Lens>) -> CmdRes
     }
     clipboard::copy(&text)?;
     Ok(true)
+}
+
+/// Swap the translation direction (HK-01's Ctrl+Alt+S, the toolbar ⇄). Returns the new target.
+#[tauri::command]
+pub fn swap_languages(window: WebviewWindow, app: AppHandle) -> CmdResult<String> {
+    ensure_lens(&window)?;
+    Ok(hotkeys::swap(&app).to_string())
 }
 
 /// Open the Windows settings page where the Swedish OCR feature is added (SV-02). The target is

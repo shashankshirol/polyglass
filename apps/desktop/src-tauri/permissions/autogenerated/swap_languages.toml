@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-swap-languages"
+description = "Enables the swap_languages command without any pre-configured scope."
+commands.allow = ["swap_languages"]
+
+[[permission]]
+identifier = "deny-swap-languages"
+description = "Denies the swap_languages command without any pre-configured scope."
+commands.deny = ["swap_languages"]

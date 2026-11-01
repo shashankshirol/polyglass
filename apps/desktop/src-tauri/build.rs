@@ -11,6 +11,7 @@ fn main() {
             "open_ocr_language_settings",
             "download_models",
             "copy_translation",
+            "swap_languages",
         ]),
     ))
     .expect("failed to run tauri-build");

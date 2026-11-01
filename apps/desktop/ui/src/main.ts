@@ -33,6 +33,8 @@ const lockIcon = document.getElementById("icon-lock") as unknown as SVGElement;
 const cloudIcon = document.getElementById("icon-cloud") as unknown as SVGElement;
 const pauseBtn = $<HTMLButtonElement>("pause");
 const copyBtn = $<HTMLButtonElement>("copy");
+const swapBtn = $<HTMLButtonElement>("swap");
+const targetEl = $("target-lang");
 const clickBtn = $<HTMLButtonElement>("click-through");
 const ocrLangBtn = $<HTMLButtonElement>("ocr-lang");
 const modelsBtn = $<HTMLButtonElement>("models");
@@ -200,11 +202,21 @@ function applyConfig(cfg: LensConfig): void {
     modelsBtn.setAttribute("aria-label", label);
   }
   setClickThroughUi(cfg.clickThrough);
+  setTarget(cfg.target);
   if (cfg.pipelineError) {
     showMessage(MESSAGES[cfg.pipelineError] ?? cfg.pipelineError);
   } else if (!cfg.pipeline) {
     showMessage("Live capture isn't available on this platform yet. Start with --demo for mock results.");
   }
+}
+
+const LANG_NAMES: Record<string, string> = { en: "English", sv: "Swedish" };
+
+function setTarget(target: string): void {
+  targetEl.textContent = target.toUpperCase();
+  const label = `Target language: ${LANG_NAMES[target] ?? target}`;
+  targetEl.setAttribute("aria-label", label);
+  targetEl.title = label;
 }
 
 function setBadge(kind: "demo" | "mock" | null): void {
@@ -315,6 +327,14 @@ copyBtn.addEventListener("click", () => {
     });
 });
 
+// SV-01: swap the direction; both models stay loaded, so it is instant.
+swapBtn.addEventListener("click", () => {
+  if (!isTauri()) return;
+  invoke<string>("swap_languages")
+    .then(setTarget)
+    .catch((e: unknown) => console.error("swap_languages failed", e));
+});
+
 function flashCopy(mark: string, label: string): void {
   copyBtn.textContent = mark;
   copyBtn.title = label;
@@ -340,6 +360,7 @@ async function start(): Promise<void> {
       pipelineError: null,
       modelsMissingBytes: 0,
       modelsDownloadable: true,
+      target: "en",
     });
     render(sampleUpdate());
     return;
@@ -348,6 +369,8 @@ async function start(): Promise<void> {
   await listen<string>("lens-error", (e) => showMessage(MESSAGES[e.payload] ?? e.payload));
   await listen<ModelEvent>("lens-models", (e) => onModelEvent(e.payload));
   await listen<boolean>("lens-original", (e) => setShowOriginal(e.payload));
+  await listen<string>("lens-target", (e) => setTarget(e.payload));
+  await listen<boolean>("lens-click-through", (e) => setClickThroughUi(e.payload));
   applyConfig(await invoke<LensConfig>("lens_config"));
 }
 
