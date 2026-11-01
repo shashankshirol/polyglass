@@ -73,6 +73,23 @@ Measured results from the implementation (M1-TR-6) are in "Verified on this mach
     CMake's Debug compiler probe, `/RTC1`.)
   - The long-path try-compile failure didn't occur with the repository at `E:\Dev\Polyglass`; the
     README advises a short checkout path. Clean debug build of `pg-ct2` with Ninja ≈ 1 min.
+  - Linux: `pg-ct2` turns on ct2rs's `disable-cpu-dispatch` feature for `target_os = "linux"`
+    only. With CTranslate2's runtime CPU dispatch (`ENABLE_CPU_DISPATCH`, the default) the
+    `ubuntu-latest` CI job failed to link: the GENERIC and AVX variants of every CPU kernel
+    (`reduce_amax`, `add`, `gelu`, …) were undefined, and the AVX2 variant was found in the plain
+    `kernels.cc.o`. So the base `kernels.cc` had been compiled with `__AVX2__` defined, and every
+    copy below AVX-512 became an AVX2 copy. Nothing in ct2rs's `build.rs`, CTranslate2's CMake,
+    cc-rs 1.10, cmake-rs or the workflow adds an AVX2 flag. The CI log is needed to find where it
+    comes from: the runner had just moved to Ubuntu 26.04 (GCC 15, CMake 4.4), and the CI step
+    "C++ toolchain" now prints the compiler's default ISA macros. Without dispatch, CTranslate2
+    compiles `kernels.cc` once, and `primitives.cc` chooses it with the same `__AVX2__`-style
+    tests under the same flags, so the two can't disagree. On x86-64 the kernels get whatever ISA
+    the compiler targets (SSE2 by default); on arm64 they are NEON either way. Matrix
+    multiplications go through ruy, which keeps its own runtime AVX2/AVX-512 dispatch. On this
+    machine (Windows, the same feature turned on for the measurement only) translation latency
+    was the same within run-to-run noise: sv→en `ui-dialog-sv` p50 172–216 ms with dispatch,
+    176–208 ms without, short strings ≈ 31 ms both. Windows and macOS keep dispatch. Not yet
+    verified on Linux (no WSL/Docker here); the next CI run is the check.
 - **Models:** OPUS-MT ships Marian `.npz` files, which CTranslate2's Python converter turns into
   int8. `scripts/models/opus_mt.py` does this with a hash-locked converter (ctranslate2 4.8.4,
   the version ct2rs 0.10.3 bundles) and pins the SHA-256 of its inputs (the official release

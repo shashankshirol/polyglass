@@ -70,6 +70,8 @@ jobs:
             "/c/Program Files (x86)/Microsoft Visual Studio/Installer/vswhere.exe" -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property displayName
           else
             c++ --version
+            # x86 ISA macros the compiler enables by default (CTranslate2's CPU kernels, ADR-0005).
+            c++ -dM -E -x c++ /dev/null | grep -E '__(SSE4_1|AVX|AVX2|FMA|AVX512F)__' || true
           fi
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace
