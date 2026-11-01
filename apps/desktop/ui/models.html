@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Polyglass – Translation models</title>
+    <link rel="stylesheet" href="./src/models.css" />
+    <script type="module" src="./src/models.ts"></script>
+  </head>
+  <body>
+    <main id="app" aria-busy="true">
+      <header id="wizard-head" class="head" hidden>
+        <h1>Welcome to Polyglass</h1>
+        <p class="lead">
+          Polyglass reads the text under the lens and translates it on this computer. What you look at
+          never leaves it.
+        </p>
+      </header>
+      <header id="manager-head" class="head" hidden>
+        <h1>Translation models</h1>
+        <p class="lead">
+          Models run on this computer. Polyglass downloads them only from the addresses it ships with
+          and checks every file against its SHA-256 before using it.
+        </p>
+      </header>
+
+      <section id="job" class="job" hidden aria-label="Download progress">
+        <div class="job-head">
+          <span id="job-label"></span>
+          <button id="cancel" type="button">Cancel download</button>
+        </div>
+        <progress id="job-progress" max="100" value="0" aria-label="Download progress"></progress>
+      </section>
+      <p id="message" class="message" role="status" hidden></p>
+      <section id="install" class="install" hidden aria-labelledby="install-title">
+        <h2 id="install-title">Install from the repository</h2>
+        <p>Install the Swedish ↔ English models once from a terminal in the Polyglass repository, then restart Polyglass:</p>
+        <code id="install-command" tabindex="0"></code>
+        <p class="hint">About 170 MB of downloads and conversion; README → First run.</p>
+      </section>
+
+      <section id="wizard" hidden>
+        <div id="wizard-offer">
+          <p>
+            To translate between Swedish and English it needs two translation models. They are
+            downloaded once from the Polyglass releases on GitHub. Nothing is downloaded until you
+            choose Download.
+          </p>
+          <fieldset class="choices">
+            <legend>Models to download</legend>
+            <div id="wizard-choices"></div>
+          </fieldset>
+          <p id="wizard-total" class="total"></p>
+          <div class="actions">
+            <button id="wizard-download" type="button" class="primary">Download</button>
+            <button id="wizard-skip" type="button">Not now</button>
+          </div>
+        </div>
+        <div id="wizard-ready" hidden>
+          <p class="ready">
+            Swedish ↔ English is installed. Point the lens at Swedish or English text; ⇄ in the
+            toolbar or Ctrl+Alt+S swaps the direction.
+          </p>
+        </div>
+        <div id="wizard-close" class="actions" hidden>
+          <button id="wizard-done" type="button" class="primary">Done</button>
+        </div>
+        <p class="hint">
+          Download or delete models any time from ⚙ in the lens toolbar or “Translation models…” in
+          the tray menu.
+        </p>
+      </section>
+
+      <section id="manager" hidden>
+        <ul id="rows" class="rows" aria-label="Available language pairs"></ul>
+        <footer id="usage" class="usage"></footer>
+      </section>
+    </main>
+  </body>
+</html>

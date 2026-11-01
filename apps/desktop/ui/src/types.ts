@@ -69,8 +69,46 @@ export interface LensConfig {
   target: "en" | "sv";
 }
 
-/** `models::ModelEvent`: progress of the toolbar's model download. */
-export type ModelEvent =
-  | { state: "downloading"; downloaded: number; total: number }
-  | { state: "ready" }
-  | { state: "error"; message_id: string };
+/** `models::ModelsView`: the model manager's state, sent with `models-changed` events. */
+export interface ModelsView {
+  /** MDL-01 catalog, Swedish pairs first. */
+  rows: ModelRow[];
+  /** Bytes the model store uses, partial downloads included (MDL-05). */
+  disk_usage: number;
+  store_path: string;
+  job: JobView | null;
+  /** Fluent ID of the last download or delete outcome worth telling. */
+  message_id: string | null;
+  /** The release isn't reachable; downloads are off for this run. */
+  unreachable: boolean;
+  /** The window is the first-run wizard (SV-01). */
+  first_run: boolean;
+  install_command: string;
+  /** Bytes of the Swedish ↔ English models still missing (0 = both installed). */
+  swedish_missing_bytes: number;
+  swedish_downloadable: boolean;
+}
+
+export interface ModelRow {
+  id: string;
+  source: string;
+  target: string;
+  version: string;
+  download_size: number;
+  /** False for import-only entries (no download URLs). */
+  downloadable: boolean;
+  license: string;
+  attribution: string | null;
+  source_url: string;
+  installed: boolean;
+  /** Bytes on disk: the files when installed, else what a download resumes from. */
+  on_disk: number;
+  /** Pre-selected by the first-run wizard. */
+  suggested: boolean;
+}
+
+export interface JobView {
+  ids: string[];
+  downloaded: number;
+  total: number;
+}

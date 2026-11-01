@@ -62,9 +62,14 @@ fn main() {
             commands::set_paused,
             commands::hide_lens,
             commands::open_ocr_language_settings,
-            commands::download_models,
+            commands::open_model_manager,
             commands::copy_translation,
             commands::swap_languages,
+            commands::models_state,
+            commands::download_models,
+            commands::cancel_download,
+            commands::delete_model,
+            commands::finish_first_run,
         ])
         .setup(move |app| {
             let handle = app.handle().clone();
@@ -87,6 +92,12 @@ fn main() {
             state.click.spawn(handle.clone(), window.clone());
             state.hold.spawn(handle.clone());
             hotkeys::register(&handle);
+            // MDL-06, SV-01: offer the Swedish models once; nothing downloads without a click.
+            let models = handle.state::<Models>();
+            if models::offer_first_run(mode, saved.models.first_run_done, models.missing_bytes()) {
+                models.set_first_run(true);
+                models::open_window(&handle)?;
+            }
             match mode {
                 Mode::Demo => {
                     tracing::warn!("demo mode: mock capture, OCR and translation");

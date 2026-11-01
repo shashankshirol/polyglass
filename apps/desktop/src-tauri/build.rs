@@ -9,9 +9,15 @@ fn main() {
             "set_paused",
             "hide_lens",
             "open_ocr_language_settings",
-            "download_models",
+            "open_model_manager",
             "copy_translation",
             "swap_languages",
+            // The model manager window (capabilities/models.json).
+            "models_state",
+            "download_models",
+            "cancel_download",
+            "delete_model",
+            "finish_first_run",
         ]),
     ))
     .expect("failed to run tauri-build");

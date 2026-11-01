@@ -26,6 +26,15 @@ const HEADER: &str = "# Polyglass settings (SET-01). Edit while Polyglass isn't 
 pub struct Settings {
     pub lens: LensSettings,
     pub translation: TranslationSettings,
+    pub models: ModelSettings,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ModelSettings {
+    /// Set once the first-run wizard was closed, declined or finished (MDL-06, SV-01), so it is
+    /// offered only once. The model manager stays available from the lens and the tray.
+    pub first_run_done: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -180,6 +189,7 @@ mod tests {
         s.lens.width = 600.0;
         s.lens.click_through = false;
         s.translation.target = "sv".into();
+        s.models.first_run_done = true;
         s.save(&path).unwrap();
         let text = fs::read_to_string(&path).unwrap();
         assert!(text.starts_with("# Polyglass settings"), "{text}");
@@ -188,6 +198,10 @@ mod tests {
             "{text}"
         );
         assert!(text.contains("target = \"sv\""), "{text}");
+        assert!(
+            text.contains("[models]") && text.contains("first_run_done = true"),
+            "{text}"
+        );
         assert_eq!(Settings::load(&path), s);
     }
 
@@ -206,6 +220,7 @@ mod tests {
         assert_eq!(s.lens.height, crate::lens::DEFAULT_SIZE.1);
         assert!(s.lens.click_through);
         assert_eq!(s.translation, TranslationSettings::default());
+        assert!(!s.models.first_run_done, "the wizard is offered");
     }
 
     #[test]

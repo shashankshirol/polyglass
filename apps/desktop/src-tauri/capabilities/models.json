@@ -1,0 +1,15 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "models",
+  "description": "The model manager and first-run wizard window: receive model events and call the model commands. Nothing else (SEC-01).",
+  "windows": ["models"],
+  "permissions": [
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "allow-models-state",
+    "allow-download-models",
+    "allow-cancel-download",
+    "allow-delete-model",
+    "allow-finish-first-run"
+  ]
+}

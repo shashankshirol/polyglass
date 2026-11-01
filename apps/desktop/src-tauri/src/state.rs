@@ -87,13 +87,15 @@ impl Lens {
         let _ = self.pipeline.set(pipeline);
     }
 
-    /// Switch the running pipeline's backend and redo what's under the lens. `false` if no
-    /// pipeline runs yet.
+    /// Switch the running pipeline's backend and redo what's under the lens. Cached translations
+    /// are dropped: they may come from a model that was just deleted. `false` if no pipeline runs
+    /// yet.
     pub fn set_translator(&self, translator: Arc<dyn Translator>) -> bool {
         let Some(pipeline) = self.pipeline.get() else {
             return false;
         };
         pipeline.set_translator(translator);
+        pipeline.clear_cache();
         self.with_driver(DriverHandle::invalidate);
         true
     }

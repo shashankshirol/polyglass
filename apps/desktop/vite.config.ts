@@ -14,5 +14,10 @@ export default defineConfig({
     outDir: "../dist",
     emptyOutDir: true,
     target: "es2022",
+    // Two pages: the lens and the model manager / first-run wizard window. Paths are relative
+    // to this folder, where npm runs.
+    rollupOptions: {
+      input: ["ui/index.html", "ui/models.html"],
+    },
   },
 });

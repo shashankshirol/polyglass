@@ -1,0 +1,356 @@
+/* Model manager and first-run wizard: an ordinary decorated window, light or dark with the OS.
+   Colours follow the lens chrome (navy + light blue accent). */
+
+:root {
+  --bg: #f5f7fa;
+  --card: #ffffff;
+  --fg: #16202b;
+  --muted: #5a6876;
+  --line: #d9e0e7;
+  --accent: #1d6fa5;
+  --accent-fg: #ffffff;
+  --accent-soft: #e3f1fa;
+  --ok: #1e7a3a;
+  --warn: #8a5a00;
+  --warn-bg: #fff4dc;
+  --danger: #b3261e;
+  --focus: #e0a800;
+  color-scheme: light dark;
+  font-family: "Segoe UI", system-ui, -apple-system, "Noto Sans", sans-serif;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #111b25;
+    --card: #182c42;
+    --fg: #eef3f8;
+    --muted: #9fb0c0;
+    --line: #2a3f55;
+    --accent: #7fd3ff;
+    --accent-fg: #0d1a26;
+    --accent-soft: #1d3a52;
+    --ok: #8be08b;
+    --warn: #ffd166;
+    --warn-bg: #3a2c0c;
+    --danger: #ff8a80;
+    --focus: #ffd34d;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+main {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 20px 22px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+h1 {
+  margin: 0 0 4px;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+}
+
+h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+p {
+  margin: 0 0 10px;
+}
+
+.lead {
+  color: var(--muted);
+  margin: 0;
+}
+
+.hint {
+  color: var(--muted);
+  font-size: 12.5px;
+  margin: 8px 0 0;
+}
+
+button {
+  font: inherit;
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--fg);
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-fg);
+  font-weight: 600;
+}
+
+button.danger {
+  color: var(--danger);
+}
+
+button:focus-visible,
+input:focus-visible,
+summary:focus-visible,
+code:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Download progress (MDL-03). */
+.job {
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: var(--accent-soft);
+}
+
+.job-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+progress {
+  width: 100%;
+  height: 8px;
+  appearance: none;
+  border: 0;
+  border-radius: 4px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+progress::-webkit-progress-bar {
+  background: var(--line);
+}
+
+progress::-webkit-progress-value {
+  background: var(--accent);
+  border-radius: 4px;
+}
+
+.message {
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--card);
+}
+
+.message.error {
+  border-color: var(--danger);
+}
+
+/* The install command for import-only models or an unreachable release (session 9 fallback). */
+.install {
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: var(--warn-bg);
+  border-left: 4px solid var(--warn);
+}
+
+.install h2 {
+  margin-bottom: 6px;
+}
+
+.install code {
+  display: block;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--card);
+  font-family: "Cascadia Mono", Consolas, ui-monospace, monospace;
+  font-size: 13px;
+  user-select: all;
+}
+
+/* Wizard. */
+.choices {
+  margin: 4px 0 0;
+  padding: 6px 0 0;
+  border: 0;
+}
+
+.choices legend {
+  padding: 0;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.choice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  margin-bottom: 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--card);
+  cursor: pointer;
+}
+
+.choice input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.choice-name {
+  font-weight: 600;
+  flex: 1 1 auto;
+}
+
+.choice-meta {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.total {
+  margin: 4px 0 12px;
+}
+
+.ready {
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: var(--card);
+  border-left: 4px solid var(--ok);
+}
+
+/* Manager rows (MDL-01). */
+.rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.row {
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--card);
+}
+
+.row-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.state {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.row[data-state="installed"] .state {
+  color: var(--ok);
+  font-weight: 600;
+}
+
+.row[data-state="partial"] .state,
+.row[data-state="downloading"] .state {
+  color: var(--warn);
+  font-weight: 600;
+}
+
+.meta {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 2px 12px;
+  margin: 0 0 6px;
+  font-size: 13px;
+}
+
+.meta dt {
+  color: var(--muted);
+}
+
+.meta dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.meta .url,
+.meta .mono {
+  font-family: "Cascadia Mono", Consolas, ui-monospace, monospace;
+  font-size: 12px;
+  user-select: text;
+}
+
+details {
+  font-size: 12.5px;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+details p {
+  margin: 4px 0 0;
+  user-select: text;
+}
+
+summary {
+  cursor: pointer;
+}
+
+.note {
+  color: var(--warn);
+  font-size: 13px;
+}
+
+.usage {
+  color: var(--muted);
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}

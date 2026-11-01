@@ -14,7 +14,7 @@
     "allow-set-paused",
     "allow-hide-lens",
     "allow-open-ocr-language-settings",
-    "allow-download-models",
+    "allow-open-model-manager",
     "allow-copy-translation",
     "allow-swap-languages"
   ]

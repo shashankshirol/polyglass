@@ -1,5 +1,6 @@
-//! The only commands the lens webview can call (SEC-01). Each is also listed in `build.rs` and
-//! allowed per window in `capabilities/lens.json`. All input is validated here, in Rust.
+//! The only commands the webviews can call (SEC-01). Each is also listed in `build.rs` and
+//! allowed per window in `capabilities/lens.json` or `capabilities/models.json`, and checks the
+//! calling window itself. All input is validated here, in Rust.
 
 use serde::Serialize;
 use tauri::{AppHandle, Manager, State, WebviewWindow};
@@ -59,13 +60,54 @@ pub fn lens_config(
     })
 }
 
-/// Download the missing Swedish ↔ English models from the manifest URLs; progress arrives as
-/// `lens-models` events. Takes no input from the webview.
+/// Open the model manager (the toolbar's ⬇ and ⚙). `async` because a window built inside a
+/// synchronous command deadlocks on Windows.
 #[tauri::command]
-pub fn download_models(window: WebviewWindow, app: AppHandle) -> CmdResult<()> {
+pub async fn open_model_manager(window: WebviewWindow, app: AppHandle) -> CmdResult<()> {
     ensure_lens(&window)?;
-    models::start_download(&app);
-    Ok(())
+    models::open_window(&app).map_err(|e| e.to_string())
+}
+
+/// The catalog, what is installed, disk usage and any running download (MDL-01, MDL-05).
+#[tauri::command]
+pub fn models_state(
+    window: WebviewWindow,
+    models: State<'_, Models>,
+) -> CmdResult<models::ModelsView> {
+    ensure_window(&window, models::WINDOW)?;
+    Ok(models.view())
+}
+
+/// Download the listed models from the manifest URLs (MDL-03). `ids` must name manifest
+/// entries (`Models::resolve`); progress arrives as `models-changed` events.
+#[tauri::command]
+pub fn download_models(window: WebviewWindow, app: AppHandle, ids: Vec<String>) -> CmdResult<()> {
+    ensure_window(&window, models::WINDOW)?;
+    models::start_download(&app, &ids)
+}
+
+/// Stop the running download; it resumes from where it stopped next time (MDL-03). `false`
+/// when nothing was running.
+#[tauri::command]
+pub fn cancel_download(window: WebviewWindow, models: State<'_, Models>) -> CmdResult<bool> {
+    ensure_window(&window, models::WINDOW)?;
+    Ok(models.cancel())
+}
+
+/// Delete one installed or partly downloaded model (MDL-05). `id` must name a manifest entry
+/// that isn't being downloaded.
+#[tauri::command]
+pub fn delete_model(window: WebviewWindow, app: AppHandle, id: String) -> CmdResult<()> {
+    ensure_window(&window, models::WINDOW)?;
+    models::delete(&app, &id)
+}
+
+/// The wizard's "Not now" and "Done": don't offer it again, and close the window (SV-01).
+#[tauri::command]
+pub fn finish_first_run(window: WebviewWindow, app: AppHandle) -> CmdResult<()> {
+    ensure_window(&window, models::WINDOW)?;
+    models::finish_first_run(&app);
+    window.close().map_err(|e| e.to_string())
 }
 
 /// Copy the text the lens shows, in reading order, to the clipboard (REN-05). Takes no input
@@ -146,10 +188,15 @@ pub fn hide_lens(window: WebviewWindow, state: State<'_, Lens>) -> CmdResult<()>
 }
 
 fn ensure_lens(window: &WebviewWindow) -> CmdResult<()> {
-    if window.label() == lens::LABEL {
+    ensure_window(window, lens::LABEL)
+}
+
+/// The capability files already limit each command to its window; this checks it again here.
+fn ensure_window(window: &WebviewWindow, label: &str) -> CmdResult<()> {
+    if window.label() == label {
         Ok(())
     } else {
-        Err("command is only available to the lens window".into())
+        Err(format!("command is only available to the {label} window"))
     }
 }
 

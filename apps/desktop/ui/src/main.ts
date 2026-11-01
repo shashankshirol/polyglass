@@ -4,8 +4,9 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { MODEL_MESSAGES, formatBytes, percent } from "./catalog";
 import { fitFontSize, maxHeight, startSize } from "./fit";
-import type { LensConfig, LensUpdate, ModelEvent, RenderedBlock } from "./types";
+import type { LensConfig, LensUpdate, ModelsView, RenderedBlock } from "./types";
 
 type ResizeDirection =
   | "North"
@@ -38,6 +39,7 @@ const targetEl = $("target-lang");
 const clickBtn = $<HTMLButtonElement>("click-through");
 const ocrLangBtn = $<HTMLButtonElement>("ocr-lang");
 const modelsBtn = $<HTMLButtonElement>("models");
+const settingsBtn = $<HTMLButtonElement>("settings");
 const badge = $("mode-badge");
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
@@ -48,12 +50,14 @@ let current: LensUpdate | null = null;
 /** True while left Alt is held: show the source text instead of the translation (REN-04). */
 let showOriginal = false;
 let mode: LensConfig["mode"] = "none";
-/** Progress text while the toolbar's model download runs. */
+/** Progress text while the model manager downloads. */
 let downloadProgress: string | null = null;
-/** Whether the missing models can be downloaded with ⬇ (false: import-only, see README). */
+/** Whether the missing models can be downloaded (false: import-only, see README). */
 let modelsDownloadable = true;
-/** Set when ⬇ found the models release unreachable (e.g. a private repository). */
+/** Set when a download found the models release unreachable (e.g. a private repository). */
 let modelsUnreachable = false;
+/** The last model download or delete outcome already shown. */
+let modelsMessage: string | null = null;
 
 // Fluent IDs from the pipeline; real localized strings arrive with M4-5.
 const MESSAGES: Record<string, string> = {
@@ -65,17 +69,16 @@ const MESSAGES: Record<string, string> = {
   "cap-error-self-exclusion":
     "The lens can't hide itself from screen capture (needs Windows 10 version 2004 or later), so live capture is off.",
   "tr-error-model-missing":
-    "The Swedish ↔ English translation models aren't downloaded yet. Click ⬇ in the toolbar to get them (about 170 MB, once).",
+    "The Swedish ↔ English translation models aren't downloaded yet. Click ⬇ in the toolbar to download them (about 170 MB, once).",
   // For import-only manifest entries (no download URLs): installed from the repository.
   "tr-error-model-import":
     "The Swedish ↔ English translation models aren't installed yet. Install them once from a terminal in the Polyglass repository with: python scripts/models/opus_mt.py (about 170 MB; README → First run), then restart Polyglass.",
   "tr-error-backend": "Translation failed",
-  "mdl-error-download": "Downloading the translation models failed. Check the connection and click ⬇ to try again.",
+  ...MODEL_MESSAGES,
+  // The lens has room for the whole fallback, so it carries the command too.
   "mdl-error-unreachable":
     "The translation models can't be downloaded: their release isn't reachable (the Polyglass repository may be private). Install them once from a terminal in the Polyglass repository with: python scripts/models/opus_mt.py (about 170 MB; README → First run), then restart Polyglass.",
 };
-
-const MB = (bytes: number): string => `${(bytes / 1e6).toFixed(1)} MB`;
 
 // SV-02: where to add Swedish OCR on Windows. The toolbar's ⚠ SV button opens the page.
 const SWEDISH_OCR_HELP =
@@ -170,7 +173,7 @@ function render(u: LensUpdate): void {
             ? "mdl-error-unreachable"
             : "tr-error-model-import"
           : u.status.message_id;
-      if (id === "tr-error-model-missing") modelsBtn.hidden = false;
+      if (id === "tr-error-model-missing") modelsBtn.hidden = mode !== "live";
       showMessage(
         id === "tr-error-model-missing" && downloadProgress ? downloadProgress : (MESSAGES[id] ?? id),
       );
@@ -195,12 +198,7 @@ function applyConfig(cfg: LensConfig): void {
   mode = cfg.mode;
   setBadge(cfg.mode === "demo" ? "demo" : null);
   modelsDownloadable = cfg.modelsDownloadable;
-  if (cfg.mode === "live" && cfg.modelsMissingBytes > 0 && cfg.modelsDownloadable) {
-    modelsBtn.hidden = false;
-    const label = `Download the Swedish and English translation models (${MB(cfg.modelsMissingBytes)})`;
-    modelsBtn.title = label;
-    modelsBtn.setAttribute("aria-label", label);
-  }
+  setModelsButton(cfg.modelsMissingBytes);
   setClickThroughUi(cfg.clickThrough);
   setTarget(cfg.target);
   if (cfg.pipelineError) {
@@ -231,34 +229,36 @@ function setBadge(kind: "demo" | "mock" | null): void {
   badge.setAttribute("aria-label", badge.title);
 }
 
-function onModelEvent(e: ModelEvent): void {
-  switch (e.state) {
-    case "downloading": {
-      const pct = Math.floor((e.downloaded * 100) / Math.max(e.total, 1));
-      modelsBtn.disabled = true;
-      modelsBtn.textContent = `⬇ ${pct}%`;
-      downloadProgress = `Downloading the translation models… ${pct}% of ${MB(e.total)}`;
-      showMessage(downloadProgress);
-      break;
+/** ⬇ opens the model manager while the Swedish models are missing and can be downloaded. */
+function setModelsButton(missingBytes: number): void {
+  modelsBtn.hidden = !(mode === "live" && missingBytes > 0 && modelsDownloadable);
+  const label = `Download the Swedish and English translation models (${formatBytes(missingBytes)})`;
+  modelsBtn.title = label;
+  modelsBtn.setAttribute("aria-label", label);
+}
+
+/** The model manager's state changed: mirror its download progress and outcome in the lens. */
+function onModelsView(v: ModelsView): void {
+  modelsDownloadable = v.swedish_downloadable;
+  modelsUnreachable = v.unreachable;
+  if (v.job) {
+    const pct = percent(v.job);
+    modelsBtn.textContent = `⬇ ${pct}%`;
+    downloadProgress = `Downloading the translation models… ${pct}% of ${formatBytes(v.job.total)}`;
+    showMessage(downloadProgress);
+  } else {
+    modelsBtn.textContent = "⬇";
+    if (downloadProgress) {
+      // The download ended: say how, or clear the progress for the next update.
+      showMessage(v.message_id ? (MESSAGES[v.message_id] ?? v.message_id) : null);
     }
-    case "ready":
-      downloadProgress = null;
-      modelsBtn.hidden = true;
-      showMessage(null);
-      break;
-    case "error":
-      downloadProgress = null;
-      modelsBtn.disabled = false;
-      modelsBtn.textContent = "⬇";
-      if (e.message_id === "mdl-error-unreachable") {
-        // No point retrying: show the install command instead of ⬇ from now on.
-        modelsDownloadable = false;
-        modelsUnreachable = true;
-        modelsBtn.hidden = true;
-      }
-      showMessage(MESSAGES[e.message_id] ?? e.message_id);
-      break;
+    downloadProgress = null;
   }
+  if (v.message_id !== modelsMessage && v.message_id === "mdl-error-unreachable") {
+    showMessage(MESSAGES[v.message_id] ?? v.message_id);
+  }
+  modelsMessage = v.message_id;
+  setModelsButton(v.swedish_missing_bytes);
 }
 
 function setClickThroughUi(on: boolean): void {
@@ -344,10 +344,9 @@ function flashCopy(mark: string, label: string): void {
   }, 1200);
 }
 ocrLangBtn.addEventListener("click", () => call("open_ocr_language_settings"));
-modelsBtn.addEventListener("click", () => {
-  modelsBtn.disabled = true;
-  call("download_models");
-});
+// MDL-01/03/05: the model manager does the downloading; ⬇ and ⚙ open it.
+modelsBtn.addEventListener("click", () => call("open_model_manager"));
+settingsBtn.addEventListener("click", () => call("open_model_manager"));
 
 async function start(): Promise<void> {
   if (!isTauri()) {
@@ -367,7 +366,7 @@ async function start(): Promise<void> {
   }
   await listen<LensUpdate>("lens-update", (e) => render(e.payload));
   await listen<string>("lens-error", (e) => showMessage(MESSAGES[e.payload] ?? e.payload));
-  await listen<ModelEvent>("lens-models", (e) => onModelEvent(e.payload));
+  await listen<ModelsView>("models-changed", (e) => onModelsView(e.payload));
   await listen<boolean>("lens-original", (e) => setShowOriginal(e.payload));
   await listen<string>("lens-target", (e) => setTarget(e.payload));
   await listen<boolean>("lens-click-through", (e) => setClickThroughUi(e.payload));

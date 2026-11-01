@@ -1,56 +1,136 @@
-//! Swedish ↔ English model download from the lens toolbar (MDL-02, MDL-03, SV-01).
+//! The model manager and first-run wizard behind the `models` window (MDL-01, MDL-03, MDL-05,
+//! MDL-06, SV-01).
 //!
-//! Interim until the model manager and first-run wizard (M1-APP-8): when the models are missing,
-//! the toolbar's ⬇ button downloads both directions from the URLs in `models/manifest.toml`
-//! through `pg-models` (SHA-256 verified, resumable), then swaps the loaded translator into the
-//! running pipeline. Nothing is downloaded without that click (MDL-06).
+//! The window lists the manifest's catalog, Swedish pairs first, with size, license, attribution
+//! and source (MDL-01). Downloads run one job at a time through `pg-models` (SHA-256 verified,
+//! resumable with HTTP Range): the job reports progress, can be cancelled, and a cancelled or
+//! interrupted download resumes from its `.part` files (MDL-03). Models can be deleted and the
+//! store's disk usage is shown (MDL-05). After a download or a delete the running pipeline gets a
+//! translator with the installed models, so no restart is needed.
+//!
+//! Nothing is downloaded without a click in this window (MDL-06). On the first live start
+//! without the Swedish models the window opens as the wizard, with both Swedish directions
+//! pre-selected and their combined size shown (SV-01); it is offered once (`[models]
+//! first_run_done` in `settings.toml`).
 //!
 //! The OPUS-MT files are assets of a GitHub release of this repository (D-9, M1-TR-7). A model
-//! without download URLs (import-only) gets no ⬇: the lens points to `scripts/models/opus_mt.py`,
-//! which converts and imports it (MDL-04), and the app loads it on its next start. The same
-//! happens when the release can't be reached (HTTP 401/403/404/410, e.g. while the repository
-//! is private): ⬇ goes away for this run and the lens shows the install command
-//! (`mdl-error-unreachable`). Other failures keep ⬇ for a retry.
+//! without download URLs (import-only) can't be downloaded: the window shows the
+//! `scripts/models/opus_mt.py` install command (MDL-04) instead. The same happens when the release
+//! answers HTTP 401/403/404/410 (e.g. while the repository is private): download buttons go away
+//! for this run (`mdl-error-unreachable`). Other failures keep them for a retry.
 
+use std::collections::HashSet;
+use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use pg_models::{Downloader, Manifest, ModelEntry, ModelError, ModelStore};
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder, WindowEvent};
 use tokio_util::sync::CancellationToken;
 
-use crate::lens;
-use crate::state::Lens;
+use crate::settings;
+use crate::state::{Lens, Mode};
 
-/// Event carrying [`ModelEvent`]s to the lens.
-pub const EVENT: &str = "lens-models";
+/// Label of the model manager window.
+pub const WINDOW: &str = "models";
+/// Event carrying a [`ModelsView`] to both windows whenever it changes.
+pub const EVENT: &str = "models-changed";
+/// How to install the models without the release (MDL-04), run in a checkout of the repository.
+pub const INSTALL_COMMAND: &str = "python scripts/models/opus_mt.py";
 
-/// Download state for the lens. Carries no text from the screen.
+/// At most this many ids per download request (SEC-01 input bound).
+const MAX_IDS: usize = 32;
+/// Longest id the manifest accepts.
+const MAX_ID_LEN: usize = 128;
+
+/// Message shown when the release isn't there for us (see the module docs).
+const UNREACHABLE: &str = "mdl-error-unreachable";
+
+/// Everything the model manager and the lens show about models. Carries no screen text.
 #[derive(Debug, Clone, Serialize)]
-#[serde(tag = "state", rename_all = "snake_case")]
-pub enum ModelEvent {
-    Downloading { downloaded: u64, total: u64 },
-    Ready,
-    Error { message_id: &'static str },
+pub struct ModelsView {
+    /// MDL-01 catalog, Swedish pairs first.
+    pub rows: Vec<ModelRow>,
+    /// Bytes the model store uses, partial downloads included (MDL-05).
+    pub disk_usage: u64,
+    /// Where the models are stored.
+    pub store_path: String,
+    /// The running download, if any.
+    pub job: Option<JobView>,
+    /// Fluent ID of the last download or delete outcome worth telling (an error, or a stop).
+    pub message_id: Option<&'static str>,
+    /// The release answered that the files aren't there for us; downloads are off for this run.
+    pub unreachable: bool,
+    /// Whether the window opened as the first-run wizard (SV-01).
+    pub first_run: bool,
+    pub install_command: &'static str,
+    /// Bytes of the Swedish ↔ English models still missing (0 = both installed).
+    pub swedish_missing_bytes: u64,
+    /// Whether the missing Swedish models can be downloaded (URLs and a reachable release).
+    pub swedish_downloadable: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ModelRow {
+    pub id: String,
+    pub source: String,
+    pub target: String,
+    pub version: String,
+    pub download_size: u64,
+    /// `false` for import-only entries (no download URLs).
+    pub downloadable: bool,
+    pub license: String,
+    pub attribution: Option<String>,
+    pub source_url: String,
+    pub installed: bool,
+    /// Bytes on disk for this model: the files when installed, else what a download resumes from.
+    pub on_disk: u64,
+    /// Pre-selected by the first-run wizard (SV-01).
+    pub suggested: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct JobView {
+    pub ids: Vec<String>,
+    /// Bytes on disk for the job's models so far, resumed bytes included.
+    pub downloaded: u64,
+    pub total: u64,
+}
+
+#[derive(Debug)]
+struct Job {
+    view: JobView,
+    cancel: CancellationToken,
+    percent: u64,
 }
 
 #[derive(Debug)]
 pub struct Models {
     store: ModelStore,
     manifest: Manifest,
-    downloading: AtomicBool,
-    /// Set when the release answered that the files aren't there for us (see the module docs).
+    job: Mutex<Option<Job>>,
+    message_id: Mutex<Option<&'static str>>,
     unreachable: AtomicBool,
+    first_run: AtomicBool,
 }
 
 impl Models {
     pub fn new(store: ModelStore) -> Self {
+        // Validated by `pg_models` tests; an invalid bundled manifest is a build defect.
+        Self::with_manifest(
+            store,
+            Manifest::bundled().expect("bundled model manifest is valid"),
+        )
+    }
+
+    pub fn with_manifest(store: ModelStore, manifest: Manifest) -> Self {
         Self {
             store,
-            // Validated by `pg_models` tests; an invalid bundled manifest is a build defect.
-            manifest: Manifest::bundled().expect("bundled model manifest is valid"),
-            downloading: AtomicBool::new(false),
+            manifest,
+            job: Mutex::new(None),
+            message_id: Mutex::new(None),
             unreachable: AtomicBool::new(false),
+            first_run: AtomicBool::new(false),
         }
     }
 
@@ -58,109 +138,500 @@ impl Models {
         &self.store
     }
 
-    fn missing(&self) -> Vec<ModelEntry> {
+    fn missing_swedish(&self) -> Vec<&ModelEntry> {
         self.manifest
             .swedish_english_models()
             .into_iter()
             .filter(|m| !self.store.is_installed(m))
-            .cloned()
             .collect()
     }
 
     /// Bytes still to download for both Swedish directions (0 = installed).
     pub fn missing_bytes(&self) -> u64 {
-        self.missing().iter().map(ModelEntry::download_size).sum()
+        self.missing_swedish()
+            .iter()
+            .map(|m| m.download_size())
+            .sum()
     }
 
     /// Whether the missing models can be downloaded: the manifest has URLs for them and the
     /// release hasn't turned out to be unreachable.
     pub fn missing_downloadable(&self) -> bool {
         !self.unreachable.load(Ordering::SeqCst)
-            && self.missing().iter().all(ModelEntry::is_downloadable)
+            && self.missing_swedish().iter().all(|m| m.is_downloadable())
     }
-}
 
-/// Start downloading the missing Swedish models unless a download is already running.
-pub fn start_download(app: &AppHandle) {
-    if app
-        .state::<Models>()
-        .downloading
-        .swap(true, Ordering::SeqCst)
-    {
-        return;
+    pub fn view(&self) -> ModelsView {
+        let suggested: HashSet<&str> = self
+            .manifest
+            .swedish_english_models()
+            .iter()
+            .map(|m| m.id.as_str())
+            .collect();
+        let rows = self
+            .manifest
+            .catalog()
+            .into_iter()
+            .filter_map(|c| {
+                let entry = self.manifest.get(&c.id)?;
+                Some(ModelRow {
+                    installed: self.store.is_installed(entry),
+                    on_disk: self.store.model_disk_usage(entry).unwrap_or(0),
+                    suggested: suggested.contains(c.id.as_str()),
+                    version: entry.version.clone(),
+                    source: c.pair.source.as_str().to_owned(),
+                    target: c.pair.target.as_str().to_owned(),
+                    id: c.id,
+                    download_size: c.download_size,
+                    downloadable: c.downloadable,
+                    license: c.license,
+                    attribution: c.attribution,
+                    source_url: c.source_url,
+                })
+            })
+            .collect();
+        ModelsView {
+            rows,
+            disk_usage: self.store.disk_usage().unwrap_or(0),
+            store_path: self.store.root().display().to_string(),
+            job: self.lock_job().as_ref().map(|j| j.view.clone()),
+            message_id: *self.message_id.lock().expect("message lock"),
+            unreachable: self.unreachable.load(Ordering::SeqCst),
+            first_run: self.first_run.load(Ordering::SeqCst),
+            install_command: INSTALL_COMMAND,
+            swedish_missing_bytes: self.missing_bytes(),
+            swedish_downloadable: self.missing_downloadable(),
+        }
     }
-    let app = app.clone();
-    tauri::async_runtime::spawn(async move {
-        let event = match download(&app).await {
-            Ok(()) => ModelEvent::Ready,
-            Err(error) => {
-                // Technical context only (PRIV-07).
-                tracing::error!(%error, "model download failed");
-                let message_id = error_message_id(&error);
-                if message_id == UNREACHABLE {
-                    app.state::<Models>()
-                        .unreachable
-                        .store(true, Ordering::SeqCst);
-                }
-                ModelEvent::Error { message_id }
-            }
+
+    fn lock_job(&self) -> std::sync::MutexGuard<'_, Option<Job>> {
+        self.job.lock().expect("job lock")
+    }
+
+    fn set_message(&self, id: Option<&'static str>) {
+        *self.message_id.lock().expect("message lock") = id;
+    }
+
+    /// The manifest entries for `ids` from the webview (SEC-01): 1..=32 known ids, duplicates
+    /// dropped, manifest order kept.
+    pub fn resolve(&self, ids: &[String]) -> Result<Vec<&ModelEntry>, String> {
+        if ids.is_empty() || ids.len() > MAX_IDS {
+            return Err(format!("expected 1 to {MAX_IDS} model ids"));
+        }
+        if let Some(bad) = ids
+            .iter()
+            .find(|id| id.len() > MAX_ID_LEN || self.manifest.get(id).is_none())
+        {
+            return Err(format!(
+                "unknown model {:?}",
+                bad.chars().take(MAX_ID_LEN).collect::<String>()
+            ));
+        }
+        Ok(self
+            .manifest
+            .models
+            .iter()
+            .filter(|m| ids.contains(&m.id))
+            .collect())
+    }
+
+    /// Start a job for the models in `ids` that aren't installed yet. `None` when all of them
+    /// are; an error when the ids are invalid or another download runs.
+    pub fn begin(
+        &self,
+        ids: &[String],
+    ) -> Result<Option<(Vec<ModelEntry>, CancellationToken)>, String> {
+        let entries: Vec<ModelEntry> = self
+            .resolve(ids)?
+            .into_iter()
+            .filter(|m| !self.store.is_installed(m))
+            .cloned()
+            .collect();
+        let mut job = self.lock_job();
+        if job.is_some() {
+            return Err("a download is already running".into());
+        }
+        if entries.is_empty() {
+            return Ok(None);
+        }
+        let cancel = CancellationToken::new();
+        *job = Some(Job {
+            view: JobView {
+                ids: entries.iter().map(|m| m.id.clone()).collect(),
+                downloaded: 0,
+                total: entries.iter().map(ModelEntry::download_size).sum(),
+            },
+            cancel: cancel.clone(),
+            percent: u64::MAX,
+        });
+        self.set_message(None);
+        Ok(Some((entries, cancel)))
+    }
+
+    /// Record job progress; `true` when the whole percentage changed (worth an event).
+    fn set_progress(&self, downloaded: u64) -> bool {
+        let mut job = self.lock_job();
+        let Some(job) = job.as_mut() else {
+            return false;
         };
-        app.state::<Models>()
-            .downloading
-            .store(false, Ordering::SeqCst);
-        let _ = app.emit_to(lens::LABEL, EVENT, event);
-    });
+        job.view.downloaded = downloaded;
+        let percent = downloaded * 100 / job.view.total.max(1);
+        let changed = percent != job.percent;
+        job.percent = percent;
+        changed
+    }
+
+    /// Download `entries` one after another into the store, calling `notify` when the progress
+    /// moved by a whole percent.
+    pub async fn run_job(
+        &self,
+        entries: &[ModelEntry],
+        cancel: &CancellationToken,
+        mut notify: impl FnMut() + Send,
+    ) -> Result<(), ModelError> {
+        let downloader = Downloader::new()?;
+        let mut done = 0;
+        for model in entries {
+            tracing::info!(model = %model.id, bytes = model.download_size(), "downloading model");
+            downloader
+                .download(&self.store, model, cancel, |p| {
+                    if self.set_progress(done + p.downloaded) {
+                        notify();
+                    }
+                })
+                .await?;
+            done += model.download_size();
+        }
+        Ok(())
+    }
+
+    /// End the running job with `result` and remember what to tell the user.
+    pub fn finish(&self, result: &Result<(), ModelError>) {
+        *self.lock_job() = None;
+        let message = result.as_ref().err().map(error_message_id);
+        if message == Some(UNREACHABLE) {
+            self.unreachable.store(true, Ordering::SeqCst);
+        }
+        self.set_message(message);
+    }
+
+    /// Stop the running download; its `.part` files stay so the next download resumes (MDL-03).
+    /// `false` when nothing was running.
+    pub fn cancel(&self) -> bool {
+        self.lock_job()
+            .as_ref()
+            .map(|j| j.cancel.cancel())
+            .is_some()
+    }
+
+    /// The entry for `id` if it may be deleted now: known and not being downloaded.
+    pub fn deletable(&self, id: &str) -> Result<ModelEntry, String> {
+        let entry = self
+            .resolve(std::slice::from_ref(&id.to_owned()))?
+            .remove(0)
+            .clone();
+        if self
+            .lock_job()
+            .as_ref()
+            .is_some_and(|j| j.view.ids.contains(&entry.id))
+        {
+            return Err("the model is being downloaded; cancel first".into());
+        }
+        Ok(entry)
+    }
+
+    /// Delete a model's files, partial downloads included (MDL-05).
+    pub fn delete(&self, id: &str) -> Result<(), String> {
+        let entry = self.deletable(id)?;
+        match self.store.delete(&entry) {
+            Ok(()) => {
+                tracing::info!(model = %entry.id, "model deleted");
+                self.set_message(None);
+                Ok(())
+            }
+            Err(error) => {
+                tracing::error!(model = %entry.id, %error, "deleting the model failed");
+                self.set_message(Some("mdl-error-delete"));
+                Err(error.to_string())
+            }
+        }
+    }
+
+    pub fn set_first_run(&self, on: bool) {
+        self.first_run.store(on, Ordering::SeqCst);
+    }
+
+    fn take_first_run(&self) -> bool {
+        self.first_run.swap(false, Ordering::SeqCst)
+    }
 }
 
-/// The lens message for a failed download: the install command when the release isn't there for
-/// us, a retry hint otherwise.
-const UNREACHABLE: &str = "mdl-error-unreachable";
+/// The wizard is offered on a live start while the Swedish models are missing, once (SV-01).
+pub fn offer_first_run(mode: Mode, first_run_done: bool, missing_bytes: u64) -> bool {
+    mode == Mode::Live && !first_run_done && missing_bytes > 0
+}
 
+/// The message for a failed download or a stopped one.
 fn error_message_id(error: &ModelError) -> &'static str {
     match error {
         ModelError::Http(401 | 403 | 404 | 410) | ModelError::NotHosted(_) => UNREACHABLE,
+        ModelError::Cancelled => "mdl-cancelled",
+        ModelError::HashMismatch { .. } => "mdl-error-verify",
+        ModelError::Io(_) => "mdl-error-disk",
         _ => "mdl-error-download",
     }
 }
 
-async fn download(app: &AppHandle) -> Result<(), ModelError> {
-    let models = app.state::<Models>();
-    let missing = models.missing();
-    let total: u64 = missing.iter().map(ModelEntry::download_size).sum();
-    let downloader = Downloader::new()?;
-    let cancel = CancellationToken::new();
-    let mut done = 0;
-    for model in &missing {
-        tracing::info!(model = %model.id, bytes = model.download_size(), "downloading model");
-        let mut last_percent = u64::MAX;
-        downloader
-            .download(models.store(), model, &cancel, |p| {
-                let downloaded = done + p.downloaded;
-                let percent = downloaded * 100 / total.max(1);
-                if percent != last_percent {
-                    last_percent = percent;
-                    let _ = app.emit_to(
-                        lens::LABEL,
-                        EVENT,
-                        ModelEvent::Downloading { downloaded, total },
-                    );
-                }
-            })
-            .await?;
-        done += model.download_size();
+/// Tell both windows what changed.
+pub fn emit(app: &AppHandle) {
+    let _ = app.emit(EVENT, app.state::<Models>().view());
+}
+
+/// Open the model manager, or bring it to the front. Call it off the main thread's command
+/// path (an `async` command, setup, or a menu handler): building a window inside a synchronous
+/// command deadlocks on Windows.
+pub fn open_window(app: &AppHandle) -> tauri::Result<()> {
+    if let Some(w) = app.get_webview_window(WINDOW) {
+        w.show()?;
+        w.unminimize()?;
+        // Models may have changed on disk since it last drew (e.g. installed by the script).
+        emit(app);
+        return w.set_focus();
     }
-    let store = models.store().clone();
-    let translator = tokio::task::spawn_blocking(move || crate::live::translator(&store))
-        .await
-        .map_err(|_| ModelError::Io(std::io::Error::other("loading the models panicked")))?;
-    // If the pipeline isn't up yet it loads the installed models itself.
-    app.state::<Lens>().set_translator(translator);
+    let window = WebviewWindowBuilder::new(app, WINDOW, WebviewUrl::App("models.html".into()))
+        .title("Polyglass – Translation models")
+        .inner_size(640.0, 600.0)
+        .min_inner_size(440.0, 380.0)
+        .center()
+        .build()?;
+    let handle = app.clone();
+    window.on_window_event(move |event| {
+        if let WindowEvent::Destroyed = event {
+            finish_first_run(&handle);
+        }
+    });
+    window.set_focus()
+}
+
+/// The wizard was closed, declined or finished: don't offer it again (SV-01).
+pub fn finish_first_run(app: &AppHandle) {
+    if app.state::<Models>().take_first_run() {
+        app.state::<settings::Store>()
+            .update(|s| s.models.first_run_done = true);
+        emit(app);
+    }
+}
+
+/// Download the models in `ids` that are missing; progress arrives as [`EVENT`]s.
+pub fn start_download(app: &AppHandle, ids: &[String]) -> Result<(), String> {
+    let Some((entries, cancel)) = app.state::<Models>().begin(ids)? else {
+        emit(app);
+        return Ok(());
+    };
+    emit(app);
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let models = app.state::<Models>();
+        let result = models.run_job(&entries, &cancel, || emit(&app)).await;
+        if let Err(error) = &result {
+            // Technical context only (PRIV-07).
+            tracing::warn!(%error, "model download stopped");
+        }
+        models.finish(&result);
+        emit(&app);
+        if result.is_ok() {
+            reload_translator(&app).await;
+        }
+    });
     Ok(())
+}
+
+/// Delete a model and reload the translator without it.
+pub fn delete(app: &AppHandle, id: &str) -> Result<(), String> {
+    let result = app.state::<Models>().delete(id);
+    emit(app);
+    result?;
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move { reload_translator(&app).await });
+    Ok(())
+}
+
+/// Give the running live pipeline a translator with exactly the installed models. If the
+/// pipeline isn't up yet it loads them itself; demo mode keeps its mock.
+async fn reload_translator(app: &AppHandle) {
+    if app.state::<Lens>().mode != Mode::Live {
+        return;
+    }
+    let store = app.state::<Models>().store().clone();
+    match tokio::task::spawn_blocking(move || crate::live::translator(&store)).await {
+        Ok(translator) => {
+            app.state::<Lens>().set_translator(translator);
+        }
+        Err(_) => tracing::error!("loading the models panicked"),
+    }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::io::{BufRead, BufReader, Read, Write};
+    use std::net::TcpListener;
+    use std::path::Path;
+
+    use pg_models::sha256_file;
+
     use super::*;
+
+    fn ids(list: &[&str]) -> Vec<String> {
+        list.iter().map(|s| (*s).to_owned()).collect()
+    }
+
+    /// A manifest with one import-only Swedish direction, one downloadable Swedish direction
+    /// (`files`, served from `base`) and one German model.
+    fn manifest(base: &str, files: &[(&str, &[u8])]) -> Manifest {
+        let mut sha = Vec::new();
+        let dir = tempfile::tempdir().unwrap();
+        for (name, body) in files {
+            let p = dir.path().join(name);
+            std::fs::write(&p, body).unwrap();
+            sha.push(sha256_file(&p).unwrap());
+        }
+        let en_sv_files: Vec<String> = files
+            .iter()
+            .zip(&sha)
+            .map(|((name, body), sha)| {
+                format!(
+                    r#"{{ name = "{name}", url = "https://example.org/en-sv/{name}", size = {}, sha256 = "{sha}" }}"#,
+                    body.len()
+                )
+            })
+            .collect();
+        let any = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08";
+        let mut manifest = Manifest::parse(&format!(
+            r#"
+schema_version = 1
+
+[[model]]
+id = "t-de-en"
+engine = "ctranslate2"
+source = "de"
+target = "en"
+version = "1"
+license = "MIT"
+source_url = "https://example.org/de"
+files = [{{ name = "model.bin", url = "https://example.org/de/model.bin", size = 4, sha256 = "{any}" }}]
+
+[[model]]
+id = "t-sv-en"
+engine = "ctranslate2"
+source = "sv"
+target = "en"
+version = "1"
+license = "CC-BY-4.0"
+attribution = "Example, CC-BY 4.0"
+source_url = "https://example.org/sv"
+files = [{{ name = "model.bin", size = 4, sha256 = "{any}" }}]
+
+[[model]]
+id = "t-en-sv"
+engine = "ctranslate2"
+source = "en"
+target = "sv"
+version = "2"
+license = "MIT"
+source_url = "https://example.org/sv"
+files = [{}]
+"#,
+            en_sv_files.join(", ")
+        ))
+        .unwrap();
+        // The manifest takes https only; the downloader also takes loopback http (tests).
+        for file in &mut manifest.models[2].files {
+            file.url = Some(format!("{base}/{}", file.name));
+        }
+        manifest
+    }
+
+    fn models(root: &Path, base: &str, files: &[(&str, &[u8])]) -> Models {
+        Models::with_manifest(ModelStore::new(root), manifest(base, files))
+    }
+
+    #[test]
+    fn mdl01_rows_list_swedish_first_with_size_license_and_source() {
+        let dir = tempfile::tempdir().unwrap();
+        let m = models(
+            dir.path(),
+            "https://example.org/en-sv",
+            &[("model.bin", b"abc")],
+        );
+        let view = m.view();
+        let order: Vec<_> = view.rows.iter().map(|r| r.id.as_str()).collect();
+        assert_eq!(order, ["t-en-sv", "t-sv-en", "t-de-en"]);
+        let sv_en = &view.rows[1];
+        assert_eq!((sv_en.source.as_str(), sv_en.target.as_str()), ("sv", "en"));
+        assert_eq!(sv_en.license, "CC-BY-4.0");
+        assert_eq!(sv_en.attribution.as_deref(), Some("Example, CC-BY 4.0"));
+        assert_eq!(sv_en.source_url, "https://example.org/sv");
+        assert!(!sv_en.downloadable, "import-only");
+        assert_eq!(view.rows[0].download_size, 3);
+        assert_eq!(view.rows[0].version, "2");
+        // SV-01: the wizard pre-selects both Swedish directions and nothing else.
+        let suggested: Vec<_> = view.rows.iter().map(|r| r.suggested).collect();
+        assert_eq!(suggested, [true, true, false]);
+        assert_eq!(view.swedish_missing_bytes, 7);
+        assert!(!view.swedish_downloadable, "one direction is import-only");
+        assert!(view.rows.iter().all(|r| !r.installed && r.on_disk == 0));
+        assert_eq!(
+            (view.disk_usage, view.job, view.message_id),
+            (0, None, None)
+        );
+        assert_eq!(view.install_command, INSTALL_COMMAND);
+    }
+
+    #[test]
+    fn sec01_download_and_delete_take_only_known_ids() {
+        let dir = tempfile::tempdir().unwrap();
+        let m = models(dir.path(), "https://example.org", &[("model.bin", b"abc")]);
+        for bad in [
+            ids(&[]),
+            ids(&["nope"]),
+            ids(&["t-sv-en", "../t-sv-en"]),
+            vec!["x".repeat(10_000)],
+            vec!["t-sv-en".to_owned(); MAX_IDS + 1],
+        ] {
+            assert!(m.resolve(&bad).is_err(), "{:?}", bad.first());
+        }
+        let resolved = m.resolve(&ids(&["t-en-sv", "t-de-en", "t-en-sv"])).unwrap();
+        let got: Vec<_> = resolved.iter().map(|e| e.id.as_str()).collect();
+        assert_eq!(got, ["t-de-en", "t-en-sv"], "deduplicated, manifest order");
+        assert!(m.deletable("t-de-en").is_ok());
+        assert!(m.deletable("").is_err());
+        assert!(m.deletable("t-de-en/..").is_err());
+        assert!(m.delete("nope").is_err());
+    }
+
+    #[test]
+    fn mdl03_one_job_at_a_time_cancel_and_no_delete_while_downloading() {
+        let dir = tempfile::tempdir().unwrap();
+        let m = models(dir.path(), "https://example.org", &[("model.bin", b"abc")]);
+        assert!(!m.cancel(), "nothing to cancel");
+        let (entries, cancel) = m.begin(&ids(&["t-en-sv", "t-de-en"])).unwrap().unwrap();
+        assert_eq!(entries.len(), 2);
+        let job = m.view().job.unwrap();
+        assert_eq!((job.downloaded, job.total), (0, 7));
+        assert!(m.begin(&ids(&["t-sv-en"])).is_err(), "second job refused");
+        assert!(m.deletable("t-en-sv").is_err(), "being downloaded");
+        assert!(m.deletable("t-sv-en").is_ok(), "not in the job");
+        assert!(m.set_progress(3));
+        assert!(!m.set_progress(3), "same percent: no event");
+        assert_eq!(m.view().job.unwrap().downloaded, 3);
+        assert!(m.cancel());
+        assert!(cancel.is_cancelled());
+        m.finish(&Err(ModelError::Cancelled));
+        let view = m.view();
+        assert_eq!((view.job, view.message_id), (None, Some("mdl-cancelled")));
+        assert!(!view.unreachable);
+        assert!(m.begin(&ids(&["t-sv-en"])).unwrap().is_some(), "free again");
+    }
 
     #[test]
     fn mdl03_unreachable_release_falls_back_to_the_install_command() {
@@ -171,16 +642,163 @@ mod tests {
             error_message_id(&ModelError::NotHosted("opus-mt-sv-en".into())),
             UNREACHABLE
         );
-        for error in [
-            ModelError::Http(500),
-            ModelError::Http(429),
-            ModelError::Network("timed out".into()),
-            ModelError::Cancelled,
-            ModelError::HashMismatch {
-                file: "model.bin".into(),
-            },
+        for (error, id) in [
+            (ModelError::Http(500), "mdl-error-download"),
+            (ModelError::Http(429), "mdl-error-download"),
+            (
+                ModelError::Network("timed out".into()),
+                "mdl-error-download",
+            ),
+            (ModelError::Cancelled, "mdl-cancelled"),
+            (
+                ModelError::HashMismatch {
+                    file: "model.bin".into(),
+                },
+                "mdl-error-verify",
+            ),
+            (
+                ModelError::Io(std::io::Error::other("full")),
+                "mdl-error-disk",
+            ),
         ] {
-            assert_eq!(error_message_id(&error), "mdl-error-download", "{error}");
+            assert_eq!(error_message_id(&error), id, "{error}");
         }
+
+        // An unreachable answer turns downloads off for the run; the view says so.
+        let dir = tempfile::tempdir().unwrap();
+        let m = models(dir.path(), "https://example.org", &[("model.bin", b"abc")]);
+        m.begin(&ids(&["t-en-sv"])).unwrap();
+        m.finish(&Err(ModelError::Http(404)));
+        let view = m.view();
+        assert!(view.unreachable && !view.swedish_downloadable);
+        assert_eq!(view.message_id, Some(UNREACHABLE));
+        assert!(!m.missing_downloadable());
+    }
+
+    #[tokio::test]
+    async fn mdl06_import_only_model_downloads_nothing() {
+        let dir = tempfile::tempdir().unwrap();
+        let m = models(dir.path(), "https://example.org", &[("model.bin", b"abc")]);
+        let (entries, cancel) = m.begin(&ids(&["t-sv-en"])).unwrap().unwrap();
+        let result = m.run_job(&entries, &cancel, || {}).await;
+        assert!(
+            matches!(result, Err(ModelError::NotHosted(_))),
+            "{result:?}"
+        );
+        m.finish(&result);
+        assert_eq!(m.view().message_id, Some(UNREACHABLE));
+        assert_eq!(m.view().disk_usage, 0);
+    }
+
+    #[tokio::test]
+    async fn mdl03_mdl05_download_resume_then_delete() {
+        const MODEL: &[u8] = b"model bytes for the en-sv test model";
+        const VOCAB: &[u8] = b"vocab";
+        let (base, seen) = serve_files(&[("model.bin", MODEL), ("vocab.spm", VOCAB)]);
+        let dir = tempfile::tempdir().unwrap();
+        let m = models(
+            dir.path(),
+            &base,
+            &[("model.bin", MODEL), ("vocab.spm", VOCAB)],
+        );
+        let entry = m.manifest.get("t-en-sv").unwrap().clone();
+
+        // An interrupted download left the first 10 bytes; the job resumes from them.
+        let model_dir = m.store().model_dir(&entry);
+        std::fs::create_dir_all(&model_dir).unwrap();
+        std::fs::write(model_dir.join("model.bin.part"), &MODEL[..10]).unwrap();
+        let resumable = m.view();
+        assert_eq!(resumable.rows[0].on_disk, 10);
+        assert!(!resumable.rows[0].installed);
+
+        let (entries, cancel) = m.begin(&ids(&["t-en-sv"])).unwrap().unwrap();
+        let mut events = 0;
+        let result = m.run_job(&entries, &cancel, || events += 1).await;
+        result.as_ref().unwrap();
+        m.finish(&result);
+        assert!(events >= 2, "progress reported ({events})");
+        assert_eq!(
+            *seen.lock().unwrap(),
+            [("/model.bin".to_owned(), 10), ("/vocab.spm".to_owned(), 0)],
+            "resumed at byte 10"
+        );
+
+        let view = m.view();
+        let row = &view.rows[0];
+        assert!(row.installed);
+        assert_eq!(
+            row.on_disk,
+            (MODEL.len() + VOCAB.len() + 1) as u64,
+            "+ marker"
+        );
+        assert_eq!(view.disk_usage, row.on_disk);
+        assert_eq!((view.job, view.message_id), (None, None));
+        assert_eq!(std::fs::read(model_dir.join("model.bin")).unwrap(), MODEL);
+        assert!(m.begin(&ids(&["t-en-sv"])).unwrap().is_none(), "installed");
+
+        m.delete("t-en-sv").unwrap();
+        let view = m.view();
+        assert!(!view.rows[0].installed);
+        assert_eq!(view.disk_usage, 0);
+    }
+
+    /// Requests a test server saw: path and the first byte asked for.
+    type Seen = std::sync::Arc<Mutex<Vec<(String, usize)>>>;
+
+    /// A loopback HTTP server for one request per file: `<base>/<name>` serves that file and
+    /// honours `Range: bytes=N-`. Returns the base URL and the requests it saw.
+    fn serve_files(files: &[(&'static str, &'static [u8])]) -> (String, Seen) {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let base = format!("http://{}", listener.local_addr().unwrap());
+        let files: Vec<(&'static str, &'static [u8])> = files.to_vec();
+        let seen = Seen::default();
+        let log = seen.clone();
+        std::thread::spawn(move || {
+            for stream in listener.incoming().take(files.len()) {
+                let mut stream = stream.unwrap();
+                let mut reader = BufReader::new(stream.try_clone().unwrap());
+                let mut request = String::new();
+                reader.read_line(&mut request).unwrap();
+                let path = request.split_whitespace().nth(1).unwrap_or("/").to_owned();
+                let body = files
+                    .iter()
+                    .find(|(name, _)| path.ends_with(name))
+                    .map_or(&b""[..], |(_, body)| *body);
+                let mut from = 0;
+                loop {
+                    let mut line = String::new();
+                    if reader.read_line(&mut line).unwrap() == 0 || line == "\r\n" {
+                        break;
+                    }
+                    if let Some(r) = line.to_ascii_lowercase().strip_prefix("range: bytes=") {
+                        from = r.trim().trim_end_matches('-').parse().unwrap();
+                    }
+                }
+                log.lock().unwrap().push((path, from));
+                let part = &body[from..];
+                let status = if from > 0 {
+                    "206 Partial Content"
+                } else {
+                    "200 OK"
+                };
+                let _ = write!(
+                    stream,
+                    "HTTP/1.1 {status}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                    part.len()
+                );
+                let _ = stream.write_all(part);
+                let _ = stream.read(&mut [0; 1]);
+            }
+        });
+        (base, seen)
+    }
+
+    #[test]
+    fn sv01_wizard_is_offered_once_on_a_live_start_without_the_models() {
+        assert!(offer_first_run(Mode::Live, false, 1));
+        assert!(!offer_first_run(Mode::Live, true, 1), "offered before");
+        assert!(!offer_first_run(Mode::Live, false, 0), "models installed");
+        assert!(!offer_first_run(Mode::Demo, false, 1), "demo mode");
+        assert!(!offer_first_run(Mode::None, false, 1), "no pipeline");
     }
 }
