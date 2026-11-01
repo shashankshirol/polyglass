@@ -18,6 +18,8 @@ struct ServerState {
     cut_after: HashMap<String, usize>,
     /// Stall forever after this many body bytes.
     stall_after: HashMap<String, usize>,
+    /// Answer these paths with `302 Found` to the given location.
+    redirects: HashMap<String, String>,
     /// Range header of each request, in order (`None` = no Range).
     ranges: Vec<Option<String>>,
 }
@@ -47,13 +49,22 @@ async fn serve(state: State) -> String {
                     .lines()
                     .find(|l| l.to_ascii_lowercase().starts_with("range:"))
                     .map(|l| l[6..].trim().to_string());
-                let (body, cut, stall) = {
+                let (body, cut, stall, redirect) = {
                     let mut s = state.lock().unwrap();
                     s.ranges.push(range.clone());
                     let cut = s.cut_after.remove(&path);
                     let stall = s.stall_after.get(&path).copied();
-                    (s.files.get(&path).cloned(), cut, stall)
+                    let redirect = s.redirects.get(&path).cloned();
+                    (s.files.get(&path).cloned(), cut, stall, redirect)
                 };
+                if let Some(location) = redirect {
+                    let head = format!(
+                        "HTTP/1.1 302 Found\r\nLocation: {location}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+                    );
+                    let _ = sock.write_all(head.as_bytes()).await;
+                    let _ = sock.shutdown().await;
+                    return;
+                }
                 let Some(body) = body else {
                     let _ = sock
                         .write_all(b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n")
@@ -215,6 +226,68 @@ async fn mdl03_resumes_after_interruption() {
         resumed_from > 0 && resumed_from <= 40_000,
         "resumed from {resumed_from}"
     );
+}
+
+/// GitHub release downloads answer with a redirect to the asset host; the Range header of a
+/// resumed download must reach the host that serves the file.
+#[tokio::test]
+async fn mdl03_follows_redirects_and_resumes_through_them() {
+    let a = payload(100_000, 8);
+    let (state, base) = setup(&[("assets/model.bin", a.clone())]).await;
+    {
+        let mut s = state.lock().unwrap();
+        s.redirects
+            .insert("/model.bin".into(), format!("{base}/assets/model.bin"));
+        s.cut_after.insert("/assets/model.bin".into(), 40_000);
+    }
+    let model = entry(&base, &[("model.bin", &a)]);
+    let dir = tempfile::tempdir().unwrap();
+    let store = ModelStore::new(dir.path());
+    let dl = Downloader::new().unwrap();
+
+    let err = dl
+        .download(&store, &model, &CancellationToken::new(), |_| {})
+        .await
+        .unwrap_err();
+    assert!(matches!(err, ModelError::Network(_)), "{err:?}");
+    dl.download(&store, &model, &CancellationToken::new(), |_| {})
+        .await
+        .unwrap();
+    assert!(store.is_installed(&model));
+    assert_eq!(
+        std::fs::read(store.file_path(&model, "model.bin")).unwrap(),
+        a
+    );
+    // Redirect + file, then the same two requests resumed with a Range.
+    let ranges = state.lock().unwrap().ranges.clone();
+    assert_eq!(ranges.len(), 4, "{ranges:?}");
+    assert_eq!(ranges[..2], [None, None]);
+    assert!(
+        ranges[3].is_some(),
+        "the asset host got the Range: {ranges:?}"
+    );
+    assert_eq!(ranges[2], ranges[3]);
+}
+
+#[tokio::test]
+async fn sec03_redirect_to_plain_http_is_refused() {
+    let a = payload(1_000, 9);
+    let (state, base) = setup(&[]).await;
+    state.lock().unwrap().redirects.insert(
+        "/model.bin".into(),
+        "http://example.invalid/model.bin".into(),
+    );
+    let model = entry(&base, &[("model.bin", &a)]);
+    let dir = tempfile::tempdir().unwrap();
+    let store = ModelStore::new(dir.path());
+    let err = Downloader::new()
+        .unwrap()
+        .download(&store, &model, &CancellationToken::new(), |_| {})
+        .await
+        .unwrap_err();
+    assert!(matches!(err, ModelError::InsecureUrl), "{err:?}");
+    assert!(!store.is_installed(&model));
+    assert_eq!(state.lock().unwrap().ranges.len(), 1);
 }
 
 #[tokio::test]

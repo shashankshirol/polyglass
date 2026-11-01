@@ -5,7 +5,7 @@ use std::path::Path;
 use std::time::Duration;
 
 use futures_util::StreamExt;
-use reqwest::{StatusCode, header};
+use reqwest::{StatusCode, Url, header, redirect};
 use tokio::fs::{self, OpenOptions};
 use tokio::io::AsyncWriteExt;
 use tokio_util::sync::CancellationToken;
@@ -32,6 +32,7 @@ impl Downloader {
             .connect_timeout(Duration::from_secs(15))
             .read_timeout(Duration::from_secs(30))
             .user_agent(concat!("Polyglass/", env!("CARGO_PKG_VERSION")))
+            .redirect(redirect_policy())
             .build()
             .map_err(|e| ModelError::Network(e.to_string()))?;
         Ok(Self { client })
@@ -119,7 +120,13 @@ impl Downloader {
             req = req.header(header::RANGE, format!("bytes={have}-"));
         }
         let resp = tokio::select! {
-            r = req.send() => r.map_err(|e| ModelError::Network(e.to_string()))?,
+            r = req.send() => r.map_err(|e| {
+                if is_insecure_redirect(&e) {
+                    ModelError::InsecureUrl
+                } else {
+                    ModelError::Network(e.to_string())
+                }
+            })?,
             () = cancel.cancelled() => return Err(ModelError::Cancelled),
         };
         let append = match resp.status() {
@@ -186,13 +193,58 @@ async fn file_ok(path: &Path, size: u64, sha256: &str) -> Result<bool> {
 /// HTTPS only (SEC-03); plain HTTP is accepted for loopback hosts so tests can use a local
 /// server. Manifest validation separately requires https for every shipped URL.
 fn check_url(url: &str) -> Result<()> {
-    let parsed = reqwest::Url::parse(url).map_err(|_| ModelError::InsecureUrl)?;
-    let loopback = matches!(parsed.host_str(), Some("127.0.0.1" | "localhost" | "[::1]"));
-    match parsed.scheme() {
-        "https" => Ok(()),
-        "http" if loopback => Ok(()),
-        _ => Err(ModelError::InsecureUrl),
+    let parsed = Url::parse(url).map_err(|_| ModelError::InsecureUrl)?;
+    if url_allowed(&parsed) {
+        Ok(())
+    } else {
+        Err(ModelError::InsecureUrl)
     }
+}
+
+fn url_allowed(url: &Url) -> bool {
+    let loopback = matches!(url.host_str(), Some("127.0.0.1" | "localhost" | "[::1]"));
+    match url.scheme() {
+        "https" => true,
+        "http" => loopback,
+        _ => false,
+    }
+}
+
+/// Redirects are followed (GitHub release downloads redirect to its asset host) under the same
+/// URL policy as the manifest URL, at most 10 times. The file is still checked against the
+/// manifest SHA-256 wherever it came from.
+fn redirect_policy() -> redirect::Policy {
+    redirect::Policy::custom(|attempt| {
+        if attempt.previous().len() >= 10 {
+            attempt.error("too many redirects")
+        } else if url_allowed(attempt.url()) {
+            attempt.follow()
+        } else {
+            attempt.error(InsecureRedirect)
+        }
+    })
+}
+
+#[derive(Debug)]
+struct InsecureRedirect;
+
+impl std::fmt::Display for InsecureRedirect {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("redirect to a non-HTTPS URL")
+    }
+}
+
+impl std::error::Error for InsecureRedirect {}
+
+fn is_insecure_redirect(e: &reqwest::Error) -> bool {
+    let mut source = std::error::Error::source(e);
+    while let Some(err) = source {
+        if err.is::<InsecureRedirect>() {
+            return true;
+        }
+        source = err.source();
+    }
+    false
 }
 
 #[cfg(test)]
