@@ -47,6 +47,14 @@ impl Block {
             .min(1.0)
     }
 
+    /// Mean height of the block's lines, in the same units as the boxes (0 for no lines).
+    pub fn line_height(&self) -> f32 {
+        if self.lines.is_empty() {
+            return 0.0;
+        }
+        self.lines.iter().map(|l| l.bbox.h).sum::<f32>() / self.lines.len() as f32
+    }
+
     /// The block's text with lines joined for translation.
     ///
     /// A line ending in a hyphen directly after a letter is joined without a space and the
@@ -85,6 +93,17 @@ mod tests {
 
     fn line(t: &str, y: f32) -> Line {
         Line::new(t, Rect::new(0.0, y, 100.0, 10.0), 0.9)
+    }
+
+    #[test]
+    fn line_height_is_the_mean_of_the_lines() {
+        let mut tall = line("Avbryt", 12.0);
+        tall.bbox.h = 20.0;
+        assert_eq!(
+            Block::from_lines(vec![line("Spara", 0.0), tall]).line_height(),
+            15.0
+        );
+        assert_eq!(Block::from_lines(vec![]).line_height(), 0.0);
     }
 
     #[test]

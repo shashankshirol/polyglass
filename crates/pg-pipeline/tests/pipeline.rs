@@ -176,6 +176,7 @@ async fn cycle_translates_and_positions_blocks() {
         Some(format!("[en] {SV_TEXT}").as_str())
     );
     assert_eq!((b.rect.x, b.rect.y, b.rect.w), (20.0, 20.0, 300.0));
+    assert_eq!(b.line_height, 14.0);
     assert_eq!(b.bg, "#ffffff");
     assert_eq!(b.fg, "#000000");
     assert!(u.backend.local);
@@ -189,6 +190,8 @@ async fn cap04_rects_are_logical_at_150_percent() {
     let u = cycle(&r, LEFT).await;
     let b = &u.blocks[0].rect;
     assert!((b.x - 20.0 / 1.5).abs() < 1e-4 && (b.w - 200.0).abs() < 1e-4);
+    // REN-02 starts fitting at the source line height, also in logical px.
+    assert!((u.blocks[0].line_height - 14.0 / 1.5).abs() < 1e-4);
 }
 
 #[tokio::test]

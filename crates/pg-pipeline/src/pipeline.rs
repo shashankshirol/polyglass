@@ -247,6 +247,7 @@ impl Pipeline {
                         w: b.w,
                         h: b.h,
                     },
+                    line_height: block.line_height() / rec.scale,
                     dim: block.confidence() < config.min_confidence,
                     source: text,
                     source_lang,

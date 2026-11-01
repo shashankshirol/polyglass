@@ -61,6 +61,9 @@ pub struct LensRect {
 #[derive(Clone, PartialEq, Serialize)]
 pub struct RenderedBlock {
     pub rect: LensRect,
+    /// Mean height of the source lines in lens-local logical px: where font fitting starts
+    /// (REN-02).
+    pub line_height: f32,
     pub source: String,
     pub source_lang: LangTag,
     /// `None` when translation failed (see the update's status).
