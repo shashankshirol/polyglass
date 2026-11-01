@@ -18,6 +18,11 @@ thiserror.workspace = true
 tokio = { workspace = true, features = ["rt"] }
 tracing.workspace = true
 
+# Linux: CTranslate2's runtime CPU dispatch doesn't link there (the GENERIC and AVX kernels are
+# missing, ADR-0005), so it compiles one set of kernels for the compiler's target instead.
+[target.'cfg(target_os = "linux")'.dependencies]
+ct2rs = { workspace = true, features = ["disable-cpu-dispatch"] }
+
 [dev-dependencies]
 serde.workspace = true
 serde_json.workspace = true

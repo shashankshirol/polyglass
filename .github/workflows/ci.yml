@@ -27,7 +27,7 @@ jobs:
   fmt:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
@@ -40,10 +40,10 @@ jobs:
       fail-fast: false
       matrix:
         # push/PR or os=linux → Linux; os=windows / os=macos → that OS; os=all → all four.
-        os: ${{ fromJSON((github.event_name != 'workflow_dispatch' || inputs.os == 'linux') && '["ubuntu-latest"]' || inputs.os == 'windows' && '["windows-latest"]' || inputs.os == 'macos' && '["macos-latest","macos-13"]' || '["ubuntu-latest","windows-latest","macos-latest","macos-13"]') }}
+        os: ${{ fromJSON((github.event_name != 'workflow_dispatch' || inputs.os == 'linux') && '["ubuntu-latest"]' || inputs.os == 'windows' && '["windows-latest"]' || inputs.os == 'macos' && '["macos-latest","macos-15-intel"]' || '["ubuntu-latest","windows-latest","macos-latest","macos-15-intel"]') }}
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
@@ -80,7 +80,7 @@ jobs:
     # D-6: rust-version = 1.90.
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@1.90
       - uses: Swatinem/rust-cache@v2
       - name: Tauri libraries, CMake and C++
@@ -96,8 +96,8 @@ jobs:
       run:
         working-directory: apps/desktop
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
@@ -111,7 +111,7 @@ jobs:
     # SEC-05: advisories + licenses.
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: EmbarkStudios/cargo-deny-action@v2
         with:
           command: check advisories licenses bans sources
