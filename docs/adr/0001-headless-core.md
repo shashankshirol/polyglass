@@ -29,7 +29,8 @@ must do no work while hidden, and must skip work when nothing changed.
 
 - Platform engines plug in by implementing the traits; no pipeline changes needed.
 - Change-detection thresholds (`ChangeConfig`) need tuning against real captures (caret blink,
-  anti-aliasing) once WGC/ScreenCaptureKit capture lands.
+  anti-aliasing) once WGC/ScreenCaptureKit capture lands. Done for WGC in session 10 (ADR-0003
+  "Change detection"); ScreenCaptureKit and X11 are still open.
 - The language identifier is tuned on `tests/fixtures/mixed-sv-en`; a held-out set is needed to
   avoid overfitting (CHECKLIST M0-FIX-1 note).
 - An OCR call already running on the blocking pool when the lens moves runs to completion (its

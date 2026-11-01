@@ -32,9 +32,10 @@ pg-testkit (dev-only: fixture images and OCR scoring for tests and pg-bench)
 
 `Pipeline::run_cycle(tick)`:
 
-1. **Blocking pool:** capture `tick.region` → `FrameSignature` → skip if unchanged and not
-   forced → "No text found" if blank → OCR (Auto mode prefers the Swedish recognizer, falls back
-   to English with a notice) → confidence filter → group lines into blocks → sample bg/fg colour.
+1. **Blocking pool:** capture `tick.region` → `FrameSignature` → skip if unchanged against the
+   last processed frame (a caret blink doesn't count, ADR-0003) and not forced → "No text
+   found" if blank → OCR (Auto mode prefers the Swedish recognizer, falls back to English with
+   a notice) → confidence filter → group lines into blocks → sample bg/fg colour.
 2. **Async:** for each block decide its language (fixed, or `langid::decide_sv_en`); blocks
    already in the target language pass through (TR-07); look up the LRU cache; send the misses
    in one request per language pair (TR-05); fill the cache.
