@@ -431,6 +431,60 @@ async fn cap03_content_change_is_picked_up() {
     j.await.unwrap();
 }
 
+/// `desktop(0)` with a `w`×`h` rectangle at (`x`, `y`) filled with grey `v`.
+fn desktop_with(x: usize, y: usize, w: usize, h: usize, v: u8) -> Frame {
+    let mut f = desktop(0);
+    let stride = f.stride();
+    let data = f.data_mut();
+    for row in y..y + h {
+        for col in x..x + w {
+            let i = row * stride + col * 4;
+            data[i..i + 3].copy_from_slice(&[v, v, v]);
+        }
+    }
+    f
+}
+
+async fn recheck(r: &Rig) -> CycleOutcome {
+    let t = Tick {
+        force: false,
+        ..tick(LEFT)
+    };
+    r.pipeline.run_cycle(t).await
+}
+
+#[tokio::test]
+async fn cap03_caret_blink_skips_ocr() {
+    let r = rig();
+    cycle(&r, LEFT).await;
+    for i in 0..8 {
+        // A 1×19 px caret after the text, on and off.
+        let f = if i % 2 == 0 {
+            desktop_with(330, 18, 1, 19, 0)
+        } else {
+            desktop(0)
+        };
+        r.capturer.set_desktop(f);
+        assert!(matches!(recheck(&r).await, CycleOutcome::Unchanged), "{i}");
+    }
+    assert_eq!(r.ocr.calls(), 1);
+}
+
+#[tokio::test]
+async fn cap03_small_changes_add_up() {
+    // A panel darkens by 2 levels per re-check, below the cell tolerance each time. Compared with
+    // the previous capture it would never count; compared with the processed frame it does.
+    let r = rig();
+    cycle(&r, LEFT).await;
+    r.capturer
+        .set_desktop(desktop_with(100, 150, 200, 100, 253));
+    assert!(matches!(recheck(&r).await, CycleOutcome::Unchanged));
+    r.capturer
+        .set_desktop(desktop_with(100, 150, 200, 100, 251));
+    assert!(matches!(recheck(&r).await, CycleOutcome::Update(_)));
+    assert_eq!(r.ocr.calls(), 2);
+}
+
 #[tokio::test(start_paused = true)]
 async fn cap03_stale_results_are_never_drawn() {
     let capturer = Shared(Arc::new(Mutex::new(StaticCapturer::new(desktop(0)))));

@@ -330,11 +330,16 @@ fn recognize(
     let t1 = Instant::now();
     let sig = FrameSignature::of(&frame);
     let changed = {
+        // Compared with the last frame that was processed, not the previous capture, so a
+        // caret blink never becomes the reference and slow changes (one letter typed per
+        // re-check) add up.
         let mut last = last_sig.lock().expect("signature lock");
         let changed = last
             .as_ref()
             .is_none_or(|prev| sig.differs(prev, &cfg.change));
-        *last = Some(sig.clone());
+        if changed || tick.force {
+            *last = Some(sig.clone());
+        }
         changed
     };
     t.change = t1.elapsed();

@@ -24,5 +24,13 @@ tokio = { workspace = true, features = ["rt", "macros", "test-util"] }
 async-trait.workspace = true
 serde_json.workspace = true
 
+[target.'cfg(windows)'.dev-dependencies]
+windows = { workspace = true, features = [
+    "Win32_Graphics_Gdi",
+    "Win32_System_LibraryLoader",
+    "Win32_UI_HiDpi",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
 [lints]
 workspace = true
