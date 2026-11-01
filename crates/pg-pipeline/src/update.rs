@@ -19,6 +19,19 @@ pub struct LensUpdate {
     pub timings: Timings,
 }
 
+impl LensUpdate {
+    /// What the copy action puts on the clipboard (REN-05): each block's displayed text, in
+    /// reading order, one block per line.
+    pub fn copy_text(&self) -> String {
+        let texts: Vec<&str> = self
+            .blocks
+            .iter()
+            .map(RenderedBlock::display_text)
+            .collect();
+        texts.join("\n")
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum LensStatus {
@@ -119,4 +132,54 @@ pub struct Timings {
 
 fn ser_ms<S: serde::Serializer>(d: &Duration, s: S) -> Result<S::Ok, S::Error> {
     s.serialize_f64(d.as_secs_f64() * 1000.0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn block(source: &str, translation: Option<&str>) -> RenderedBlock {
+        RenderedBlock {
+            rect: LensRect {
+                x: 0.0,
+                y: 0.0,
+                w: 100.0,
+                h: 14.0,
+            },
+            line_height: 14.0,
+            source: source.into(),
+            source_lang: LangTag::sv(),
+            translation: translation.map(Into::into),
+            target_lang: LangTag::en(),
+            passthrough: false,
+            dim: false,
+            bg: "#ffffff".into(),
+            fg: "#000000".into(),
+        }
+    }
+
+    #[test]
+    fn ren05_copy_text_is_the_displayed_blocks_in_order() {
+        let u = LensUpdate {
+            generation: 1,
+            status: LensStatus::Ok,
+            blocks: vec![
+                block("Spara ändringar", Some("Save changes")),
+                // Untranslated (failed) blocks copy their source, with å ä ö intact.
+                block("Göteborg, Malmö och Västerås", None),
+                block("Avbryt", Some("Avbryt – Ångra")),
+            ],
+            backend: BackendInfo {
+                id: "mock".into(),
+                name: "Mock".into(),
+                local: true,
+            },
+            notices: vec![],
+            timings: Timings::default(),
+        };
+        assert_eq!(
+            u.copy_text(),
+            "Save changes\nGöteborg, Malmö och Västerås\nAvbryt – Ångra"
+        );
+    }
 }
