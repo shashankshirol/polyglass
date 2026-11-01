@@ -25,15 +25,17 @@
 
 ## Current state
 
-- **Milestone:** M1. Headless core done. On Windows the lens runs **live by default**: Windows Graphics Capture of the lens interior + Windows OCR + **on-device translation** (`pg-ct2`: CTranslate2 through `ct2rs` running Helsinki-NLP's OPUS-MT sv↔en models converted to int8, behind the SV-05 `TokenGuard`; ADR-0005). Models aren't bundled: they're assets of the GitHub pre-release `models-opus-mt-2026-11-01` (D-9, M1-TR-7) and the manifest has their URLs, but **the repository is private until the first app release** (owner, session 9), so ⬇ gets 404 and the lens then shows the install command instead; `python scripts/models/opus_mt.py` builds and installs the same files offline and is the install path for now. `--demo` / `POLYGLASS_DEMO=1` keeps all mocks. Change detection is tuned on real captures (session 10): a caret blink doesn't re-run OCR, an edited character does, and live mode over static content costs ≈ 1% of a core in a release build (M1-CAP-6). Fixture images are rendered from `truth.json` at test time (100–200%, light/dark; font sizes are em sizes since session 9) and Windows OCR is gated on them and on the same text drawn as GDI ClearType screen text: OCR-04 and SV-03 pass in full on screen text; on the synthetic images only SV-03's repeated-misread clause fails (M1-OCR-6). 170 tests green (10 ignored: 3 measurements, 4 real-model tests that need the converted models, 2 tests against the GitHub release (fail while the repo is private), the synthetic SV-03 letter gate), clippy `-D warnings`, fmt and `cargo deny check` clean (Windows only so far). Building needs CMake and a C++ compiler (README). ADR-0002 (click-through), ADR-0003 (capture) and ADR-0005 (translation) are verified on Windows only.
+- **Milestone:** M1. Headless core done. On Windows the lens runs **live by default**: Windows Graphics Capture of the lens interior + Windows OCR + **on-device translation** (`pg-ct2`: CTranslate2 through `ct2rs` running Helsinki-NLP's OPUS-MT sv↔en models converted to int8, behind the SV-05 `TokenGuard`; ADR-0005). Models aren't bundled: they're assets of the GitHub pre-release `models-opus-mt-2026-11-01` (D-9, M1-TR-7) and the manifest has their URLs, but **the repository is private until the first app release** (owner, session 9), so ⬇ gets 404 and the lens then shows the install command instead; `python scripts/models/opus_mt.py` builds and installs the same files offline and is the install path for now. `--demo` / `POLYGLASS_DEMO=1` keeps all mocks. Since session 10 the lens fits text from the source size down to 9 px, shows the original while left Alt is held, copies (⧉, Ctrl+Alt+C), swaps direction (⇄, Ctrl+Alt+S), has the HK-01 hotkeys and keeps its position, click-through and target in `settings.toml` (M1-APP-6/7/9, SET-01). Change detection is tuned on real captures (session 10): a caret blink doesn't re-run OCR, an edited character does, and live mode over static content costs ≈ 1% of a core in a release build (M1-CAP-6). Fixture images are rendered from `truth.json` at test time (100–200%, light/dark; font sizes are em sizes since session 9) and Windows OCR is gated on them and on the same text drawn as GDI ClearType screen text: OCR-04 and SV-03 pass in full on screen text; on the synthetic images only SV-03's repeated-misread clause fails (M1-OCR-6). 183 tests green (10 ignored: 3 measurements, 4 real-model tests that need the converted models, 2 tests against the GitHub release (fail while the repo is private), the synthetic SV-03 letter gate), clippy `-D warnings`, fmt and `cargo deny check` clean (Windows only so far). Building needs CMake and a C++ compiler (README). ADR-0002 (click-through), ADR-0003 (capture) and ADR-0005 (translation) are verified on Windows only.
 - **Dev machine used so far:** Windows 11 x64, Rust 1.99, Node 24, Python 3.12 (no Pillow), no Tesseract, VS 18 Community (MSVC 14.51 with its bundled CMake 4.3 and Ninja; not on the normal `PATH`). Windows OCR languages installed: `en-US`, `en-GB`, `sv-SE` (Swedish was added after session 2; the real "Swedish missing" path is now tested with an uninstalled tag instead).
 - **Monitors on this machine:** 2560×1440 at 100% (primary) and 2160×3840 at 150% (above-left, negative coordinates), which is useful for CAP-04 and mixed-DPI checks.
 - **Git:** `main` and the tag `models-opus-mt-2026-11-01` are pushed to `origin` (https://github.com/shashankshirol/polyglass) since session 9; the owner made the repository private after that and keeps it private until the first app release. CI ran for the first time on that push.
 - **Next up (suggested order, each ≈ one session):**
-  1. M1-APP-6..9 (font fitting, hold-to-show-original, settings TOML + a model manager replacing the toolbar ⬇, hotkeys + the swap button now that both directions are loaded).
+  1. M1-APP-8's rest: the model manager (MDL-01/03/05) replacing the toolbar ⬇, and the first-run wizard (MDL-06, SV-01). Settings (SET-01) are done.
   2. M0-FIX-4 eval sets, then a `pg-bench` translation stage with the real backend (PERF-01/06 end to end).
   3. M0-SPK-1/SPK-2/SPK-3 on macOS/Linux, including the first CTranslate2 build there (the CI jobs for it have never run).
 - **Known follow-ups inside done work** (not separate tasks yet):
+  - `deny.toml` allows BSL-1.0 since session 10 for `clipboard-win` and `error-code` (arboard's Windows backend, REN-05). It is permissive and OSI-approved. If the owner prefers not to allow it, the copy can call the Win32 clipboard directly (more `unsafe`).
+  - macOS: the hold-Option key state (REN-04) has no source yet (`hold.rs` runs on Windows only), and the ⌘⌥ hotkeys weren't tried. Do both with M1-CAP-3.
   - Change detection (M1-CAP-6): a typed narrow glyph (`l`, `I`, `|`, `1`) alone looks like a caret and waits for the next change; spinners and progress bars re-run OCR on every re-check (≈ 8–10 ms, translation cached). Over video, OCR misreads the moving background differently in each frame and each misread is translated (≈ 34–83 ms per cycle). Ignoring blocks that change on every cycle could save that. Retune when ScreenCaptureKit/X11 capture land (they may not be bit-exact).
   - `langid` scores 100% on `mixed-sv-en`, but it was tuned on that same fixture. Add a held-out set before trusting the SV-04 ≥ 90% gate.
   - `reqwest` uses rustls with the default **aws-lc-rs** provider. It built fine here, but check its binary size (SIZE-01) and build needs on macOS/Linux/arm64; switch to `ring` if needed.
@@ -173,7 +175,7 @@ These are verified with mocks. Each requirement is fully met only once real engi
 ### Translation and models
 - [x] M1-TR-1 On-device backend implementing `Translator`, `is_local() == true` (TR-01). *Since session 8 (M1-TR-6): crate `pg-ct2`, `Ct2Translator` (id `ctranslate2`), CTranslate2 int8 on Tokio's blocking pool, blocks split into sentences and sent as one batch. Tests: `without_models_every_pair_is_model_missing`, `a_broken_installed_model_is_an_error_not_a_panic`, `an_entry_without_the_model_files_is_rejected`, `sentences::tests` (3); real models: `tr1_tr3_both_directions_loaded_and_translate` (ignored, run manually: passes). The app uses it in live mode, manually verified in the release app (`cargo build -p polyglass-desktop --release --features tauri/custom-protocol`), models installed by `python scripts/models/opus_mt.py`, read with `lens-read.ps1`: "Vill du spara ändringarna innan du stänger?" → "Do you want to save the changes before closing?", the English line passed through. Without the models the lens showed the install command and no ⬇.*
 - [x] M1-TR-2 Model manifest entries for sv→en, en→sv with SHA-256/licenses (MDL-02, SIZE-05). *`opus-mt-sv-en`, `opus-mt-en-sv`: 6 files each with size + SHA-256, CC-BY-4.0 + attribution, 169.6 MB together. **No URLs yet** (D-9): the entries are import-only, installed by `scripts/models/opus_mt.py` (pinned converter, input zip and output SHA-256 pinned, reproducible) through `import-models` (MDL-04). Tests: `bundled_manifest_has_both_swedish_directions` (incl. SIZE-05 ≤ 200 MB, CC-BY-4.0, attribution); `mdl04_tr2_converted_models_import_and_verify` (ignored, passes). URLs since session 9 (M1-TR-7): assets of the GitHub pre-release `models-opus-mt-2026-11-01`; `bundled_manifest_has_both_swedish_directions` checks them.*
-- [x] M1-TR-3 Both directions loaded → instant swap (SV-01). *`Ct2Translator::load_installed` loads every installed direction at startup (0.27 s for both in a release test, off the UI thread in the app). `tr1_tr3_both_directions_loaded_and_translate` alternates sv→en / en→sv without reloading: 58–86 ms per pair of short strings (two runs). The UI swap button and hotkey are still placeholders (M1-APP-9).*
+- [x] M1-TR-3 Both directions loaded → instant swap (SV-01). *`Ct2Translator::load_installed` loads every installed direction at startup (0.27 s for both in a release test, off the UI thread in the app). `tr1_tr3_both_directions_loaded_and_translate` alternates sv→en / en→sv without reloading: 58–86 ms per pair of short strings (two runs). The toolbar ⇄ and Ctrl+Alt+S swap the target live since session 10 (M1-APP-9).*
 - [x] M1-TR-4 Preserved-token gate on `numbers-sv`/`numbers-en` with the real backend (SV-05). *On OPUS-MT (session 8): `sv05_placeholders_survive_opus_mt` (ignored) shows `{n}` placeholders come back unchanged in all 20 masked blocks, so the masking is unchanged; `tr4_sv05_numbers_fixtures_keep_preserved_tokens` (ignored): all 20 blocks pass `check_preserved`, 5 needed the masked pass (all sv→en), 0 fell back to the source. Example: `Totalt att betala: 1 234,50 kr` → `Total to pay: 1,234.50`. The guard logic is also unit-tested with a mock (`guard::tests`, 8 tests).*
 - [x] M1-TR-6 Move on-device translation to CTranslate2 + OPUS-MT (ADR-0005, D-8). *Done in session 8 on Windows:*
   - *Crate `pg-ct2` (`ct2rs` 0.10.3, ruy + SentencePiece, no `unsafe` in our code): any installed `ctranslate2` manifest entry is loaded, no language assumptions (M3-8/M3-9 need only manifest + script entries). Threads per model: `Options::default_threads()` = half the logical CPUs, 1..4.*
@@ -201,9 +203,9 @@ These are verified with mocks. Each requirement is fully met only once real engi
   - *Dragging onto the 150% monitor gives the correct 720×300 physical size and a fresh pipeline result.*
 
   *Not done:*
-  - *Restore of last size/position/mode (needs SET-01).*
+  - *~~Restore of last size/position~~ done in session 10 (SET-01, `lens01_restores_only_onto_a_monitor_that_is_there`; checked in the release app: moved 50 px, hidden, restarted → same spot). There is only one mode so far.*
   - *The max size (monitor work area) is set only at launch, not when the lens moves to another monitor.*
-  - *The click-through hotkey.*
+  - *~~The click-through hotkey~~ Ctrl+Alt+T since session 10 (M1-APP-9).*
   - *The toolbar's click-through toggle is implemented, but its effect was not checked with input.*
 - [~] M1-APP-3 Toolbar with accessible controls + privacy indicator (LENS-05, PRIV-05). *Stub done:*
   - *Every control is a `<button>` with an accessible name.*
@@ -213,7 +215,7 @@ These are verified with mocks. Each requirement is fully met only once real engi
 
   *Not done:*
   - *A mode badge: "DEMO" with `--demo`, "MOCK MT" in live mode until M1-TR-1.*
-  - *Source/target/swap/mode/settings are `aria-disabled` placeholders.*
+  - *Source/target/mode/settings are `aria-disabled` placeholders (the target shows EN/SV; ⇄ and ⧉ work since session 10).*
   - *Keyboard Tab order and screen-reader output not tested.*
 - [~] M1-APP-4 Tray icon, no taskbar/Dock entry, show/hide hotkey parks the pipeline (LENS-01, LENS-06). *Done:*
   - *Tray icon with Show/hide and Quit, plus left-click toggle.*
@@ -222,7 +224,7 @@ These are verified with mocks. Each requirement is fully met only once real engi
 
   *Not done:*
   - *The tray menu wasn't clicked in testing.*
-  - *The global hotkey.*
+  - *~~The global hotkey~~ Ctrl+Alt+L since session 10 (M1-APP-9).*
 - [~] M1-APP-5 Wire `pg-pipeline` driver to lens events; render `LensUpdate` in Overlay mode (MODE-01, REN-01). *Done:*
   - *Move/resize/scale/show/hide/pause events go through `state::Lens` into the `DriverHandle`.*
   - *The interior region is computed with `LogicalRect::to_physical`.*
@@ -236,13 +238,23 @@ These are verified with mocks. Each requirement is fully met only once real engi
   - *Tests: `npm test` (`ui/test/fit.test.ts`, Node's test runner, no new dependencies; added to the CI `ui` job), `line_height_is_the_mean_of_the_lines` (pg-core), and line-height asserts in `tests/pipeline.rs` incl. 150%.*
   - *Checked in Chromium on the plain-browser preview at 480×200: 18 px boxes fit at 15 px (line-height 1.2); a long block went to 9 px, grew to two lines with its tooltip, and was capped at the interior's edge. The live release app shows the translations (font sizes weren't read there).*
   - *Gaps: the tooltip can only be hovered with click-through off (Panel view is M2-2); a grown box can cover the block below it.*
-- [~] M1-APP-7 Hold Alt/Option to show original (REN-04); copy hotkey (REN-05, UTF-8 round-trip test). *Done in session 10 on Windows, except the hotkey.*
+- [x] M1-APP-7 Hold Alt/Option to show original (REN-04); copy hotkey (REN-05, UTF-8 round-trip test). *Done in session 10 on Windows.*
   - *REN-04: `hold.rs` reads the key state at ~30 Hz while the lens is visible (it is click-through and rarely focused, so there are no key events) and sends `lens-original` while left Alt alone is held. Right Alt and Ctrl combinations don't count, so AltGr (Ctrl + right Alt) and the Ctrl+Alt hotkeys never flash it (SV-09). It only reads, so other apps get every key. Tests: `ren04_left_alt_alone_shows_the_original`, `sv09_altgr_and_hotkeys_do_not_show_the_original`.*
   - *REN-05: toolbar ⧉ → `copy_translation` (no webview input) → `LensUpdate::copy_text` (displayed blocks in reading order, one per line) → clipboard via `arboard` (text only). Tests: `ren05_copy_text_is_the_displayed_blocks_in_order`, `ren05_clipboard_round_trips_swedish_text` (real clipboard, puts the old text back).*
   - *Live, release app, through UI Automation and real key events: translation → left Alt held: the Swedish source → released: translation; AltGr: no change; ⧉: both blocks on the clipboard in order.*
-  - *Not done: the Ctrl+Alt+C hotkey (M1-APP-9). macOS (Option) has no key-state source yet.*
-- [ ] M1-APP-8 Settings TOML in config dir (SET-01); model manager UI (MDL-01/03/05); first-run wizard (MDL-06, SV-01).
-- [ ] M1-APP-9 Default hotkeys (HK-01) + Swedish-layout AltGr check (SV-09).
+  - *The Ctrl+Alt+C hotkey (M1-APP-9) copies the same text; checked in the release app (å/ä/ö intact on the clipboard). macOS (Option) has no key-state source yet (Known follow-ups).*
+- [~] M1-APP-8 Settings TOML in config dir (SET-01); model manager UI (MDL-01/03/05); first-run wizard (MDL-06, SV-01). *Settings done in session 10; the model manager and the wizard are not started.*
+  - *`settings.rs`: `settings.toml` in the app config dir (`%APPDATA%\org.polyglass.desktop`) with `[lens]` x/y (physical), width/height (logical), click_through and `[translation]` target (`en`/`sv`). Starts with a comment line. Missing keys take defaults, unknown keys are ignored, a UTF-8 BOM is accepted, and a file that doesn't parse is renamed `settings.toml.bad` (defaults used). Atomic writes (temp + rename) when a setting changes, when the lens hides and at exit.*
+  - *The lens goes back to its saved spot when the toolbar would land on a monitor, else it is centred as before. Click-through and the target come back.*
+  - *Tests: `set01_round_trips_through_readable_toml`, `set01_missing_file_and_keys_take_defaults`, `set01_reads_a_file_saved_with_a_byte_order_mark`, `set01_broken_file_is_kept_aside`, `store_saves_only_changes`, `lens01_restores_only_onto_a_monitor_that_is_there`.*
+  - *Release app, through UI Automation and lens-probe: moved, toggled click-through off, hid → the file had both; restart → same position, click-through off and not click-through over the interior; a broken file → `.bad` kept, centred, click-through on. The check removed the file afterwards (there was none before).*
+  - *Not done: the model manager (MDL-01 catalog with size/license/source, MDL-03 progress + cancel + resume, MDL-05 delete + disk usage) and the first-run wizard (MDL-06, SV-01). The toolbar ⬇ and the install-command fallback (session 9) remain the interim.*
+- [x] M1-APP-9 Default hotkeys (HK-01) + Swedish-layout AltGr check (SV-09). *Done in session 10 on Windows.*
+  - *`hotkeys.rs` through `tauri-plugin-global-shortcut` 2.4 (registered from Rust; the webview has no permission for the plugin): Ctrl+Alt+L show/hide, Ctrl+Alt+C copy, Ctrl+Alt+S swap, Ctrl+Alt+T click-through (⌘⌥ on macOS). A key another app holds is logged and skipped (HK-02 reporting is M4-2). Ctrl+Alt+F comes with Freeze mode (M2-3).*
+  - *Swap (toolbar ⇄, `swap_languages`, or the hotkey) flips the target en ↔ sv, saves it and invalidates the pipeline; both directions stay loaded (SV-01). The toolbar shows the target (EN/SV).*
+  - *SV-09: `sv09_hotkeys_type_nothing_with_altgr_on_the_swedish_layout` reads the installed Swedish layout (never installs one; skips without it) with `ToUnicodeEx`: AltGr+L/C/S/T type nothing, AltGr+2 = @ and AltGr+E = € as the control. Also `hk01_defaults_map_back_to_their_actions`.*
+  - *Release app, real key events: Ctrl+Alt+S → target SV, the English line translated into Swedish and the Swedish line passed through; Ctrl+Alt+C → clipboard; Ctrl+Alt+T → click-through off/on; Ctrl+Alt+L → hidden/shown. With the hotkeys registered, AltGr+2 3 4 7 8 9 0 + typed `@£${[]}\` into another app's text box.*
+  - *Not run: macOS and Linux.*
 - [ ] M1-APP-10 `--trace-timings`, `--debug-dump-frames` with red banner (PRIV-02); default logs contain no text (PRIV-07).
 - [ ] M1-APP-11 Local crash reports, no telemetry (PRIV-06).
 
@@ -294,6 +306,22 @@ These are verified with mocks. Each requirement is fully met only once real engi
 ## Session log
 
 Newest first. Keep each entry short: what changed, what's verified, what's next, gotchas.
+
+### 2026-11-01 — Session 10 (M1-CAP-6 change detection + CPU; M1-APP-6, 7, 9; SET-01)
+- Commits on `main`, none pushed: `c71bfff` caret-aware change detection; `2d98211` `lens-cpu.ps1`; `2310878` ADR-0003/CHECKLIST for M1-CAP-6; `06414ef` + `44bd2e2` font fitting (M1-APP-6); `b97de53` + `dfcb50c` hold Alt / copy (M1-APP-7); `a81e532` checklist; `e11280a` settings.toml + lens restore (SET-01); `4409a2a` BSL-1.0 in `deny.toml`; `0618663` hotkeys + swap (M1-APP-9); then this log.
+- M1-CAP-6 (new ID): measured change detection on real WGC captures of GDI ClearType text (`tests/change_wgc.rs`, all 64 grid alignments, 100/150/200%). The 0.15%-of-cells rule ran OCR on every caret blink at the default lens and missed edited digits/typed letters in 600×300+ lenses; captures are bit-exact. Replaced by a per-pixel rule that recognises the caret by shape, compared against the last processed frame. Release-app CPU: ≈ 1% of a core over static text (47–188 ms / 10 s), 0 OCR cycles with a real blinking caret (session 9 build: 5). Numbers and limits in ADR-0003 "Change detection".
+- M1-APP-6: REN-02 fitting from the source line height down to 9 px, then grow + tooltip (`ui/src/fit.ts`, `npm test` with Node's test runner, added to the CI `ui` job).
+- M1-APP-7: hold left Alt for the original (key-state poller, AltGr excluded); ⧉ copy via `arboard`. M1-APP-9: Ctrl+Alt+L/C/S/T, swap en ↔ sv, SV-09 layout test. All three checked in the release app with UI Automation and real key events.
+- M1-APP-8: settings only (`settings.toml`, lens position/size/click-through/target restored). The model manager and the first-run wizard are not started.
+- Verified: fmt, clippy `-D warnings`, 183 tests (10 ignored), `cargo +1.90 check --workspace --all-targets`, `cargo deny check`, `npm run build`, `npm test`, all locally on Windows.
+- For the owner: `deny.toml` now allows BSL-1.0 (arboard's `clipboard-win`/`error-code`); say if you'd rather not (Known follow-ups). The two M1-OCR-6 calls from session 9 are still open.
+- Gotchas:
+  - Python heredocs in Git Bash still turn `\\` into `\` (a `"\\n"` became a real newline in Rust source). Put edit scripts in a file, or use the Edit tool.
+  - The Browser pane's preview tab has a 0×0 viewport while the pane is hidden; set one with `resize_window` before measuring layout.
+  - Windows' foreground lock: a test window from a background process can't take the focus by itself. A real click through the click-through interior works, but wait ≥ 100 ms after moving the cursor so the 30 Hz poller has flipped.
+  - `Process.TotalProcessorTime` moves in 15.6 ms steps; CPU over 10 s varies ± 1 tick between runs.
+  - The app's settings live in `%APPDATA%\org.polyglass.desktop\settings.toml`. The live checks removed the file they created; there was none before this session.
+- Next: the rest of M1-APP-8 (model manager + first-run wizard), then "Next up".
 
 ### 2026-11-01 — Session 9 (M1-TR-7: models release; M1-OCR-6)
 - Commits: `f52ae4e` downloader follows redirects to https only; `eec975a` models release workflow + `scripts/models/release_assets.py`; `a6737c5` manifest URLs + real-release tests + PRIVACY/ARCHITECTURE/ADR-0005; `200d429` README/CHECKLIST for the release; `ae5c8d6` fixture text at em size; `133c7a9` screen-text OCR gates; then this log.
