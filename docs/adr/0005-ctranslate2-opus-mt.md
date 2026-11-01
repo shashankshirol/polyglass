@@ -79,7 +79,7 @@ Measured results from the implementation (M1-TR-6) are in "Verified on this mach
   zips: `swe-eng/opus+bt-2021-04-30`, `eng-swe/opus+bt-2021-04-14`, the newest pair-specific
   releases) and its outputs; two runs in fresh venvs gave identical files. The files need an
   https host so the manifest can point at them (MDL-02); where to host them is owner decision
-  D-9. Until then the manifest entries are import-only (no `url`, a small `pg-models` change)
+  D-9, decided 2026-11-01: assets of a GitHub Release of this repository (M1-TR-7). Until then the manifest entries are import-only (no `url`, a small `pg-models` change)
   and the same script installs them through `import-models` (MDL-04); the lens explains this
   when the models are missing.
 - **License:** OPUS-MT models are CC-BY-4.0 (the LICENSE file in the release zip; the Hugging

@@ -30,12 +30,12 @@
 - **Monitors on this machine:** 2560×1440 at 100% (primary) and 2160×3840 at 150% (above-left, negative coordinates), which is useful for CAP-04 and mixed-DPI checks.
 - **Git:** local repo on `main`; no remote yet.
 - **Next up (suggested order, each ≈ one session):**
-  1. M1-OCR-6 rest: SV-03 å/ä/ö fails on Windows OCR (7.3% vs ≤ 2%; ä→å/ä→a at 100–125%). First find out whether the renderer causes it: draw the fixtures with GDI/DirectWrite ClearType in a real window and capture with WGC (as `crates/pg-capture/tests/wgc.rs` does), then score with `pg_testkit::metrics`. If real text fails too, try mitigations (frame padding, other upscaling, Tesseract `swe` on Windows) and/or bring the result to the owner.
-  2. Tune `ChangeConfig` and measure CPU on real captures in a release build (ADR-0003 "Not yet verified").
-  3. M1-APP-6..9 (font fitting, hold-to-show-original, settings TOML + a model manager replacing the toolbar ⬇, hotkeys + the swap button now that both directions are loaded).
-  4. M0-FIX-4 eval sets, then a `pg-bench` translation stage with the real backend (PERF-01/06 end to end).
-  5. M0-SPK-1/SPK-2/SPK-3 on macOS/Linux, including the first CTranslate2 build there (the CI jobs for it have never run).
-  - Owner: D-9 (model hosting). Once decided, add the `url`s to the two `opus-mt-*` manifest entries; the toolbar ⬇ path then works again without code changes.
+  1. **M1-TR-7: publish the OPUS-MT models as a GitHub Release (D-9)** and put the release URLs in the manifest, so the toolbar ⬇ works again.
+  2. M1-OCR-6 rest: SV-03 å/ä/ö fails on Windows OCR (7.3% vs ≤ 2%; ä→å/ä→a at 100–125%). First find out whether the renderer causes it: draw the fixtures with GDI/DirectWrite ClearType in a real window and capture with WGC (as `crates/pg-capture/tests/wgc.rs` does), then score with `pg_testkit::metrics`. If real text fails too, try mitigations (frame padding, other upscaling, Tesseract `swe` on Windows) and/or bring the result to the owner.
+  3. Tune `ChangeConfig` and measure CPU on real captures in a release build (ADR-0003 "Not yet verified").
+  4. M1-APP-6..9 (font fitting, hold-to-show-original, settings TOML + a model manager replacing the toolbar ⬇, hotkeys + the swap button now that both directions are loaded).
+  5. M0-FIX-4 eval sets, then a `pg-bench` translation stage with the real backend (PERF-01/06 end to end).
+  6. M0-SPK-1/SPK-2/SPK-3 on macOS/Linux, including the first CTranslate2 build there (the CI jobs for it have never run).
 - **Known follow-ups inside done work** (not separate tasks yet):
   - `ChangeConfig` thresholds (8 px cells, 6-level tolerance, 0.15% of cells) are only tested on synthetic frames. Tune on real captures (caret blink, ClearType).
   - `langid` scores 100% on `mixed-sv-en`, but it was tuned on that same fixture. Add a held-out set before trusting the SV-04 ≥ 90% gate.
@@ -91,7 +91,7 @@
   - `facebook/m2m100_418M` (MIT, 100 languages incl. sv/de/en): 1.94 GB in fp32, roughly 0.4–0.5 GB as int8 (an estimate). Not measured; expected to be much slower than the per-pair models and to break SIZE-05/PERF-01.
   - Also possible, not measured: Hugging Face `candle` (pure Rust; has Marian, no M2M-100 in its model list) and ONNX Runtime via `ort`.
   - Engines sit behind `Translator`, so a switch touches only the backend crate, the manifest and `live.rs`.
-- [ ] D-9 **(open, owner)** Where to host the converted OPUS-MT CTranslate2 model files (ADR-0005, MDL-02 needs https URLs in the manifest). Options: GitHub Releases of this repo (needs the remote first), a Hugging Face model repo under the owner's account, or other static https hosting. Until decided, models are installed by local conversion + import (MDL-04).
+- [x] D-9 Where to host the converted OPUS-MT CTranslate2 model files (ADR-0005, MDL-02). **Decided (2026-11-01): "let's use the github releases"**: assets of a GitHub Release of `github.com/shashankshirol/polyglass` (remote `origin`, added by the owner). Work tracked as M1-TR-7.
 
 ---
 
@@ -186,6 +186,14 @@ These are verified with mocks. Each requirement is fully met only once real engi
   - *Measured (release, ADR-0005): p50 over two runs, 4 threads: sv→en short 27.6–28.6 ms, paragraph 156–212 ms, ui-dialog-sv 147–198 ms; en→sv short 27.9–37.5 ms, paragraph 154–209 ms, ui-dialog-en 138–185 ms; RSS 211 MB with both loaded, 275 MB after the runs. Live release app: both models loaded in 0.25 s at startup; uncached cycle 117 ms (OCR 8.6 + translation 107.6 ms), cached 10 ms; `polyglass.exe` working set 294 MB (WebView2 not counted; 126 MB before). The log had no screen text (PRIV-07).*
   - *Build: plain `cargo build` / `npm run tauri dev` from a normal PowerShell work once CMake and Ninja are on `PATH` (README one-time setup: `winget install Kitware.CMake Ninja-build.Ninja`); `.cargo/config.toml` sets `+crt-static` and Ninja for MSVC targets. CI installs CMake/C++ (and Ninja on Windows) on all OSes and has an MSRV job; never run (no remote).*
   - *Removed the ADR-0004 backend: its crate and tests, its engine dependency, `flate2`, its two manifest entries and engine id, its UI text and docs (commit `84f9dad`). ADR-0004 stays as history. `deny.toml`: `MPL-2.0` is still needed (cssparser, selectors, dtoa-short, option-ext via Tauri), only its comment changed.*
+- [ ] M1-TR-7 Host the converted models on GitHub Releases (D-9, MDL-02/03).
+  - A script or CI workflow builds the assets with `scripts/models/opus_mt.py --no-install` and checks them against the pinned SHA-256s.
+  - It creates the release (tag e.g. `models-opus-mt-<date>`) and uploads the files plus the CC-BY-4.0 license and attribution, which also go in the release notes.
+  - Add the `https://github.com/shashankshirol/polyglass/releases/download/<tag>/<file>` URLs to the `opus-mt-*` manifest entries.
+  - Check that the downloader follows GitHub's redirect to its asset host and that resume (Range) works there.
+  - The toolbar ⬇ and the "missing" message switch back to downloading.
+  - PRIVACY.md names GitHub as the download host.
+  - Pushing and creating the release are outward-facing, so the owner approves each one.
 
 ### Desktop app (`apps/desktop`)
 - [x] M1-APP-1 Tauri 2 scaffold, TS + Vite UI, strict CSP, least-privilege capabilities (SEC-01, SEC-02). *Verified on Windows: the app runs in `tauri dev` and with embedded assets (`--features tauri/custom-protocol`) under the production CSP. The commands are declared in a `build.rs` app manifest, so each needs `allow-*` in `capabilities/lens.json`; no `core:default`. Validation tests: `sec01_nudge_accepts_only_arrow_key_steps`. CI `ui` job and Linux webkit deps added but never run; `tauri build` (bundling) not run yet.*

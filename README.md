@@ -83,11 +83,23 @@ POLYGLASS_DEMO=1 npm run tauri dev
 
 In PowerShell, run `Remove-Item Env:POLYGLASS_DEMO` to go back to live mode in the same terminal.
 
-### 3. First run: install the translation models
+### 3. First run: get the translation models
 
-The translation models aren't bundled with the app (MDL-06). Until the converted models are
-hosted for download (owner decision D-9), the lens says they're missing and you install them
-once, from the repository root:
+The translation models aren't bundled with the app (MDL-06). The converted OPUS-MT models are
+published as assets of a **GitHub Release of this repository**
+([releases](https://github.com/shashankshirol/polyglass/releases), decision D-9), and
+`models/manifest.toml` lists each file's URL and SHA-256:
+
+- **Download in the app:** on first launch the lens says the models are missing, and the toolbar
+  shows ⬇. Click it to download both directions (about 170 MB) from the release. Each file is
+  checked against its SHA-256 before it's saved to the model store,
+  `%LOCALAPPDATA%\org.polyglass.desktop\models` on Windows. Translation starts once the
+  download finishes.
+- **Until the first models release is published**, the manifest entries have no URLs yet, and the
+  lens shows the import command below instead of ⬇.
+
+To build the same files yourself (offline install, or a maintainer preparing a release), run
+this from the repository root:
 
 ```
 python scripts/models/opus_mt.py
@@ -99,16 +111,16 @@ This one command:
 - downloads Helsinki-NLP's official OPUS-MT sv→en and en→sv releases (2 × 286 MB) and checks
   their SHA-256;
 - converts them to CTranslate2 int8 (about 20 s) and checks every output file against the
-  SHA-256 in the script, so the result is identical on every machine;
-- installs both directions (170 MB) into the app's model store,
-  `%LOCALAPPDATA%\org.polyglass.desktop\models` on Windows, through
+  SHA-256 in the script, so the result is identical on every machine and to the release assets;
+- installs both directions (170 MB) into the app's model store through
   `cargo run -p pg-models --bin import-models`, which verifies them against
   `models/manifest.toml` again.
 
 Then restart Polyglass. Later launches load the models from disk, and nothing goes online. Use
 `--clean` to delete the downloads and the venv afterwards, `--store <dir>` for another model
 store, and `--no-install` to only convert. The OPUS-MT models are CC-BY-4.0: the attribution is
-in `models/manifest.toml`, and the license text is installed next to each model.
+in `models/manifest.toml` and the release notes, and the license text is installed next to each
+model.
 
 ### 4. Use the lens
 
@@ -207,7 +219,7 @@ crates/pg-pipeline   scheduler, change detection, block grouping, cache, live dr
 crates/pg-models     model manifest, SHA-256 verification, store, resumable downloads
 crates/pg-bench      benchmark CLI
 crates/pg-testkit    test helpers (fixture images from truth.json, CER/WER scoring)
-models/manifest.toml pinned model files + hashes + licenses (URLs once hosted, D-9)
+models/manifest.toml pinned model files + hashes + licenses + GitHub Release URLs (D-9)
 scripts/models/      pinned OPUS-MT → CTranslate2 int8 conversion + install script
 tests/fixtures/      ground-truth fixtures (CC0)
 docs/                architecture notes and ADRs
