@@ -4,6 +4,7 @@
 use serde::Serialize;
 use tauri::{AppHandle, State, WebviewWindow};
 
+use crate::clipboard;
 use crate::lens::{self, LAYOUT, Layout};
 use crate::models::{self, Models};
 use crate::state::{Lens, Mode};
@@ -54,6 +55,19 @@ pub fn download_models(window: WebviewWindow, app: AppHandle) -> CmdResult<()> {
     ensure_lens(&window)?;
     models::start_download(&app);
     Ok(())
+}
+
+/// Copy the text the lens shows, in reading order, to the clipboard (REN-05). Takes no input
+/// from the webview; `false` when there is nothing to copy.
+#[tauri::command]
+pub fn copy_translation(window: WebviewWindow, state: State<'_, Lens>) -> CmdResult<bool> {
+    ensure_lens(&window)?;
+    let text = state.copy_text();
+    if text.is_empty() {
+        return Ok(false);
+    }
+    clipboard::copy(&text)?;
+    Ok(true)
 }
 
 /// Open the Windows settings page where the Swedish OCR feature is added (SV-02). The target is

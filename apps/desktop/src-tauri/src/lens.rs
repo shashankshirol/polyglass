@@ -140,7 +140,8 @@ pub fn exclude_from_capture(window: &WebviewWindow) -> bool {
         return false;
     };
     // SAFETY: `hwnd` is the live lens window owned by this process; the call only sets a window
-    // attribute and fails cleanly on older Windows. The only `unsafe` in the desktop shell.
+    // attribute and fails cleanly on older Windows. One of the two `unsafe` calls in the desktop
+    // shell; the other reads the key state (`hold.rs`).
     #[allow(unsafe_code)]
     let result = unsafe { SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE) };
     match result {

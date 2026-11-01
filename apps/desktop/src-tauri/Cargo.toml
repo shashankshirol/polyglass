@@ -16,6 +16,8 @@ path = "src/main.rs"
 tauri-build = { version = "2.7", features = [] }
 
 [dependencies]
+# REN-05 copy. No image support: the lens copies text only.
+arboard = { version = "3", default-features = false }
 pg-core.workspace = true
 pg-capture.workspace = true
 pg-ocr.workspace = true
@@ -33,7 +35,10 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 
 [target.'cfg(windows)'.dependencies]
-windows = { workspace = true, features = ["Win32_UI_WindowsAndMessaging"] }
+windows = { workspace = true, features = [
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_WindowsAndMessaging",
+] }
 
 [lints]
 workspace = true

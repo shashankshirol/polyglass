@@ -6,8 +6,10 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod clickthrough;
+mod clipboard;
 mod commands;
 mod demo;
+mod hold;
 mod lens;
 mod live;
 mod models;
@@ -58,6 +60,7 @@ fn main() {
             commands::hide_lens,
             commands::open_ocr_language_settings,
             commands::download_models,
+            commands::copy_translation,
         ])
         .setup(move |app| {
             let handle = app.handle().clone();
@@ -73,6 +76,7 @@ fn main() {
             state.set_region(lens::interior_region(&window));
             state.set_visible(true);
             state.click.spawn(handle.clone(), window.clone());
+            state.hold.spawn(handle.clone());
             match mode {
                 Mode::Demo => {
                     tracing::warn!("demo mode: mock capture, OCR and translation");
@@ -168,6 +172,7 @@ fn start_pipeline(
         let (handle, _task) = driver::spawn(pipeline, SchedulerConfig::default(), tx);
         app.state::<Lens>().set_driver(handle);
         while let Some(update) = rx.recv().await {
+            app.state::<Lens>().set_last_update(&update);
             // LensUpdate's Debug is text-free, but don't log it at all (PRIV-07).
             if app.emit_to(lens::LABEL, UPDATE_EVENT, &update).is_err() {
                 break;

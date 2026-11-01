@@ -7,11 +7,12 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 
 use pg_core::PhysRect;
-use pg_pipeline::{DriverHandle, Pipeline};
+use pg_pipeline::{DriverHandle, LensUpdate, Pipeline};
 use pg_translate::Translator;
 use serde::Serialize;
 
 use crate::clickthrough::ClickThrough;
+use crate::hold::Hold;
 
 /// What runs behind the lens.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -28,6 +29,8 @@ pub enum Mode {
 #[derive(Debug)]
 pub struct Lens {
     pub click: Arc<ClickThrough>,
+    /// Hold left Alt for the original (REN-04).
+    pub hold: Arc<Hold>,
     pub mode: Mode,
     driver: OnceLock<DriverHandle>,
     pipeline: OnceLock<Arc<Pipeline>>,
@@ -36,12 +39,15 @@ pub struct Lens {
     visible: AtomicBool,
     paused: AtomicBool,
     region: Mutex<Option<PhysRect>>,
+    /// What the copy action copies: the text of the last update drawn (REN-05).
+    copy_text: Mutex<String>,
 }
 
 impl Lens {
     pub fn new(mode: Mode) -> Self {
         Self {
             click: ClickThrough::new(true),
+            hold: Hold::new(),
             mode,
             driver: OnceLock::new(),
             pipeline: OnceLock::new(),
@@ -49,7 +55,18 @@ impl Lens {
             visible: AtomicBool::new(false),
             paused: AtomicBool::new(false),
             region: Mutex::new(None),
+            copy_text: Mutex::new(String::new()),
         }
+    }
+
+    /// Remember what `update` shows, for the copy action.
+    pub fn set_last_update(&self, update: &LensUpdate) {
+        *self.copy_text.lock().expect("copy lock") = update.copy_text();
+    }
+
+    /// The text the lens shows right now, in reading order (empty when it shows none).
+    pub fn copy_text(&self) -> String {
+        self.copy_text.lock().expect("copy lock").clone()
     }
 
     /// Whether a pipeline is running behind the lens.
@@ -99,11 +116,16 @@ impl Lens {
     pub fn set_visible(&self, visible: bool) {
         self.visible.store(visible, Ordering::SeqCst);
         self.click.set_visible(visible);
+        self.hold.set_visible(visible);
         self.sync_driver();
     }
 
     pub fn set_paused(&self, paused: bool) {
         self.paused.store(paused, Ordering::SeqCst);
+        if paused {
+            // The UI clears the blocks on pause.
+            self.copy_text.lock().expect("copy lock").clear();
+        }
         self.sync_driver();
     }
 
@@ -131,6 +153,7 @@ impl Lens {
 
     pub fn shutdown(&self) {
         self.click.shutdown();
+        self.hold.shutdown();
         self.with_driver(DriverHandle::shutdown);
     }
 

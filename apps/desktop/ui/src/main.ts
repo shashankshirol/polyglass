@@ -32,6 +32,7 @@ const privacyName = $("privacy-name");
 const lockIcon = document.getElementById("icon-lock") as unknown as SVGElement;
 const cloudIcon = document.getElementById("icon-cloud") as unknown as SVGElement;
 const pauseBtn = $<HTMLButtonElement>("pause");
+const copyBtn = $<HTMLButtonElement>("copy");
 const clickBtn = $<HTMLButtonElement>("click-through");
 const ocrLangBtn = $<HTMLButtonElement>("ocr-lang");
 const modelsBtn = $<HTMLButtonElement>("models");
@@ -40,6 +41,10 @@ const badge = $("mode-badge");
 const HEX = /^#[0-9a-fA-F]{6}$/;
 let lastGeneration = -1;
 let paused = false;
+/** The update on screen, redrawn when left Alt is pressed or released (REN-04). */
+let current: LensUpdate | null = null;
+/** True while left Alt is held: show the source text instead of the translation (REN-04). */
+let showOriginal = false;
 let mode: LensConfig["mode"] = "none";
 /** Progress text while the toolbar's model download runs. */
 let downloadProgress: string | null = null;
@@ -95,8 +100,9 @@ function renderBlock(b: RenderedBlock): HTMLElement {
   el.className = "block";
   el.classList.toggle("dim", b.dim);
   // textContent only: recognized text is never parsed as HTML.
-  el.textContent = b.translation ?? b.source;
-  el.lang = b.translation && !b.passthrough ? b.target_lang : b.source_lang;
+  const translated = !showOriginal && b.translation !== null && !b.passthrough;
+  el.textContent = showOriginal ? b.source : (b.translation ?? b.source);
+  el.lang = translated ? b.target_lang : b.source_lang;
   el.style.left = `${b.rect.x}px`;
   el.style.top = `${b.rect.y}px`;
   el.style.width = `${b.rect.w}px`;
@@ -125,15 +131,27 @@ function fit(el: HTMLElement, b: RenderedBlock): void {
   }
 }
 
+function drawBlocks(u: LensUpdate): void {
+  const els = u.blocks.map(renderBlock);
+  blocksEl.replaceChildren(...els);
+  els.forEach((el, i) => fit(el, u.blocks[i]!));
+}
+
+/** REN-04: the Rust side reports left Alt (alone) being held or released. */
+function setShowOriginal(on: boolean): void {
+  showOriginal = on;
+  lensEl.classList.toggle("original", on);
+  if (current && !paused) drawBlocks(current);
+}
+
 function render(u: LensUpdate): void {
   // The driver never emits stale generations (CAP-03); this guards against reordering anyway.
   if (u.generation < lastGeneration) return;
   lastGeneration = u.generation;
 
   setPrivacy(u.backend.local, u.backend.name);
-  const els = u.blocks.map(renderBlock);
-  blocksEl.replaceChildren(...els);
-  els.forEach((el, i) => fit(el, u.blocks[i]!));
+  current = u;
+  drawBlocks(u);
 
   switch (u.status.kind) {
     case "ok":
@@ -272,7 +290,10 @@ pauseBtn.addEventListener("click", () => {
   pauseBtn.title = pauseBtn.getAttribute("aria-label") ?? "";
   pauseBtn.textContent = paused ? "▶" : "❚❚";
   lensEl.classList.toggle("paused", paused);
-  if (paused) blocksEl.replaceChildren();
+  if (paused) {
+    blocksEl.replaceChildren();
+    current = null;
+  }
   call("set_paused", { paused });
 });
 
@@ -283,6 +304,25 @@ clickBtn.addEventListener("click", () => {
 });
 
 $("close").addEventListener("click", () => call("hide_lens"));
+// REN-05: copy what the lens shows; Rust holds the text, so nothing is sent from here.
+copyBtn.addEventListener("click", () => {
+  if (!isTauri()) return;
+  invoke<boolean>("copy_translation")
+    .then((copied) => flashCopy(copied ? "✓" : "–", copied ? "Copied" : "Nothing to copy"))
+    .catch((e: unknown) => {
+      console.error("copy_translation failed", e);
+      flashCopy("!", "Copying failed");
+    });
+});
+
+function flashCopy(mark: string, label: string): void {
+  copyBtn.textContent = mark;
+  copyBtn.title = label;
+  setTimeout(() => {
+    copyBtn.textContent = "⧉";
+    copyBtn.title = "Copy translation";
+  }, 1200);
+}
 ocrLangBtn.addEventListener("click", () => call("open_ocr_language_settings"));
 modelsBtn.addEventListener("click", () => {
   modelsBtn.disabled = true;
@@ -307,6 +347,7 @@ async function start(): Promise<void> {
   await listen<LensUpdate>("lens-update", (e) => render(e.payload));
   await listen<string>("lens-error", (e) => showMessage(MESSAGES[e.payload] ?? e.payload));
   await listen<ModelEvent>("lens-models", (e) => onModelEvent(e.payload));
+  await listen<boolean>("lens-original", (e) => setShowOriginal(e.payload));
   applyConfig(await invoke<LensConfig>("lens_config"));
 }
 
