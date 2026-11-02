@@ -1,8 +1,10 @@
 # Polyglass — Product Specification
 
-> **Version:** 0.4 (draft) · **Date:** 2026-11-02 · **Companion:** [`PLAN.md`](./PLAN.md)
+> **Version:** 0.5 (draft) · **Date:** 2026-11-02 · **Companion:** [`PLAN.md`](./PLAN.md)
 > Priorities use MoSCoW: **MUST** (blocks 1.0), **SHOULD** (expected in 1.0), **COULD** (nice to have).
 > Each requirement has an ID; acceptance criteria (AC) are written so they can be checked by a test or a reviewer.
+
+**Changes in v0.5:** A clock time may be written in 12- or 24-hour form in a translation if its value is unchanged (SV-05, decision D-10).
 
 **Changes in v0.4:** Intel Macs are not supported in v1; macOS means Apple silicon (§4, decision D-11).
 
@@ -345,7 +347,7 @@ These keys were chosen because they produce no characters with AltGr on the Swed
 - [ ] On fixture `mixed-sv-en` (Swedish UI containing English product names and terms), ≥ 90% of blocks get the correct language decision.
 
 **SV-05 Preserved tokens — MUST**
-- [ ] Numbers, amounts, percentages, dates, times, URLs, e-mail addresses and ID numbers in the output contain the same digits in the same order as the source. Separators may be localized (e.g. `1 234,50 kr` → `SEK 1,234.50`) only if the value is unchanged.
+- [ ] Numbers, amounts, percentages, dates, times, URLs, e-mail addresses and ID numbers in the output contain the same digits in the same order as the source. Separators may be localized (e.g. `1 234,50 kr` → `SEK 1,234.50`) only if the value is unchanged. Likewise a clock time may be localized between 24- and 12-hour form (e.g. `kl. 15.00` → `3 p.m.`, `7:45 a.m.` → `07.45`) only if it names the same time; any other change of digits, and a number written as a word, fails.
 - [ ] Tested on fixture `numbers-sv` and its English counterpart.
 
 **SV-06 Compound words — SHOULD**

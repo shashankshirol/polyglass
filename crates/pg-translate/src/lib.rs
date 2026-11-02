@@ -5,6 +5,7 @@
 //! checks (SV-05) with a guard that keeps those tokens intact through any backend, and English
 //! pivoting (TR-03). Backends are added per CHECKLIST M1-TR-1, M3-*.
 
+mod clock;
 mod error;
 pub mod guard;
 pub mod langid;

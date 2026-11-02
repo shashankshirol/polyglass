@@ -346,6 +346,22 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn d10_clock_time_in_the_other_form_is_kept() {
+        let g = guard(&[
+            ("Incheckning från kl. 15.00", "Check-in from 3 p.m."),
+            ("Du har 2 försök kvar", "You have two attempts left"),
+            ("Du har {1} försök kvar", "You have {1} attempts left"),
+        ]);
+        let blocks = [
+            "Incheckning från kl. 15.00".into(),
+            "Du har 2 försök kvar".into(),
+        ];
+        let out = g.translate(&blocks, &sv_en()).await.unwrap();
+        assert_eq!(out, ["Check-in from 3 p.m.", "You have 2 attempts left"]);
+        assert_eq!((g.masked_retries(), g.fallbacks()), (1, 0));
+    }
+
+    #[tokio::test]
     async fn sv05_altered_url_is_restored_verbatim() {
         let g = guard(&[
             (
