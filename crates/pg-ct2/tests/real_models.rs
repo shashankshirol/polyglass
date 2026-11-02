@@ -1,4 +1,4 @@
-//! Tests against the real OPUS-MT sv↔en models (M1-TR-1..4). They need the output of
+//! Tests against the real OPUS-MT sv↔en models (M1-TR-1..4) and de→en (M3-9). They need the output of
 //! `scripts/models/opus_mt.py` (the same files as the GitHub release, D-9) and are `#[ignore]`d:
 //!
 //! ```text
@@ -312,4 +312,58 @@ async fn perf_latency_and_memory_both_directions() {
     if let Some(mb) = after {
         assert!(mb < 400.0, "RES-04: {mb} MB");
     }
+}
+
+/// M3-9: German → English from its catalog entry alone. Skips unless the German model was
+/// converted (`python scripts/models/opus_mt.py opus-mt-de-en --no-install`), since the default
+/// run (and the `Measure` workflow) converts only the Swedish pair.
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "needs the converted models (scripts/models/opus_mt.py)"]
+async fn m3_9_german_to_english_translates_and_keeps_numbers() {
+    let manifest = Manifest::bundled().unwrap();
+    let de_en = LangPair::new(
+        pg_core::LangTag::parse("de").unwrap(),
+        pg_core::LangTag::en(),
+    );
+    let entry = manifest.models.iter().find(|m| m.pair() == de_en).unwrap();
+    let from = std::env::var_os("POLYGLASS_OPUS_MT_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| {
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target/opus-mt/out")
+        })
+        .join(&entry.id);
+    let store = store();
+    if !store.is_installed(entry) {
+        if !from.is_dir() {
+            eprintln!("skipped: {} isn't converted", entry.id);
+            return;
+        }
+        store.import_from_dir(entry, &from).unwrap();
+    }
+    let t = TokenGuard::new(
+        Ct2Translator::load_installed(&manifest, &store, Options::default()).unwrap(),
+    );
+    assert!(t.supports(&de_en));
+    let out = t
+        .translate(
+            &[
+                "Möchten Sie die Änderungen speichern?".into(),
+                "Gesamtbetrag: 1.234,50 €".into(),
+            ],
+            &de_en,
+        )
+        .await
+        .unwrap();
+    eprintln!("{out:?}");
+    assert!(out[0].to_lowercase().contains("save"), "{out:?}");
+    assert!(
+        check_preserved(
+            "Gesamtbetrag: 1.234,50 €",
+            &de_en.source,
+            &out[1],
+            &de_en.target
+        )
+        .is_ok(),
+        "{out:?}"
+    );
 }
