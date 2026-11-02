@@ -169,12 +169,14 @@ fn main() {
 /// Feed move/resize/show/hide into the shared state (and from there into the driver).
 fn watch_window(window: &WebviewWindow) {
     let w = window.clone();
+    let cap = std::sync::Mutex::new(None);
     window.on_window_event(move |event| {
         let state = w.state::<Lens>();
         match event {
             WindowEvent::Moved(_)
             | WindowEvent::Resized(_)
             | WindowEvent::ScaleFactorChanged { .. } => {
+                lens::follow_monitor_cap(&w, &cap);
                 state.set_region(lens::interior_region(&w));
             }
             WindowEvent::CloseRequested { api, .. } => {

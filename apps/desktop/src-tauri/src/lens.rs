@@ -1,6 +1,8 @@
 //! Lens window geometry: creation and placement (LENS-01), keyboard nudging (LENS-02), size
 //! limits (LENS-03), and the interior region handed to the pipeline (CAP-01, CAP-04).
 
+use std::sync::{Mutex, PoisonError};
+
 use pg_core::{LogicalRect, PhysRect};
 use serde::Serialize;
 use tauri::{
@@ -152,8 +154,7 @@ pub fn place_and_show(
     if let Some(m) = monitor {
         let scale = m.scale_factor();
         let area = m.work_area();
-        let area_w = f64::from(area.size.width) / scale;
-        let area_h = f64::from(area.size.height) / scale;
+        let (area_w, area_h) = max_size(&m);
         let w = size.0.min(area_w);
         let h = size.1.min(area_h);
         window.set_max_size(Some(LogicalSize::new(area_w, area_h)))?;
@@ -170,6 +171,48 @@ pub fn place_and_show(
     window.show()?;
     window.set_focus()?;
     Ok(())
+}
+
+/// The largest lens on monitor `m`: its work area in logical px (LENS-03).
+fn max_size(m: &tauri::Monitor) -> (f64, f64) {
+    let (scale, area) = (m.scale_factor(), m.work_area());
+    (
+        f64::from(area.size.width) / scale,
+        f64::from(area.size.height) / scale,
+    )
+}
+
+/// Re-cap the lens to the work area of the monitor it is on now (LENS-03) when that cap differs
+/// from `cap`, the one last set: it may have been dragged onto another monitor, or the monitor's
+/// scale or taskbar changed. A lens larger than the new cap shrinks to it.
+pub fn follow_monitor_cap(window: &WebviewWindow, cap: &Mutex<Option<(f64, f64)>>) {
+    let Ok(Some(monitor)) = window.current_monitor() else {
+        return;
+    };
+    let size = max_size(&monitor);
+    let changed = {
+        let mut cap = cap.lock().unwrap_or_else(PoisonError::into_inner);
+        cap.replace(size) != Some(size)
+    };
+    // Not under the lock: both calls resize the window, which comes back here.
+    if changed && let Err(e) = window.set_max_size(Some(LogicalSize::new(size.0, size.1))) {
+        tracing::warn!(error = %e, "could not cap the lens to its monitor");
+    }
+    // Windows applies the cap to resizing by hand only, so shrink a lens that is too large now:
+    // once the window has the monitor's scale, else the DPI change would rescale it after us.
+    let (Ok(inner), Ok(scale)) = (window.inner_size(), window.scale_factor()) else {
+        return;
+    };
+    if (scale - monitor.scale_factor()).abs() > 1e-6 {
+        return;
+    }
+    let now: LogicalSize<f64> = inner.to_logical(scale);
+    if now.width > size.0 + 0.5 || now.height > size.1 + 0.5 {
+        let fitted = LogicalSize::new(now.width.min(size.0), now.height.min(size.1));
+        if let Err(e) = window.set_size(fitted) {
+            tracing::warn!(error = %e, "could not fit the lens to its monitor");
+        }
+    }
 }
 
 /// Move the lens by `(dx, dy)` logical px (LENS-02 arrow keys). Inputs are validated by
