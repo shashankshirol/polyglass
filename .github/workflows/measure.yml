@@ -104,6 +104,8 @@ jobs:
         env:
           POLYGLASS_OPUS_MT_DIR: ${{ env.OUT }}
           POLYGLASS_TEST_MODELS: ${{ env.MODELS }}
+          # CTranslate2 logs the CPU features, the ISA it picked and its GEMM backends at load.
+          CT2_VERBOSE: "1"
         run: cargo test -p pg-ct2 --release --test real_models -- --ignored --test-threads 1 --nocapture 2>&1 | tee "$RESULTS/real_models.txt"
       - name: pg-bench
         run: |
@@ -115,7 +117,10 @@ jobs:
           $b --fixture tests/fixtures/ui-dialog-sv --translator ct2 --models "$MODELS" --runs 50 | tee -a "$RESULTS/pg-bench.txt"
           $b --fixture tests/fixtures/ui-dialog-en --target sv --translator ct2 --models "$MODELS" --runs 50 | tee -a "$RESULTS/pg-bench.txt"
           if [ "$RUNNER_OS" = Windows ]; then
-            $b --fixture tests/fixtures/ui-dialog-sv --ocr windows --translator ct2 --models "$MODELS" --runs 50 | tee -a "$RESULTS/pg-bench.txt"
+            # GitHub's Windows images have the en-US OCR language but not sv-SE.
+            $b --fixture tests/fixtures/ui-dialog-en --target sv --ocr windows --translator ct2 --models "$MODELS" --runs 50 | tee -a "$RESULTS/pg-bench.txt"
+            $b --fixture tests/fixtures/ui-dialog-sv --ocr windows --translator ct2 --models "$MODELS" --runs 50 2>&1 | tee -a "$RESULTS/pg-bench.txt" \
+              || echo "ui-dialog-sv with Windows OCR skipped: no Swedish OCR on this runner" | tee -a "$RESULTS/pg-bench.txt"
           fi
           du -sh "$MODELS"/* | tee -a "$RESULTS/pg-bench.txt"
       - name: Summary
@@ -125,6 +130,7 @@ jobs:
             echo "## $RUNNER_OS $RUNNER_ARCH"
             echo '```'
             cat "$RESULTS"/machine.txt "$RESULTS"/build.txt "$RESULTS"/conversion.txt 2>/dev/null
+            grep -E 'CPU:|ISA|backend' "$RESULTS/real_models.txt" 2>/dev/null | sed 's/.*\] //' | sort -u
             grep -E 'loaded|p50|RSS|test result' "$RESULTS/real_models.txt" 2>/dev/null
             cat "$RESULTS/pg-bench.txt" 2>/dev/null
             echo '```'
