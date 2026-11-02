@@ -4,8 +4,9 @@
 # via UI Automation. The lens is excluded from screen capture, so screenshots can't show it.
 # Expected in live mode with the models installed: "Do you want to save the changes before you
 # close?" and the English line unchanged; without models, the model-missing message and the ⬇
-# button. Saved with a BOM: Windows PowerShell 5.1 reads BOM-less UTF-8 as ANSI.
-param([int]$X, [int]$Y, [int]$W = 468, [int]$H = 164, [int]$Seconds = 3)
+# button. -Lines replaces the text (one label per string, "" for a gap), e.g. German lines for
+# the de→en pair (M3-9). Saved with a BOM: Windows PowerShell 5.1 reads BOM-less UTF-8 as ANSI.
+param([int]$X, [int]$Y, [int]$W = 468, [int]$H = 164, [int]$Seconds = 3, [string[]]$Lines)
 Add-Type -AssemblyName System.Windows.Forms, System.Drawing, UIAutomationClient, UIAutomationTypes
 Add-Type @"
 using System; using System.Runtime.InteropServices;
@@ -16,7 +17,7 @@ $f = New-Object System.Windows.Forms.Form
 $f.FormBorderStyle = 'None'; $f.StartPosition = 'Manual'; $f.ShowInTaskbar = $false
 $f.BackColor = [System.Drawing.Color]::White
 $f.Bounds = New-Object System.Drawing.Rectangle($X, $Y, $W, $H)
-$lines = @("Vill du spara ändringarna innan du stänger?", "", "Your changes have been saved.")
+$lines = if ($Lines) { $Lines } else { @("Vill du spara ändringarna innan du stänger?", "", "Your changes have been saved.") }
 $top = 12
 foreach ($t in $lines) {
   $l = New-Object System.Windows.Forms.Label

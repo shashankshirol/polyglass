@@ -531,9 +531,15 @@ pub fn delete(app: &AppHandle, id: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// Give the running live pipeline a translator with exactly the installed models. If the
-/// pipeline isn't up yet it loads them itself; demo mode keeps its mock.
+/// Give the running live pipeline a translator with exactly the installed models, and redraw the
+/// lens's pickers. If the pipeline isn't up yet it loads them itself; demo mode keeps its mock.
 async fn reload_translator(app: &AppHandle) {
+    // The pickers mark pairs whose model isn't installed (MDL-07).
+    let _ = app.emit_to(
+        crate::lens::LABEL,
+        crate::langs::EVENT,
+        crate::langs::view(app),
+    );
     if app.state::<Lens>().mode != Mode::Live {
         return;
     }
