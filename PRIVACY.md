@@ -20,6 +20,11 @@ with 1.0, SV-08.)
   Polyglass sends no account, identifier or screen content with it, over HTTPS only, and only
   when you choose Download in the welcome window or the model manager. You can also build and install the models yourself without contacting
   GitHub (README, "First run").
+- **Known gap on Windows (being worked on):** the windows are drawn by Microsoft Edge
+  WebView2, which has background services of its own. Polyglass turns off the ones Chromium
+  lets apps turn off (update and experiment checks, pings, metrics uploads), but in a test
+  run WebView2 still opened one connection to a Microsoft 365 server (`outlook.office.com`).
+  Polyglass itself made none. Until this is fixed, the release notes will say so.
 
 ## Online translation (opt-in)
 

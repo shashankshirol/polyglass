@@ -69,6 +69,15 @@ fn interior_from_physical(x: i32, y: i32, w: u32, h: u32, scale: f64) -> Option<
     (!region.is_empty()).then_some(region)
 }
 
+/// WebView2 arguments for every window. All windows share one WebView2 environment, so they
+/// must be the same everywhere. Wry's default `--disable-features` list, plus switches that
+/// stop the runtime's own background traffic (variations and component updates, pings, metrics
+/// and domain-reliability uploads, sync): without them WebView2 connected to Microsoft servers
+/// while the app was in on-device mode (PRIV-01, `scripts/lens-net.ps1`). Ignored off Windows.
+pub const WEBVIEW_ARGS: &str = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection \
+    --disable-background-networking --disable-component-update --disable-domain-reliability \
+    --disable-sync --metrics-recording-only --no-pings";
+
 /// Create the (hidden) lens window. It is shown by [`place_and_show`].
 pub fn create(app: &AppHandle) -> tauri::Result<WebviewWindow> {
     WebviewWindowBuilder::new(app, LABEL, WebviewUrl::App("index.html".into()))
@@ -84,6 +93,7 @@ pub fn create(app: &AppHandle) -> tauri::Result<WebviewWindow> {
         .maximizable(false)
         .minimizable(false)
         .visible(false)
+        .additional_browser_args(WEBVIEW_ARGS)
         .build()
 }
 

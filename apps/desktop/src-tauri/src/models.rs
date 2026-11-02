@@ -403,6 +403,7 @@ pub fn open_window(app: &AppHandle) -> tauri::Result<()> {
         .inner_size(640.0, 600.0)
         .min_inner_size(440.0, 380.0)
         .center()
+        .additional_browser_args(crate::lens::WEBVIEW_ARGS)
         .build()?;
     let handle = app.clone();
     window.on_window_event(move |event| {
