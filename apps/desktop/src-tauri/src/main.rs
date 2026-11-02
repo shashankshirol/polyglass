@@ -13,6 +13,7 @@ mod demo;
 mod devflags;
 mod hold;
 mod hotkeys;
+mod langs;
 mod lens;
 mod live;
 mod models;
@@ -79,6 +80,7 @@ fn main() {
             commands::open_model_manager,
             commands::copy_translation,
             commands::swap_languages,
+            commands::set_languages,
             commands::models_state,
             commands::download_models,
             commands::cancel_download,
@@ -108,6 +110,12 @@ fn main() {
                 settings::Store::open(handle.path().app_config_dir()?.join(settings::FILE));
             let saved = settings.get();
             handle.manage(settings);
+            // MDL-07: the lens and the wizard offer the models of the saved pair.
+            {
+                let models = handle.state::<Models>();
+                let choice = models.languages().choice(&saved.translation);
+                models.set_wanted(models.languages().wanted(&choice));
+            }
             let window = lens::create(&handle)?;
             // Before the lens is first shown, so no capture ever contains it (CAP-02).
             let self_excluded = lens::exclude_from_capture(&window);
@@ -228,14 +236,11 @@ fn start_pipeline(
                 return;
             }
         };
-        // SET-01: translate into the saved target language.
-        let target = app
-            .state::<settings::Store>()
-            .get()
-            .translation
-            .target_lang();
+        // SET-01, MDL-07: translate the saved language pair.
+        let choice = langs::current(&app);
         pipeline.set_config(PipelineConfig {
-            target,
+            source: choice.source_lang(),
+            target: choice.pair.target.clone(),
             ..pipeline.config()
         });
         let pipeline = Arc::new(pipeline);

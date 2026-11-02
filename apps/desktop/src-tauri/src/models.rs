@@ -9,9 +9,10 @@
 //! translator with the installed models, so no restart is needed.
 //!
 //! Nothing is downloaded without a click in this window (MDL-06). On the first live start
-//! without the Swedish models the window opens as the wizard, with both Swedish directions
-//! pre-selected and their combined size shown (SV-01); it is offered once (`[models]
-//! first_run_done` in `settings.toml`).
+//! without the models of the selected pair (by default Swedish → English and its reverse) the
+//! window opens as the wizard, with those directions pre-selected and their combined size shown
+//! (SV-01); it is offered once (`[models] first_run_done` in `settings.toml`). Which models the
+//! lens and the wizard offer follows the toolbar's language pair (`langs`, MDL-07).
 //!
 //! The OPUS-MT files are assets of a GitHub release of this repository (D-9, M1-TR-7). A model
 //! without download URLs (import-only) can't be downloaded: the window shows the
@@ -23,11 +24,13 @@ use std::collections::HashSet;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use pg_core::LangPair;
 use pg_models::{Downloader, Manifest, ModelEntry, ModelError, ModelStore};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder, WindowEvent};
 use tokio_util::sync::CancellationToken;
 
+use crate::langs::Languages;
 use crate::settings;
 use crate::state::{Lens, Mode};
 
@@ -35,8 +38,11 @@ use crate::state::{Lens, Mode};
 pub const WINDOW: &str = "models";
 /// Event carrying a [`ModelsView`] to both windows whenever it changes.
 pub const EVENT: &str = "models-changed";
-/// How to install the models without the release (MDL-04), run in a checkout of the repository.
+/// How to install models without the release (MDL-04), run in a checkout of the repository.
+/// With no model ids it installs the Swedish ↔ English pair (`DEFAULT_IDS` in the script).
 pub const INSTALL_COMMAND: &str = "python scripts/models/opus_mt.py";
+/// What the script installs when given no model ids.
+const SCRIPT_DEFAULT_IDS: [&str; 2] = ["opus-mt-sv-en", "opus-mt-en-sv"];
 
 /// At most this many ids per download request (SEC-01 input bound).
 const MAX_IDS: usize = 32;
@@ -63,11 +69,16 @@ pub struct ModelsView {
     pub unreachable: bool,
     /// Whether the window opened as the first-run wizard (SV-01).
     pub first_run: bool,
-    pub install_command: &'static str,
-    /// Bytes of the Swedish ↔ English models still missing (0 = both installed).
-    pub swedish_missing_bytes: u64,
-    /// Whether the missing Swedish models can be downloaded (URLs and a reachable release).
-    pub swedish_downloadable: bool,
+    /// The install command for the models that can't be downloaded (or, if none, for the
+    /// models of the selected pair).
+    pub install_command: String,
+    /// The selected pair's models, the selected direction first.
+    pub wanted_ids: Vec<String>,
+    /// Bytes of the selected pair's models still missing (0 = installed): the pair and its
+    /// reverse if the catalog has one (`langs::Languages::wanted`).
+    pub wanted_missing_bytes: u64,
+    /// Whether those missing models can be downloaded (URLs and a reachable release).
+    pub wanted_downloadable: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -85,7 +96,7 @@ pub struct ModelRow {
     pub installed: bool,
     /// Bytes on disk for this model: the files when installed, else what a download resumes from.
     pub on_disk: u64,
-    /// Pre-selected by the first-run wizard (SV-01).
+    /// A model of the selected pair; pre-selected by the first-run wizard (SV-01).
     pub suggested: bool,
 }
 
@@ -108,6 +119,9 @@ struct Job {
 pub struct Models {
     store: ModelStore,
     manifest: Manifest,
+    languages: Languages,
+    /// The selected pair's models are offered (`set_wanted`).
+    wanted: Mutex<Vec<LangPair>>,
     job: Mutex<Option<Job>>,
     message_id: Mutex<Option<&'static str>>,
     unreachable: AtomicBool,
@@ -124,9 +138,13 @@ impl Models {
     }
 
     pub fn with_manifest(store: ModelStore, manifest: Manifest) -> Self {
+        let languages = Languages::from_manifest(&manifest);
+        let wanted = languages.wanted(&languages.choice(&Default::default()));
         Self {
             store,
             manifest,
+            languages,
+            wanted: Mutex::new(wanted),
             job: Mutex::new(None),
             message_id: Mutex::new(None),
             unreachable: AtomicBool::new(false),
@@ -138,17 +156,42 @@ impl Models {
         &self.store
     }
 
-    fn missing_swedish(&self) -> Vec<&ModelEntry> {
+    pub fn languages(&self) -> &Languages {
+        &self.languages
+    }
+
+    /// Offer the models of these pairs (the toolbar's pair and its reverse).
+    pub fn set_wanted(&self, pairs: Vec<LangPair>) {
+        *self.wanted.lock().expect("wanted lock") = pairs;
+    }
+
+    /// Whether a model for `pair` is installed.
+    pub fn is_installed(&self, pair: &LangPair) -> bool {
         self.manifest
-            .swedish_english_models()
+            .models
+            .iter()
+            .any(|m| m.pair() == *pair && self.store.is_installed(m))
+    }
+
+    /// The manifest entries for the wanted pairs, in that order.
+    fn wanted_models(&self) -> Vec<&ModelEntry> {
+        let wanted = self.wanted.lock().expect("wanted lock").clone();
+        wanted
+            .iter()
+            .filter_map(|p| self.manifest.models.iter().find(|m| m.pair() == *p))
+            .collect()
+    }
+
+    fn missing_wanted(&self) -> Vec<&ModelEntry> {
+        self.wanted_models()
             .into_iter()
             .filter(|m| !self.store.is_installed(m))
             .collect()
     }
 
-    /// Bytes still to download for both Swedish directions (0 = installed).
+    /// Bytes still to download for the selected pair (0 = installed).
     pub fn missing_bytes(&self) -> u64 {
-        self.missing_swedish()
+        self.missing_wanted()
             .iter()
             .map(|m| m.download_size())
             .sum()
@@ -158,16 +201,32 @@ impl Models {
     /// release hasn't turned out to be unreachable.
     pub fn missing_downloadable(&self) -> bool {
         !self.unreachable.load(Ordering::SeqCst)
-            && self.missing_swedish().iter().all(|m| m.is_downloadable())
+            && self.missing_wanted().iter().all(|m| m.is_downloadable())
+    }
+
+    /// The script command for the models that need it: not installed, and import-only or the
+    /// release is unreachable; the wanted ones first. If none do, the wanted models'.
+    pub fn install_command(&self) -> String {
+        let unreachable = self.unreachable.load(Ordering::SeqCst);
+        let wanted = self.wanted_models();
+        let mut ids: Vec<&str> = wanted
+            .iter()
+            .copied()
+            .chain(self.manifest.models.iter())
+            .filter(|m| !self.store.is_installed(m) && (unreachable || !m.is_downloadable()))
+            .map(|m| m.id.as_str())
+            .collect();
+        let mut seen = HashSet::new();
+        ids.retain(|id| seen.insert(*id));
+        if ids.is_empty() {
+            ids = wanted.iter().map(|m| m.id.as_str()).collect();
+        }
+        install_command(&ids)
     }
 
     pub fn view(&self) -> ModelsView {
-        let suggested: HashSet<&str> = self
-            .manifest
-            .swedish_english_models()
-            .iter()
-            .map(|m| m.id.as_str())
-            .collect();
+        let suggested: HashSet<String> =
+            self.wanted_models().iter().map(|m| m.id.clone()).collect();
         let rows = self
             .manifest
             .catalog()
@@ -177,7 +236,7 @@ impl Models {
                 Some(ModelRow {
                     installed: self.store.is_installed(entry),
                     on_disk: self.store.model_disk_usage(entry).unwrap_or(0),
-                    suggested: suggested.contains(c.id.as_str()),
+                    suggested: suggested.contains(&c.id),
                     version: entry.version.clone(),
                     source: c.pair.source.as_str().to_owned(),
                     target: c.pair.target.as_str().to_owned(),
@@ -198,9 +257,10 @@ impl Models {
             message_id: *self.message_id.lock().expect("message lock"),
             unreachable: self.unreachable.load(Ordering::SeqCst),
             first_run: self.first_run.load(Ordering::SeqCst),
-            install_command: INSTALL_COMMAND,
-            swedish_missing_bytes: self.missing_bytes(),
-            swedish_downloadable: self.missing_downloadable(),
+            install_command: self.install_command(),
+            wanted_ids: self.wanted_models().iter().map(|m| m.id.clone()).collect(),
+            wanted_missing_bytes: self.missing_bytes(),
+            wanted_downloadable: self.missing_downloadable(),
         }
     }
 
@@ -366,7 +426,21 @@ impl Models {
     }
 }
 
-/// The wizard is offered on a live start while the Swedish models are missing, once (SV-01).
+/// The script command that installs `ids`; the bare command installs the Swedish pair.
+pub fn install_command(ids: &[&str]) -> String {
+    let mut sorted = ids.to_vec();
+    sorted.sort_unstable();
+    let mut default = SCRIPT_DEFAULT_IDS.to_vec();
+    default.sort_unstable();
+    if ids.is_empty() || sorted == default {
+        INSTALL_COMMAND.to_owned()
+    } else {
+        format!("{INSTALL_COMMAND} {}", ids.join(" "))
+    }
+}
+
+/// The wizard is offered on a live start while the selected pair's models are missing, once
+/// (SV-01).
 pub fn offer_first_run(mode: Mode, first_run_done: bool, missing_bytes: u64) -> bool {
     mode == Mode::Live && !first_run_done && missing_bytes > 0
 }
@@ -578,14 +652,61 @@ files = [{}]
         // SV-01: the wizard pre-selects both Swedish directions and nothing else.
         let suggested: Vec<_> = view.rows.iter().map(|r| r.suggested).collect();
         assert_eq!(suggested, [true, true, false]);
-        assert_eq!(view.swedish_missing_bytes, 7);
-        assert!(!view.swedish_downloadable, "one direction is import-only");
+        assert_eq!(
+            view.wanted_ids,
+            ["t-sv-en", "t-en-sv"],
+            "selected direction first"
+        );
+        assert_eq!(view.wanted_missing_bytes, 7);
+        assert!(!view.wanted_downloadable, "one direction is import-only");
         assert!(view.rows.iter().all(|r| !r.installed && r.on_disk == 0));
         assert_eq!(
             (view.disk_usage, view.job, view.message_id),
             (0, None, None)
         );
-        assert_eq!(view.install_command, INSTALL_COMMAND);
+        // The import-only Swedish direction needs the script: just that model.
+        assert_eq!(view.install_command, format!("{INSTALL_COMMAND} t-sv-en"));
+    }
+
+    #[test]
+    fn mdl07_the_selected_pair_decides_what_is_offered() {
+        let dir = tempfile::tempdir().unwrap();
+        let m = models(dir.path(), "https://example.org", &[("model.bin", b"abc")]);
+        let de_en = LangPair::new(
+            pg_core::LangTag::parse("de").unwrap(),
+            pg_core::LangTag::en(),
+        );
+        m.set_wanted(vec![de_en.clone()]);
+        let view = m.view();
+        let suggested: Vec<_> = view.rows.iter().map(|r| r.suggested).collect();
+        assert_eq!(suggested, [false, false, true], "only German → English");
+        assert_eq!(view.wanted_missing_bytes, 4);
+        assert!(view.wanted_downloadable);
+        assert!(!m.is_installed(&de_en));
+        // The release turned out unreachable: every missing model needs the script, the
+        // selected pair's first.
+        m.finish(&Err(ModelError::Http(404)));
+        assert_eq!(
+            m.install_command(),
+            format!("{INSTALL_COMMAND} t-de-en t-sv-en t-en-sv")
+        );
+    }
+
+    #[test]
+    fn mdl04_install_command_names_models_unless_it_is_the_default_pair() {
+        assert_eq!(install_command(&[]), INSTALL_COMMAND);
+        assert_eq!(
+            install_command(&["opus-mt-en-sv", "opus-mt-sv-en"]),
+            INSTALL_COMMAND
+        );
+        assert_eq!(
+            install_command(&["opus-mt-de-en"]),
+            "python scripts/models/opus_mt.py opus-mt-de-en"
+        );
+        assert_eq!(
+            install_command(&["opus-mt-sv-en"]),
+            "python scripts/models/opus_mt.py opus-mt-sv-en"
+        );
     }
 
     #[test]
@@ -671,7 +792,7 @@ files = [{}]
         m.begin(&ids(&["t-en-sv"])).unwrap();
         m.finish(&Err(ModelError::Http(404)));
         let view = m.view();
-        assert!(view.unreachable && !view.swedish_downloadable);
+        assert!(view.unreachable && !view.wanted_downloadable);
         assert_eq!(view.message_id, Some(UNREACHABLE));
         assert!(!m.missing_downloadable());
     }

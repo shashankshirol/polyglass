@@ -17,6 +17,7 @@
     "allow-open-model-manager",
     "allow-copy-translation",
     "allow-swap-languages",
+    "allow-set-languages",
     "allow-lens-drawn"
   ]
 }

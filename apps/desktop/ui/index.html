@@ -11,20 +11,14 @@
     <div id="lens" tabindex="0" aria-label="Polyglass lens. Arrow keys move it, Shift+arrow moves faster.">
       <header id="toolbar" role="toolbar" aria-label="Lens toolbar" data-tauri-drag-region>
         <span class="grip" data-tauri-drag-region aria-hidden="true">⋮⋮</span>
-        <button id="source-lang" type="button" class="lang" aria-disabled="true"
-          aria-label="Source language: automatic, Swedish or English">Auto</button>
+        <select id="source-lang" class="lang" aria-label="Source language"></select>
         <span class="arrow" data-tauri-drag-region aria-hidden="true">→</span>
-        <button id="target-lang" type="button" class="lang" aria-disabled="true"
-          aria-label="Target language: English" title="Target language: English">EN</button>
+        <select id="target-lang" class="lang" aria-label="Target language"></select>
         <button id="swap" type="button" aria-label="Swap languages" title="Swap languages (Ctrl+Alt+S)">⇄</button>
         <button id="mode" type="button" aria-disabled="true" aria-label="Mode: Overlay" title="Mode: Overlay">Overlay</button>
         <span class="spacer" data-tauri-drag-region></span>
-        <button id="ocr-lang" type="button" class="warn" hidden
-          aria-label="Swedish text recognition isn't installed. Open Windows language settings to add it."
-          title="Swedish text recognition isn't installed. Open Windows language settings to add it.">⚠ SV</button>
-        <button id="models" type="button" class="warn" hidden
-          aria-label="Download the Swedish and English translation models"
-          title="Download the Swedish and English translation models">⬇</button>
+        <button id="ocr-lang" type="button" class="warn" hidden>⚠</button>
+        <button id="models" type="button" class="warn" hidden>⬇</button>
         <span id="mode-badge" class="badge" hidden></span>
         <span id="trace-badge" class="badge" hidden title="--trace-timings: cycle timings are logged (numbers only)"
           aria-label="Timing trace on">TRACE</span>

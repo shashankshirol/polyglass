@@ -13,6 +13,7 @@ import {
   selectedBytes,
   wizardStage,
 } from "./catalog";
+import { langName } from "./langs";
 import type { ModelRow, ModelsView } from "./types";
 
 const $ = <T extends HTMLElement>(id: string): T => {
@@ -33,6 +34,8 @@ const wizardChoices = $("wizard-choices");
 const wizardTotal = $("wizard-total");
 const wizardDownload = $<HTMLButtonElement>("wizard-download");
 const rowsEl = $("rows");
+const wizardIntro = $("wizard-intro");
+const wizardReady = $("wizard-ready-text");
 const usageEl = $("usage");
 
 let view: ModelsView | null = null;
@@ -92,10 +95,11 @@ function renderJob(v: ModelsView): void {
 
 function renderWizard(v: ModelsView): void {
   const stage = wizardStage(v);
-  // The default direction (Swedish → English, SV-01) first.
-  const offered = v.rows
-    .filter((r) => r.suggested)
-    .sort((a, b) => Number(b.source === "sv") - Number(a.source === "sv"));
+  // The selected direction first (Swedish → English by default, SV-01).
+  const offered = v.wanted_ids.flatMap((id) => v.rows.filter((r) => r.id === id));
+  const pairText = offered[0] ? pairLabel(offered) : "";
+  wizardIntro.textContent = `To translate ${pairText} it needs ${offered.length === 1 ? "a translation model" : `${offered.length} translation models`}, downloaded once from the Polyglass releases on GitHub. Nothing is downloaded until you choose Download.`;
+  wizardReady.textContent = `${pairText.replace(/^between /, "")} is installed. Point the lens at the text; the toolbar picks the languages${offered.length > 1 ? ", and ⇄ or Ctrl+Alt+S swaps the direction" : ""}.`;
   show("wizard-offer", stage === "offer");
   show("wizard-ready", stage === "ready");
   show("wizard-close", stage === "ready" || stage === "install-command");
@@ -105,6 +109,15 @@ function renderWizard(v: ModelsView): void {
   const boxes = offered.map((r) => choice(r, selected!));
   wizardChoices.replaceChildren(...boxes);
   updateWizardTotal(v);
+}
+
+/** "between Swedish and English" for a pair and its reverse, else "German into English". */
+function pairLabel(rows: ModelRow[]): string {
+  const first = rows[0]!;
+  const back = rows.some((r) => r.source === first.target && r.target === first.source);
+  return back
+    ? `between ${langName(first.source)} and ${langName(first.target)}`
+    : `${langName(first.source)} into ${langName(first.target)}`;
 }
 
 function choice(r: ModelRow, sel: Set<string>): HTMLElement {
@@ -307,8 +320,9 @@ function sampleView(wizard: boolean): ModelsView {
     unreachable: false,
     first_run: wizard,
     install_command: "python scripts/models/opus_mt.py",
-    swedish_missing_bytes: 169_662_336,
-    swedish_downloadable: true,
+    wanted_ids: ["opus-mt-sv-en", "opus-mt-en-sv"],
+    wanted_missing_bytes: 169_662_336,
+    wanted_downloadable: true,
   };
 }
 

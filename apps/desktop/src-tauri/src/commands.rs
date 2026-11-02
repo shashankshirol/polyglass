@@ -6,7 +6,7 @@ use serde::Serialize;
 use tauri::{AppHandle, Manager, State, WebviewWindow};
 
 use crate::clipboard;
-use crate::hotkeys;
+use crate::langs::{self, LanguagesView};
 use crate::lens::{self, LAYOUT, Layout};
 use crate::models::{self, Models};
 use crate::settings;
@@ -27,12 +27,14 @@ pub struct LensConfig {
     pipeline: bool,
     /// Fluent message ID if the pipeline failed to start.
     pipeline_error: Option<&'static str>,
-    /// Bytes of Swedish ↔ English models still to download (0 = installed).
+    /// Bytes of the selected pair's models still to download (0 = installed).
     models_missing_bytes: u64,
     /// `false` if a missing model is import-only (no download URLs in the manifest).
     models_downloadable: bool,
-    /// The language translations are written in: `en` or `sv` (SET-01).
-    target: String,
+    /// How to install the models when they can't be downloaded (MDL-04).
+    install_command: String,
+    /// The language pair and what the pickers offer (MDL-07, SET-01).
+    languages: LanguagesView,
     /// `--trace-timings`: report each drawn update with `lens_drawn`.
     trace_timings: bool,
     /// `--debug-dump-frames`: where frames are saved; the lens shows a red banner (PRIV-02).
@@ -55,12 +57,8 @@ pub fn lens_config(
         pipeline_error: state.pipeline_error(),
         models_missing_bytes: models.missing_bytes(),
         models_downloadable: models.missing_downloadable(),
-        target: app
-            .state::<settings::Store>()
-            .get()
-            .translation
-            .target_lang()
-            .to_string(),
+        install_command: models.install_command(),
+        languages: langs::view(&app),
         trace_timings: state.trace.is_some(),
         dump_frames: app
             .state::<crate::DumpDir>()
@@ -143,11 +141,28 @@ pub fn copy_translation(window: WebviewWindow, state: State<'_, Lens>) -> CmdRes
     Ok(true)
 }
 
-/// Swap the translation direction (HK-01's Ctrl+Alt+S, the toolbar ⇄). Returns the new target.
+/// Swap the translation direction (HK-01's Ctrl+Alt+S, the toolbar ⇄). Returns what the
+/// pickers show; an error when the catalog has no model for the other direction.
 #[tauri::command]
-pub fn swap_languages(window: WebviewWindow, app: AppHandle) -> CmdResult<String> {
+pub fn swap_languages(window: WebviewWindow, app: AppHandle) -> CmdResult<LanguagesView> {
     ensure_lens(&window)?;
-    Ok(hotkeys::swap(&app).to_string())
+    langs::swap(&app).ok_or_else(|| "no model for the other direction".into())
+}
+
+/// Use another language pair (the toolbar's pickers, MDL-07). `source` → `target` must be a pair
+/// the model catalog lists; `auto` identifies each block as one of the two (SV-04).
+#[tauri::command]
+pub fn set_languages(
+    window: WebviewWindow,
+    app: AppHandle,
+    models: State<'_, Models>,
+    source: String,
+    target: String,
+    auto: bool,
+) -> CmdResult<LanguagesView> {
+    ensure_lens(&window)?;
+    let choice = models.languages().validate(&source, &target, auto)?;
+    Ok(langs::apply(&app, &choice))
 }
 
 /// Open the Windows settings page where the Swedish OCR feature is added (SV-02). The target is

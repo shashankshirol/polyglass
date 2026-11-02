@@ -12,7 +12,6 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
-use pg_core::LangTag;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, WebviewWindow};
 
@@ -62,33 +61,26 @@ impl Default for LensSettings {
     }
 }
 
+/// The language pair (MDL-07). Any pair the model catalog lists; a pair it doesn't list is
+/// replaced when the app starts (`langs::Languages::choice`).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct TranslationSettings {
-    /// The language translations are written in: `en` (default) or `sv`. The source is
-    /// detected (Swedish or English); text already in the target passes through.
+    /// The language of the text under the lens (default `sv`, SV-01).
+    pub source: String,
+    /// The language translations are written in (default `en`).
     pub target: String,
+    /// Identify each block as `source` or `target`; text already in the target passes through
+    /// (SV-04, TR-07). Off: every block is read as `source`.
+    pub auto: bool,
 }
 
 impl Default for TranslationSettings {
     fn default() -> Self {
         Self {
+            source: "sv".into(),
             target: "en".into(),
-        }
-    }
-}
-
-impl TranslationSettings {
-    /// Whether translations go into Swedish; anything but `sv` means English.
-    pub fn target_is_swedish(&self) -> bool {
-        self.target.eq_ignore_ascii_case("sv")
-    }
-
-    pub fn target_lang(&self) -> LangTag {
-        if self.target_is_swedish() {
-            LangTag::sv()
-        } else {
-            LangTag::en()
+            auto: true,
         }
     }
 }
@@ -188,7 +180,8 @@ mod tests {
         s.lens.y = Some(300);
         s.lens.width = 600.0;
         s.lens.click_through = false;
-        s.translation.target = "sv".into();
+        s.translation.source = "de".into();
+        s.translation.auto = false;
         s.models.first_run_done = true;
         s.save(&path).unwrap();
         let text = fs::read_to_string(&path).unwrap();
@@ -197,7 +190,10 @@ mod tests {
             text.contains("[lens]") && text.contains("x = -1200"),
             "{text}"
         );
-        assert!(text.contains("target = \"sv\""), "{text}");
+        assert!(
+            text.contains("[translation]") && text.contains("source = \"de\""),
+            "{text}"
+        );
         assert!(
             text.contains("[models]") && text.contains("first_run_done = true"),
             "{text}"
@@ -250,6 +246,6 @@ mod tests {
         store.update(|_| {});
         assert!(!path.exists(), "nothing changed, nothing written");
         store.update(|s| s.translation.target = "sv".into());
-        assert!(Settings::load(&path).translation.target_is_swedish());
+        assert_eq!(Settings::load(&path).translation.target, "sv");
     }
 }

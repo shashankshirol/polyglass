@@ -61,16 +61,29 @@ export interface LensConfig {
   pipeline: boolean;
   /** Fluent message ID if the pipeline failed to start. */
   pipelineError: string | null;
-  /** Bytes of Swedish ↔ English models still to download (0 = installed). */
+  /** Bytes of the selected pair's models still to download (0 = installed). */
   modelsMissingBytes: number;
   /** False if a missing model is import-only (no download URLs in the manifest). */
   modelsDownloadable: boolean;
-  /** The language translations are written in. */
-  target: "en" | "sv";
+  /** How to install the models when they can't be downloaded (MDL-04). */
+  installCommand: string;
+  /** The language pair and what the pickers offer (MDL-07). */
+  languages: LanguagesView;
   /** `--trace-timings`: report each drawn update with `lens_drawn`. */
   traceTimings: boolean;
   /** `--debug-dump-frames`: the folder frames are saved to (PRIV-02 red banner). */
   dumpFrames: string | null;
+}
+
+/** `langs::LanguagesView`: the pair in use and every pair the model catalog lists. */
+export interface LanguagesView {
+  source: string;
+  target: string;
+  /** Each block is identified as `source` or `target` (SV-04). */
+  auto: boolean;
+  pairs: { source: string; target: string; installed: boolean }[];
+  /** The catalog has the reverse pair (⇄). */
+  canSwap: boolean;
 }
 
 /** `models::ModelsView`: the model manager's state, sent with `models-changed` events. */
@@ -88,9 +101,11 @@ export interface ModelsView {
   /** The window is the first-run wizard (SV-01). */
   first_run: boolean;
   install_command: string;
-  /** Bytes of the Swedish ↔ English models still missing (0 = both installed). */
-  swedish_missing_bytes: number;
-  swedish_downloadable: boolean;
+  /** The selected pair's models, the selected direction first. */
+  wanted_ids: string[];
+  /** Bytes of the selected pair's models still missing (0 = installed). */
+  wanted_missing_bytes: number;
+  wanted_downloadable: boolean;
 }
 
 export interface ModelRow {
@@ -107,7 +122,7 @@ export interface ModelRow {
   installed: boolean;
   /** Bytes on disk: the files when installed, else what a download resumes from. */
   on_disk: number;
-  /** Pre-selected by the first-run wizard. */
+  /** A model of the selected pair; pre-selected by the first-run wizard. */
   suggested: boolean;
 }
 

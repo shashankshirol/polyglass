@@ -6,7 +6,20 @@ import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { MODEL_MESSAGES, formatBytes, percent } from "./catalog";
 import { fitFontSize, maxHeight, startSize } from "./fit";
-import type { LensConfig, LensUpdate, ModelsView, RenderedBlock } from "./types";
+import {
+  langName,
+  modelMessage,
+  ocrHelp,
+  parseSourceValue,
+  pickSource,
+  primary,
+  sourceLabel,
+  sourceOptions,
+  sourceValue,
+  targetOptions,
+  type PickerOption,
+} from "./langs";
+import type { LanguagesView, LensConfig, LensUpdate, ModelsView, RenderedBlock } from "./types";
 
 type ResizeDirection =
   | "North"
@@ -35,7 +48,8 @@ const cloudIcon = document.getElementById("icon-cloud") as unknown as SVGElement
 const pauseBtn = $<HTMLButtonElement>("pause");
 const copyBtn = $<HTMLButtonElement>("copy");
 const swapBtn = $<HTMLButtonElement>("swap");
-const targetEl = $("target-lang");
+const sourceEl = $<HTMLSelectElement>("source-lang");
+const targetEl = $<HTMLSelectElement>("target-lang");
 const clickBtn = $<HTMLButtonElement>("click-through");
 const ocrLangBtn = $<HTMLButtonElement>("ocr-lang");
 const modelsBtn = $<HTMLButtonElement>("models");
@@ -62,6 +76,17 @@ let modelsUnreachable = false;
 let modelsMessage: string | null = null;
 /** `--trace-timings`: tell Rust when each update has been painted. */
 let traceTimings = false;
+/** The language pair and what the pickers offer (MDL-07). */
+let languages: LanguagesView = {
+  source: "sv",
+  target: "en",
+  auto: true,
+  pairs: [{ source: "sv", target: "en", installed: true }],
+  canSwap: false,
+};
+/** Bytes of the selected pair's models still missing, and how to install them by hand. */
+let missingBytes = 0;
+let installCommand = "python scripts/models/opus_mt.py";
 
 // Fluent IDs from the pipeline; real localized strings arrive with M4-5.
 const MESSAGES: Record<string, string> = {
@@ -72,21 +97,25 @@ const MESSAGES: Record<string, string> = {
   "ocr-error-language-missing": "Text recognition language is not installed",
   "cap-error-self-exclusion":
     "The lens can't hide itself from screen capture (needs Windows 10 version 2004 or later), so live capture is off.",
-  "tr-error-model-missing":
-    "The Swedish ↔ English translation models aren't downloaded yet. Click ⬇ in the toolbar to download them (about 170 MB, once).",
-  // For import-only manifest entries (no download URLs): installed from the repository.
-  "tr-error-model-import":
-    "The Swedish ↔ English translation models aren't installed yet. Install them once from a terminal in the Polyglass repository with: python scripts/models/opus_mt.py (about 170 MB; README → First run), then restart Polyglass.",
   "tr-error-backend": "Translation failed",
   ...MODEL_MESSAGES,
-  // The lens has room for the whole fallback, so it carries the command too.
-  "mdl-error-unreachable":
-    "The translation models can't be downloaded: their release isn't reachable (the Polyglass repository may be private). Install them once from a terminal in the Polyglass repository with: python scripts/models/opus_mt.py (about 170 MB; README → First run), then restart Polyglass.",
 };
 
-// SV-02: where to add Swedish OCR on Windows. The toolbar's ⚠ SV button opens the page.
-const SWEDISH_OCR_HELP =
-  "Swedish text recognition isn't installed, so only English is read. Add it in Windows Settings → Time & language → Language & region → Swedish → Language options → Optical character recognition (⚠ SV in the toolbar opens Settings).";
+/** Messages that name the selected pair; the rest are in MESSAGES. */
+function message(id: string): string {
+  switch (id) {
+    case "tr-error-model-missing":
+      return modelMessage(languages, "download", missingBytes, installCommand);
+    // Import-only manifest entries (no download URLs): installed from the repository.
+    case "tr-error-model-import":
+      return modelMessage(languages, "import", missingBytes, installCommand);
+    // The lens has room for the whole fallback, so it carries the command too.
+    case "mdl-error-unreachable":
+      return modelMessage(languages, "unreachable", missingBytes, installCommand);
+    default:
+      return MESSAGES[id] ?? id;
+  }
+}
 
 function showMessage(text: string | null): void {
   messageEl.hidden = text === null;
@@ -179,21 +208,29 @@ function render(u: LensUpdate): void {
             : "tr-error-model-import"
           : u.status.message_id;
       if (id === "tr-error-model-missing") modelsBtn.hidden = mode !== "live";
-      showMessage(
-        id === "tr-error-model-missing" && downloadProgress ? downloadProgress : (MESSAGES[id] ?? id),
-      );
+      showMessage(id === "tr-error-model-missing" && downloadProgress ? downloadProgress : message(id));
       break;
     }
   }
   // Live mode only falls back to the mock if someone wires it; say so when it happens.
   if (mode === "live") setBadge(u.backend.id === "mock" ? "mock" : null);
 
-  const missing =
-    u.notices.some((n) => n.kind === "ocr_language_missing") ||
-    (u.status.kind === "error" && u.status.message_id === "ocr-error-language-missing");
-  noticeEl.hidden = !missing;
-  noticeEl.textContent = missing ? SWEDISH_OCR_HELP : "";
-  ocrLangBtn.hidden = !missing;
+  // SV-02 for any source language: say which OCR language is missing and where to add it.
+  const notice = u.notices.find((n) => n.kind === "ocr_language_missing");
+  const failed =
+    u.status.kind === "error" && u.status.message_id === "ocr-error-language-missing"
+      ? (u.status.lang ?? languages.source)
+      : null;
+  const missingLang = notice?.lang ?? failed;
+  noticeEl.hidden = missingLang === null;
+  noticeEl.textContent = missingLang ? ocrHelp(missingLang, languages.target, notice !== undefined) : "";
+  ocrLangBtn.hidden = missingLang === null;
+  if (missingLang) {
+    const label = `${langName(missingLang)} text recognition isn't installed. Open Windows language settings to add it.`;
+    ocrLangBtn.textContent = `⚠ ${primary(missingLang).toUpperCase()}`;
+    ocrLangBtn.title = label;
+    ocrLangBtn.setAttribute("aria-label", label);
+  }
 }
 
 /**
@@ -222,24 +259,57 @@ function applyConfig(cfg: LensConfig): void {
   mode = cfg.mode;
   setBadge(cfg.mode === "demo" ? "demo" : null);
   modelsDownloadable = cfg.modelsDownloadable;
+  installCommand = cfg.installCommand;
+  setLanguages(cfg.languages);
   setModelsButton(cfg.modelsMissingBytes);
   setClickThroughUi(cfg.clickThrough);
-  setTarget(cfg.target);
   setDebugFlags(cfg.traceTimings, cfg.dumpFrames);
   if (cfg.pipelineError) {
-    showMessage(MESSAGES[cfg.pipelineError] ?? cfg.pipelineError);
+    showMessage(message(cfg.pipelineError));
   } else if (!cfg.pipeline) {
     showMessage("Live capture isn't available on this platform yet. Start with --demo for mock results.");
   }
 }
 
-const LANG_NAMES: Record<string, string> = { en: "English", sv: "Swedish" };
+function fillPicker(el: HTMLSelectElement, options: PickerOption[], value: string): void {
+  el.replaceChildren(
+    ...options.map((o) => {
+      const opt = document.createElement("option");
+      opt.value = o.value;
+      opt.textContent = o.text;
+      if (o.missing) opt.title = "Model not installed: ⬇ or ⚙ downloads it";
+      return opt;
+    }),
+  );
+  el.value = value;
+}
 
-function setTarget(target: string): void {
-  targetEl.textContent = target.toUpperCase();
-  const label = `Target language: ${LANG_NAMES[target] ?? target}`;
-  targetEl.setAttribute("aria-label", label);
-  targetEl.title = label;
+/** MDL-07: draw the pickers for the pair in use; Rust sends this after every change. */
+function setLanguages(v: LanguagesView): void {
+  languages = v;
+  fillPicker(sourceEl, sourceOptions(v), sourceValue(v));
+  fillPicker(targetEl, targetOptions(v), v.target);
+  const source = sourceLabel(v);
+  sourceEl.setAttribute("aria-label", source);
+  sourceEl.title = source;
+  const target = `Target language: ${langName(v.target)}`;
+  targetEl.setAttribute("aria-label", target);
+  targetEl.title = target;
+  swapBtn.disabled = !v.canSwap;
+  swapBtn.title = v.canSwap
+    ? "Swap languages (Ctrl+Alt+S)"
+    : `No model for ${langName(v.target)} → ${langName(v.source)}`;
+  swapBtn.setAttribute("aria-label", v.canSwap ? "Swap languages" : swapBtn.title);
+}
+
+function chooseLanguages(source: string, target: string, auto: boolean): void {
+  if (!isTauri()) return;
+  invoke<LanguagesView>("set_languages", { source, target, auto })
+    .then(setLanguages)
+    .catch((e: unknown) => {
+      console.error("set_languages failed", e);
+      setLanguages(languages);
+    });
 }
 
 function setBadge(kind: "demo" | "mock" | null): void {
@@ -254,18 +324,21 @@ function setBadge(kind: "demo" | "mock" | null): void {
   badge.setAttribute("aria-label", badge.title);
 }
 
-/** ⬇ opens the model manager while the Swedish models are missing and can be downloaded. */
-function setModelsButton(missingBytes: number): void {
-  modelsBtn.hidden = !(mode === "live" && missingBytes > 0 && modelsDownloadable);
-  const label = `Download the Swedish and English translation models (${formatBytes(missingBytes)})`;
+/** ⬇ opens the model manager while the selected pair's models are missing and downloadable. */
+function setModelsButton(bytes: number): void {
+  missingBytes = bytes;
+  modelsBtn.hidden = !(mode === "live" && bytes > 0 && modelsDownloadable);
+  const pair = `${langName(languages.source)} ${languages.canSwap ? "and" : "to"} ${langName(languages.target)}`;
+  const label = `Download the ${pair} translation models (${formatBytes(bytes)})`;
   modelsBtn.title = label;
   modelsBtn.setAttribute("aria-label", label);
 }
 
 /** The model manager's state changed: mirror its download progress and outcome in the lens. */
 function onModelsView(v: ModelsView): void {
-  modelsDownloadable = v.swedish_downloadable;
+  modelsDownloadable = v.wanted_downloadable;
   modelsUnreachable = v.unreachable;
+  installCommand = v.install_command;
   if (v.job) {
     const pct = percent(v.job);
     modelsBtn.textContent = `⬇ ${pct}%`;
@@ -275,15 +348,15 @@ function onModelsView(v: ModelsView): void {
     modelsBtn.textContent = "⬇";
     if (downloadProgress) {
       // The download ended: say how, or clear the progress for the next update.
-      showMessage(v.message_id ? (MESSAGES[v.message_id] ?? v.message_id) : null);
+      showMessage(v.message_id ? message(v.message_id) : null);
     }
     downloadProgress = null;
   }
   if (v.message_id !== modelsMessage && v.message_id === "mdl-error-unreachable") {
-    showMessage(MESSAGES[v.message_id] ?? v.message_id);
+    showMessage(message(v.message_id));
   }
   modelsMessage = v.message_id;
-  setModelsButton(v.swedish_missing_bytes);
+  setModelsButton(v.wanted_missing_bytes);
 }
 
 function setClickThroughUi(on: boolean): void {
@@ -355,9 +428,19 @@ copyBtn.addEventListener("click", () => {
 // SV-01: swap the direction; both models stay loaded, so it is instant.
 swapBtn.addEventListener("click", () => {
   if (!isTauri()) return;
-  invoke<string>("swap_languages")
-    .then(setTarget)
+  invoke<LanguagesView>("swap_languages")
+    .then(setLanguages)
     .catch((e: unknown) => console.error("swap_languages failed", e));
+});
+
+// MDL-07: pick the pair. Rust checks it against the model catalog.
+sourceEl.addEventListener("change", () => {
+  const choice = parseSourceValue(sourceEl.value);
+  if (choice) chooseLanguages(choice.source, languages.target, choice.auto);
+});
+targetEl.addEventListener("change", () => {
+  const source = pickSource(languages, targetEl.value);
+  if (source) chooseLanguages(source, targetEl.value, languages.auto);
 });
 
 function flashCopy(mark: string, label: string): void {
@@ -384,7 +467,18 @@ async function start(): Promise<void> {
       pipelineError: null,
       modelsMissingBytes: 0,
       modelsDownloadable: true,
-      target: "en",
+      installCommand: "python scripts/models/opus_mt.py",
+      languages: {
+        source: "sv",
+        target: "en",
+        auto: true,
+        pairs: [
+          { source: "en", target: "sv", installed: true },
+          { source: "sv", target: "en", installed: true },
+          { source: "de", target: "en", installed: false },
+        ],
+        canSwap: true,
+      },
       traceTimings: false,
       // Preview the PRIV-02 banner with ?dump in the URL.
       dumpFrames: location.search.includes("dump") ? "C:\\frames" : null,
@@ -393,10 +487,10 @@ async function start(): Promise<void> {
     return;
   }
   await listen<LensUpdate>("lens-update", (e) => render(e.payload));
-  await listen<string>("lens-error", (e) => showMessage(MESSAGES[e.payload] ?? e.payload));
+  await listen<string>("lens-error", (e) => showMessage(message(e.payload)));
   await listen<ModelsView>("models-changed", (e) => onModelsView(e.payload));
   await listen<boolean>("lens-original", (e) => setShowOriginal(e.payload));
-  await listen<string>("lens-target", (e) => setTarget(e.payload));
+  await listen<LanguagesView>("lens-languages", (e) => setLanguages(e.payload));
   await listen<boolean>("lens-click-through", (e) => setClickThroughUi(e.payload));
   applyConfig(await invoke<LensConfig>("lens_config"));
 }

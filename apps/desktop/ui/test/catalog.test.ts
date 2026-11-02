@@ -43,8 +43,9 @@ function view(extra: Partial<ModelsView> = {}): ModelsView {
     unreachable: false,
     first_run: true,
     install_command: "python scripts/models/opus_mt.py",
-    swedish_missing_bytes: 169.6 * MB,
-    swedish_downloadable: true,
+    wanted_ids: ["mt-sv-en", "mt-en-sv"],
+    wanted_missing_bytes: 169.6 * MB,
+    wanted_downloadable: true,
     ...extra,
   };
 }
@@ -54,7 +55,7 @@ test("sizes and names", () => {
   assert.equal(formatBytes(0), "0.0 MB");
   assert.equal(formatBytes(1.5e9), "1.50 GB");
   assert.equal(pairName({ source: "sv", target: "en" }), "Swedish → English");
-  assert.equal(pairName({ source: "fi", target: "en" }), "fi → English");
+  assert.equal(pairName({ source: "fi", target: "en" }), "Finnish → English");
   assert.equal(percent({ ids: [], downloaded: 50, total: 200 }), 25);
   assert.equal(percent({ ids: [], downloaded: 5, total: 0 }), 100);
 });
@@ -102,6 +103,6 @@ test("SV-01: the wizard shows the combined size of the selected models", () => {
 test("wizard stages", () => {
   assert.equal(wizardStage(view()), "offer");
   assert.equal(wizardStage(view({ job: { ids: ["a"], downloaded: 0, total: 1 } })), "downloading");
-  assert.equal(wizardStage(view({ swedish_missing_bytes: 0 })), "ready");
-  assert.equal(wizardStage(view({ swedish_downloadable: false })), "install-command");
+  assert.equal(wizardStage(view({ wanted_missing_bytes: 0 })), "ready");
+  assert.equal(wizardStage(view({ wanted_downloadable: false })), "install-command");
 });

@@ -105,8 +105,40 @@ body {
   color: var(--accent);
 }
 
-.lang {
+/* MDL-07: native selects, so keyboard use and screen readers work without extra code. */
+select.lang {
+  field-sizing: content;
+  max-width: 11em;
+  height: 22px;
+  padding: 0 2px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
   font-weight: 600;
+  cursor: pointer;
+}
+
+select.lang:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+select.lang:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+/* The open list is drawn by the OS web engine on a light or dark field of its own. */
+select.lang option {
+  color: CanvasText;
+  background: Canvas;
+  font-weight: 400;
+}
+
+#toolbar button:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 .badge {

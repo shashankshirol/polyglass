@@ -7,7 +7,6 @@
 //! another app already holds is logged and skipped; reporting it in the UI is HK-02 (M4-2).
 //! Freeze mode (Ctrl+Alt+F) comes with M2-3.
 
-use pg_core::LangTag;
 use tauri::{AppHandle, Emitter, Manager, Wry, plugin::TauriPlugin};
 use tauri_plugin_global_shortcut::{
     Builder, Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState,
@@ -15,10 +14,7 @@ use tauri_plugin_global_shortcut::{
 
 use crate::settings;
 use crate::state::Lens;
-use crate::{clipboard, lens};
-
-/// Event carrying the target language (`en` or `sv`) after a swap.
-pub const TARGET_EVENT: &str = "lens-target";
+use crate::{clipboard, langs, lens};
 /// Event carrying the click-through state after the hotkey toggled it.
 pub const CLICK_THROUGH_EVENT: &str = "lens-click-through";
 
@@ -90,7 +86,9 @@ fn run(app: &AppHandle, action: Action) {
             }
         }
         Action::Swap => {
-            swap(app);
+            if langs::swap(app).is_none() {
+                tracing::info!("swap: the catalog has no model for the other direction");
+            }
         }
         Action::ClickThrough => {
             let state = app.state::<Lens>();
@@ -101,24 +99,6 @@ fn run(app: &AppHandle, action: Action) {
             let _ = app.emit_to(lens::LABEL, CLICK_THROUGH_EVENT, on);
         }
     }
-}
-
-/// Swap the direction: translate into the other language of the pair (SV-01: instant, both
-/// directions stay loaded). Saves the choice, redoes what's under the lens and tells the lens.
-/// Returns the new target.
-pub fn swap(app: &AppHandle) -> LangTag {
-    let store = app.state::<settings::Store>();
-    store.update(|s| {
-        s.translation.target = if s.translation.target_is_swedish() {
-            "en".into()
-        } else {
-            "sv".into()
-        };
-    });
-    let target = store.get().translation.target_lang();
-    app.state::<Lens>().set_target(target.clone());
-    let _ = app.emit_to(lens::LABEL, TARGET_EVENT, target.as_str());
-    target
 }
 
 #[cfg(test)]

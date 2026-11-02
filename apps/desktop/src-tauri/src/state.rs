@@ -6,7 +6,7 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 
-use pg_core::{LangTag, PhysRect};
+use pg_core::{LangTag, PhysRect, SourceLang};
 use pg_pipeline::{DriverHandle, LensUpdate, Pipeline};
 use pg_translate::Translator;
 use serde::Serialize;
@@ -122,13 +122,15 @@ impl Lens {
         true
     }
 
-    /// Translate into `target` from now on and redo what's under the lens (the swap, SV-01).
-    pub fn set_target(&self, target: LangTag) {
+    /// Translate from `source` into `target` from now on and redo what's under the lens (the
+    /// swap, SV-01; the toolbar's pickers, MDL-07).
+    pub fn set_languages(&self, source: SourceLang, target: LangTag) {
         let Some(pipeline) = self.pipeline.get() else {
             return;
         };
         let mut config = pipeline.config();
-        if config.target != target {
+        if config.source != source || config.target != target {
+            config.source = source;
             config.target = target;
             pipeline.set_config(config);
             self.with_driver(DriverHandle::invalidate);

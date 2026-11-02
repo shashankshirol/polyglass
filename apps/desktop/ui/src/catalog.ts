@@ -1,9 +1,8 @@
 // What the model manager and the wizard show for a `ModelsView` (MDL-01/03/05, SV-01). Pure
 // functions, tested with `npm test`; Rust decides what is allowed, this only picks what to draw.
 
+import { langName } from "./langs.ts";
 import type { JobView, ModelRow, ModelsView } from "./types";
-
-export const LANG_NAMES: Record<string, string> = { en: "English", sv: "Swedish", de: "German" };
 
 // Fluent IDs from `models.rs`; real localized strings arrive with M4-5.
 export const MODEL_MESSAGES: Record<string, string> = {
@@ -20,10 +19,6 @@ export const MODEL_MESSAGES: Record<string, string> = {
 export function formatBytes(bytes: number): string {
   if (bytes >= 1e9) return `${(bytes / 1e9).toFixed(2)} GB`;
   return `${(bytes / 1e6).toFixed(1)} MB`;
-}
-
-export function langName(tag: string): string {
-  return LANG_NAMES[tag] ?? tag;
 }
 
 export function pairName(row: Pick<ModelRow, "source" | "target">): string {
@@ -77,7 +72,7 @@ export type WizardStage = "offer" | "downloading" | "ready" | "install-command";
 /** Which step of the first-run wizard to show. */
 export function wizardStage(view: ModelsView): WizardStage {
   if (view.job) return "downloading";
-  if (view.swedish_missing_bytes === 0) return "ready";
-  if (!view.swedish_downloadable) return "install-command";
+  if (view.wanted_missing_bytes === 0) return "ready";
+  if (!view.wanted_downloadable) return "install-command";
   return "offer";
 }
