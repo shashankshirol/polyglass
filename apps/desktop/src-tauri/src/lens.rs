@@ -75,10 +75,13 @@ fn interior_from_physical(x: i32, y: i32, w: u32, h: u32, scale: f64) -> Option<
 /// must be the same everywhere. Wry's default `--disable-features` list, plus switches that
 /// stop the runtime's own background traffic (variations and component updates, pings, metrics
 /// and domain-reliability uploads, sync): without them WebView2 connected to Microsoft servers
-/// while the app was in on-device mode (PRIV-01, `scripts/lens-net.ps1`). Ignored off Windows.
-pub const WEBVIEW_ARGS: &str = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection \
-    --disable-background-networking --disable-component-update --disable-domain-reliability \
-    --disable-sync --metrics-recording-only --no-pings";
+/// while the app was in on-device mode (PRIV-01, `scripts/lens-net.ps1`). `msOneAuthWAM` keeps
+/// the runtime from loading its sign-in library (`oneauth.dll`), which otherwise fetched the
+/// Windows account's profile from `substrate.office.com` over WinHTTP (outside Chromium's
+/// network stack, so `--disable-background-networking` doesn't cover it). Ignored off Windows.
+pub const WEBVIEW_ARGS: &str = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection,\
+    msOneAuthWAM --disable-background-networking --disable-component-update \
+    --disable-domain-reliability --disable-sync --metrics-recording-only --no-pings";
 
 /// Create the (hidden) lens window. It is shown by [`place_and_show`].
 pub fn create(app: &AppHandle) -> tauri::Result<WebviewWindow> {
