@@ -51,7 +51,7 @@ pub fn pipeline(
         crate::devflags::capturer(StaticCapturer::new(desktop(bounds, scale)), dump)?,
         Arc::new(ocr),
         Arc::new(translator),
-        PipelineConfig::new(SourceLang::AutoSvEn, LangTag::en()),
+        PipelineConfig::new(SourceLang::Auto(LangTag::sv()), LangTag::en()),
     ))
 }
 

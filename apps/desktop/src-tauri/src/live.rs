@@ -60,7 +60,7 @@ pub fn pipeline(store: &ModelStore, dump: Option<std::path::PathBuf>) -> Result<
         crate::devflags::capturer(capturer, dump)?,
         Arc::new(ocr),
         translator(store),
-        PipelineConfig::new(SourceLang::AutoSvEn, LangTag::en()),
+        PipelineConfig::new(SourceLang::Auto(LangTag::sv()), LangTag::en()),
     ))
 }
 

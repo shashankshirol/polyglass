@@ -1,9 +1,12 @@
-//! Swedish/English language identification for "Auto (Swedish/English)" (SV-04) and the
-//! already-in-target-language passthrough (TR-07).
+//! Language identification for Auto mode, e.g. "Auto (Swedish/English)" (SV-04, MDL-07), and
+//! the already-in-target-language passthrough (TR-07).
 //!
-//! A small lexicon + morphology scorer: unambiguous function words, common UI verbs, å/ä/ö,
-//! and characteristic suffixes. It only has to separate Swedish from English, and runs per
-//! block in microseconds, so no model is needed.
+//! A small lexicon + morphology scorer per language (Swedish, English, German): unambiguous
+//! function words, common UI verbs, letters like å/ä/ö/ü/ß, and characteristic suffixes. It only
+//! has to tell the two languages of the selected pair apart, and runs per block in microseconds,
+//! so no model is needed. A word counts for a language only if the other language of the pair
+//! doesn't use it too. A pair with a language that has no profile here still works: every block
+//! is then translated (nothing passes through).
 
 use pg_core::LangTag;
 
@@ -252,6 +255,266 @@ const EN_WORDS: &[&str] = &[
     "policy",
 ];
 
+/// German words for German/English identification (M3-9). German words that are also common
+/// English words (`will`, `also`, `was`, `an`, `am`, `man`, `so`, `in`, ...) are left out; they
+/// are listed in [`DE_SHARED`] so they don't count as English either.
+const DE_WORDS: &[&str] = &[
+    "und",
+    "oder",
+    "aber",
+    "der",
+    "die",
+    "das",
+    "dem",
+    "den",
+    "des",
+    "ein",
+    "eine",
+    "einen",
+    "einem",
+    "einer",
+    "ist",
+    "sind",
+    "nicht",
+    "kein",
+    "keine",
+    "mit",
+    "für",
+    "auf",
+    "aus",
+    "bei",
+    "nach",
+    "von",
+    "vom",
+    "zum",
+    "zur",
+    "zu",
+    "im",
+    "um",
+    "ich",
+    "du",
+    "sie",
+    "wir",
+    "ihr",
+    "ihre",
+    "ihren",
+    "ihrer",
+    "sich",
+    "es",
+    "auch",
+    "noch",
+    "nur",
+    "schon",
+    "wenn",
+    "dass",
+    "weil",
+    "wie",
+    "wer",
+    "wird",
+    "werden",
+    "wurde",
+    "wurden",
+    "kann",
+    "können",
+    "muss",
+    "müssen",
+    "soll",
+    "sollte",
+    "möchten",
+    "möchtest",
+    "haben",
+    "hat",
+    "habe",
+    "sein",
+    "ja",
+    "nein",
+    "bitte",
+    "danke",
+    "alle",
+    "alles",
+    "mehr",
+    "neu",
+    "neue",
+    "neuen",
+    "jetzt",
+    "hier",
+    "dies",
+    "diese",
+    "dieser",
+    "dieses",
+    "über",
+    "unter",
+    "durch",
+    "gegen",
+    "ohne",
+    "zwischen",
+    "datei",
+    "dateien",
+    "speichern",
+    "abbrechen",
+    "schließen",
+    "öffnen",
+    "suchen",
+    "hilfe",
+    "anmelden",
+    "abmelden",
+    "konto",
+    "passwort",
+    "kennwort",
+    "benutzer",
+    "auswählen",
+    "klicken",
+    "ändern",
+    "entfernen",
+    "löschen",
+    "anzeigen",
+    "ausblenden",
+    "kopieren",
+    "einfügen",
+    "herunterladen",
+    "seite",
+    "einstellungen",
+    "weiter",
+    "zurück",
+    "fertig",
+    "fehler",
+    "ordner",
+    "aktualisieren",
+    "teilen",
+    "senden",
+];
+
+/// Common English words that are German words too: in a German/English decision they count for
+/// neither side.
+const DE_SHARED: &[&str] = &[
+    "will", "also", "was", "an", "am", "man", "so", "in", "war", "bin", "hand", "name", "final",
+];
+
+/// Languages with a profile here. Auto mode between two of them identifies each block; between
+/// other languages every block is treated as the source language (translated).
+pub const PROFILED: [&str; 3] = ["sv", "en", "de"];
+
+/// Whether [`decide`] can tell `lang` apart from another profiled language.
+pub fn has_profile(lang: &LangTag) -> bool {
+    PROFILED.contains(&lang.primary())
+}
+
+fn words(lang: &str) -> &'static [&'static str] {
+    match lang {
+        "sv" => SV_WORDS,
+        "en" => EN_WORDS,
+        "de" => DE_WORDS,
+        _ => &[],
+    }
+}
+
+/// Words of `other` that `lang` shares; they count for neither.
+fn shared(lang: &str, other: &str) -> &'static [&'static str] {
+    match (lang, other) {
+        ("en", "de") | ("de", "en") => DE_SHARED,
+        _ => &[],
+    }
+}
+
+const SV_SUFFIXES: [&str; 8] = [
+    "arna", "orna", "erna", "heten", "ningen", "ningar", "ning", "het",
+];
+const DE_SUFFIXES: [&str; 8] = [
+    "ung", "ungen", "keit", "heit", "lich", "isch", "chen", "schaft",
+];
+
+/// Evidence that one lowercased word is in `lang` rather than `other`.
+fn word_score(lang: &str, other: &str, w: &str) -> f32 {
+    let mut s = 0.0;
+    let n = w.chars().count();
+    if words(lang).contains(&w) && !words(other).contains(&w) && !shared(lang, other).contains(&w) {
+        s += 1.0;
+    }
+    match lang {
+        "sv" => {
+            if w.contains(['å', 'ä', 'ö']) {
+                s += 1.0;
+            }
+            if ["sj", "tj", "skj", "stj"].iter().any(|p| w.starts_with(p)) {
+                s += 0.5;
+            }
+            if n > 4 && SV_SUFFIXES.iter().any(|suf| w.ends_with(suf)) {
+                s += 0.5;
+            }
+        }
+        "de" => {
+            if w.contains(['ä', 'ö', 'ü', 'ß']) {
+                s += 1.0;
+            }
+            if w.starts_with("sch") {
+                s += 0.5;
+            }
+            if n > 4 && DE_SUFFIXES.iter().any(|suf| w.ends_with(suf)) {
+                s += 0.5;
+            }
+        }
+        "en" => {
+            if w.contains('\'') {
+                s += 0.5;
+            }
+            // Swedish has almost no w; German has many.
+            if other == "sv" && w.contains('w') {
+                s += 0.5;
+            }
+            if w.starts_with("th") {
+                s += 0.5;
+            }
+            // Against Swedish, a Swedish suffix wins (`-ning` ends in `-ing`).
+            let swedish_suffix = other == "sv" && SV_SUFFIXES.iter().any(|suf| w.ends_with(suf));
+            if n > 4 && !swedish_suffix {
+                if w.ends_with("ing") || w.ends_with("ly") || w.ends_with("ness") {
+                    s += 0.5;
+                } else if w.ends_with("ed") {
+                    s += 0.3;
+                }
+            }
+        }
+        _ => {}
+    }
+    s
+}
+
+/// Evidence for `a` and for `b` in `text`, or `None` unless both have a profile and differ.
+pub fn scores(text: &str, a: &LangTag, b: &LangTag) -> Option<(f32, f32)> {
+    let (a, b) = (a.primary(), b.primary());
+    if !PROFILED.contains(&a) || !PROFILED.contains(&b) || a == b {
+        return None;
+    }
+    let (mut sa, mut sb) = (0.0, 0.0);
+    for raw in text.split(|c: char| !(c.is_alphabetic() || c == '\'')) {
+        let raw = raw.trim_matches('\'');
+        if raw.is_empty() {
+            continue;
+        }
+        // The English pronoun "I" vs the Swedish preposition "i".
+        if raw == "I" && (a == "en" || b == "en") {
+            if a == "en" {
+                sa += 0.5;
+            } else {
+                sb += 0.5;
+            }
+            continue;
+        }
+        if raw == "i" && (a == "sv" || b == "sv") {
+            if a == "sv" {
+                sa += 1.0;
+            } else {
+                sb += 1.0;
+            }
+            continue;
+        }
+        let w = raw.to_lowercase();
+        sa += word_score(a, b, &w);
+        sb += word_score(b, a, &w);
+    }
+    Some((sa, sb))
+}
+
 /// Result of identifying one block.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Identification {
@@ -260,107 +523,30 @@ pub struct Identification {
     pub confidence: f32,
 }
 
-/// Raw evidence scores (exposed for tests and tuning).
-#[derive(Debug, Clone, Copy, Default, PartialEq)]
-pub struct Scores {
-    pub sv: f32,
-    pub en: f32,
-}
-
-pub fn scores(text: &str) -> Scores {
-    let mut s = Scores::default();
-    for raw in text.split(|c: char| !(c.is_alphabetic() || c == '\'')) {
-        let raw = raw.trim_matches('\'');
-        if raw.is_empty() {
-            continue;
-        }
-        // Standalone pronoun "I" vs Swedish preposition "i".
-        if raw == "i" {
-            s.sv += 1.0;
-            continue;
-        }
-        if raw == "I" {
-            s.en += 0.5;
-            continue;
-        }
-        let w = raw.to_lowercase();
-        if w.contains('\'') {
-            s.en += 0.5;
-        }
-        if SV_WORDS.contains(&w.as_str()) {
-            s.sv += 1.0;
-        }
-        if EN_WORDS.contains(&w.as_str()) {
-            s.en += 1.0;
-        }
-        if w.contains(['å', 'ä', 'ö']) {
-            s.sv += 1.0;
-        }
-        if w.contains('w') {
-            s.en += 0.5;
-        }
-        if w.starts_with("th") {
-            s.en += 0.5;
-        }
-        if ["sj", "tj", "skj", "stj"].iter().any(|p| w.starts_with(p)) {
-            s.sv += 0.5;
-        }
-        let n = w.chars().count();
-        if n > 4 {
-            if [
-                "arna", "orna", "erna", "heten", "ningen", "ningar", "ning", "het",
-            ]
-            .iter()
-            .any(|suf| w.ends_with(suf))
-            {
-                s.sv += 0.5;
-            } else if w.ends_with("ing") || w.ends_with("ly") || w.ends_with("ness") {
-                s.en += 0.5;
-            } else if w.ends_with("ed") {
-                s.en += 0.3;
-            }
-        }
-    }
-    s
-}
-
-/// Identify `text` as Swedish or English, or `None` if there isn't enough evidence.
-pub fn identify(text: &str) -> Option<Identification> {
-    let s = scores(text);
-    let total = s.sv + s.en;
-    if total < MIN_EVIDENCE || (s.sv - s.en).abs() < f32::EPSILON {
+/// Identify `text` as `a` or `b`, or `None` if there isn't enough evidence or a language has no
+/// profile.
+pub fn identify(text: &str, a: &LangTag, b: &LangTag) -> Option<Identification> {
+    let (sa, sb) = scores(text, a, b)?;
+    let total = sa + sb;
+    if total < MIN_EVIDENCE || (sa - sb).abs() < f32::EPSILON {
         return None;
     }
-    let (lang, top) = if s.sv > s.en {
-        (LangTag::sv(), s.sv)
-    } else {
-        (LangTag::en(), s.en)
-    };
+    let (lang, top) = if sa > sb { (a, sa) } else { (b, sb) };
     Some(Identification {
-        lang,
+        lang: lang.clone(),
         confidence: top / total,
     })
 }
 
-/// The other language of the Swedish/English pair.
-pub fn other_of_sv_en(target: &LangTag) -> LangTag {
-    if target.is_swedish() {
-        LangTag::en()
-    } else {
-        LangTag::sv()
-    }
-}
-
-/// Decide the language of a block in "Auto (Swedish/English)" mode (SV-04).
+/// Decide the language of a block in Auto mode (SV-04): `source` or `target`.
 ///
-/// Short blocks and blocks without a clear verdict are treated as the non-target language, so
-/// they are translated rather than passed through.
-pub fn decide_sv_en(text: &str, target: &LangTag) -> LangTag {
-    let fallback = other_of_sv_en(target);
+/// Short blocks, blocks without a clear verdict and languages without a profile are treated as
+/// the source (the non-target language), so they are translated rather than passed through.
+pub fn decide(text: &str, source: &LangTag, target: &LangTag) -> LangTag {
     if text.trim().chars().count() < MIN_IDENTIFY_CHARS {
-        return fallback;
+        return source.clone();
     }
-    identify(text).map_or(fallback, |id| id.lang)
+    identify(text, source, target).map_or_else(|| source.clone(), |id| id.lang)
 }
 
 /// True if a block in language `block_lang` must be sent to the backend for `target` (TR-07).
@@ -394,12 +580,13 @@ mod tests {
         let truth = mixed_fixture();
         let mut correct = 0;
         for b in &truth.blocks {
+            let source = other_of_sv_en(target);
             let expected = if b.short {
-                other_of_sv_en(target)
+                source.clone()
             } else {
                 b.lang.clone()
             };
-            let got = decide_sv_en(&b.text, target);
+            let got = decide(&b.text, &source, target);
             if got == expected {
                 correct += 1;
             } else {
@@ -453,7 +640,7 @@ mod tests {
                 }
                 for target in [LangTag::en(), LangTag::sv()] {
                     total += 1;
-                    let got = decide_sv_en(&s.source, &target);
+                    let got = decide(&s.source, &other_of_sv_en(&target), &target);
                     if got == set.source {
                         correct += 1;
                     } else {
@@ -468,15 +655,57 @@ mod tests {
         assert!(acc >= 0.9, "accuracy {acc}");
     }
 
+    fn other_of_sv_en(target: &LangTag) -> LangTag {
+        if target.is_swedish() {
+            LangTag::en()
+        } else {
+            LangTag::sv()
+        }
+    }
+
     #[test]
     fn short_blocks_are_non_target() {
-        assert_eq!(decide_sv_en("Cancel", &LangTag::en()), LangTag::sv());
-        assert_eq!(decide_sv_en("Spara", &LangTag::sv()), LangTag::en());
+        let (sv, en) = (LangTag::sv(), LangTag::en());
+        assert_eq!(decide("Cancel", &sv, &en), sv);
+        assert_eq!(decide("Spara", &en, &sv), en);
     }
 
     #[test]
     fn no_evidence_is_none() {
-        assert_eq!(identify("Microsoft Teams Premium 365"), None);
+        let (sv, en) = (LangTag::sv(), LangTag::en());
+        assert_eq!(identify("Microsoft Teams Premium 365", &sv, &en), None);
+    }
+
+    #[test]
+    fn mdl07_unprofiled_languages_are_always_translated() {
+        let fi = LangTag::parse("fi").unwrap();
+        assert!(!has_profile(&fi) && has_profile(&LangTag::parse("de-DE").unwrap()));
+        let text = "The quick brown fox jumps over the lazy dog again and again";
+        assert_eq!(identify(text, &fi, &LangTag::en()), None);
+        assert_eq!(decide(text, &fi, &LangTag::en()), fi);
+    }
+
+    #[test]
+    fn m3_9_german_and_english_are_told_apart() {
+        let (de, en) = (LangTag::parse("de").unwrap(), LangTag::en());
+        let german = [
+            "Möchten Sie die Änderungen speichern, bevor Sie das Fenster schließen?",
+            "Die Datei konnte nicht geöffnet werden.",
+            "Ich will das also noch einmal versuchen, wenn es geht.",
+            "Einstellungen für die Benachrichtigungen",
+        ];
+        let english = [
+            "Do you want to save your changes before closing the window?",
+            "The file could not be opened.",
+            "We will also show a warning when the download is finished.",
+            "Settings for notifications and sounds",
+        ];
+        for t in german {
+            assert_eq!(decide(t, &de, &en), de, "{t}");
+        }
+        for t in english {
+            assert_eq!(decide(t, &de, &en), en, "{t}");
+        }
     }
 
     #[test]

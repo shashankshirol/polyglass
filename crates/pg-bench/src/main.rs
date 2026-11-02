@@ -242,15 +242,13 @@ fn run(args: &Args) -> Result<(), String> {
             .collect();
         Some(score(&got.join("\n"), &img.text_of(in_lens.lines)))
     };
+    // A mixed fixture runs in Auto mode between Swedish and English (SV-04).
     let source = match &truth.lang {
         Some(lang) => SourceLang::Fixed(lang.clone()),
-        None => SourceLang::AutoSvEn,
+        None if target.is_swedish() => SourceLang::Auto(LangTag::en()),
+        None => SourceLang::Auto(LangTag::sv()),
     };
-    // Auto mode translates the non-target language of the pair (SV-04).
-    let from = match &truth.lang {
-        Some(lang) => lang.clone(),
-        None => pg_translate::langid::other_of_sv_en(&target),
-    };
+    let from = source.lang().clone();
     let loaded = backend::load(
         args.translator,
         args.models.clone(),

@@ -227,7 +227,7 @@ impl Pipeline {
                 let text = block.text();
                 let source_lang = match &config.source {
                     SourceLang::Fixed(l) => l.clone(),
-                    SourceLang::AutoSvEn => langid::decide_sv_en(&text, target),
+                    SourceLang::Auto(l) => langid::decide(&text, l, target),
                 };
                 let passthrough = !langid::needs_translation(&source_lang, target);
                 let pair = LangPair::new(source_lang.clone(), target.clone());
@@ -353,17 +353,15 @@ fn recognize(
 
     let t2 = Instant::now();
     let mut notices = Vec::new();
-    let ocr_lang = match &cfg.source {
-        SourceLang::Fixed(l) => l.clone(),
-        // The Swedish recognizer also reads English text; prefer it in Auto mode.
-        SourceLang::AutoSvEn => LangTag::sv(),
-    };
-    let lines = match ocr.recognize(&frame, Some(&ocr_lang)) {
+    // OCR follows the source language (OCR-06, MDL-07). In Auto mode the source language's
+    // recognizer is used: the Swedish and German ones also read English text.
+    let ocr_lang = cfg.source.lang();
+    let lines = match ocr.recognize(&frame, Some(ocr_lang)) {
         Ok(lines) => lines,
-        Err(Error::OcrLanguageMissing(lang)) if cfg.source == SourceLang::AutoSvEn => {
-            // SV-02: keep English source working while Swedish OCR is missing.
+        Err(Error::OcrLanguageMissing(lang)) if cfg.source.is_auto() => {
+            // SV-02: keep target-language text working while the source's OCR is missing.
             notices.push(Notice::OcrLanguageMissing { lang });
-            match ocr.recognize(&frame, Some(&LangTag::en())) {
+            match ocr.recognize(&frame, Some(&cfg.target)) {
                 Ok(lines) => lines,
                 Err(e) => return BlockingOutcome::Failed(ocr_status(e)),
             }

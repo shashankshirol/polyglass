@@ -47,7 +47,7 @@ fn pipeline(translator: MockTranslator) -> Arc<Pipeline> {
         Box::new(StaticCapturer::new(page)),
         Arc::new(ocr),
         Arc::new(translator),
-        PipelineConfig::new(SourceLang::AutoSvEn, LangTag::en()),
+        PipelineConfig::new(SourceLang::Auto(LangTag::sv()), LangTag::en()),
     ))
 }
 

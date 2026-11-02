@@ -208,7 +208,7 @@ async fn tr07_auto_mode_passes_through_target_language() {
     let r = rig_with(
         ocr(),
         MockTranslator::new(),
-        PipelineConfig::new(SourceLang::AutoSvEn, LangTag::en()),
+        PipelineConfig::new(SourceLang::Auto(LangTag::sv()), LangTag::en()),
     );
     let u = cycle(&r, RIGHT).await;
     let b = &u.blocks[0];
@@ -282,7 +282,7 @@ async fn sv02_auto_mode_falls_back_to_english_ocr() {
     let r = rig_with(
         ocr().with_languages(vec![LangTag::parse("en-US").unwrap()]),
         MockTranslator::new(),
-        PipelineConfig::new(SourceLang::AutoSvEn, LangTag::en()),
+        PipelineConfig::new(SourceLang::Auto(LangTag::sv()), LangTag::en()),
     );
     let u = cycle(&r, RIGHT).await;
     assert_eq!(u.status, LensStatus::Ok);
@@ -292,6 +292,49 @@ async fn sv02_auto_mode_falls_back_to_english_ocr() {
             lang: LangTag::sv()
         }]
     );
+}
+
+/// MDL-07: the pair comes from the config. German → English in Auto mode reads with the German
+/// recognizer, translates German blocks as de→en and passes English through; without German
+/// OCR it reads English with a notice naming German.
+#[tokio::test]
+async fn mdl07_german_pair_in_auto_mode() {
+    let de = LangTag::parse("de").unwrap();
+    let lines = vec![
+        Line::new(
+            "Möchten Sie die Änderungen speichern?",
+            Rect::new(0.0, 0.0, 300.0, 14.0),
+            0.9,
+        ),
+        Line::new(EN_TEXT, Rect::new(0.0, 100.0, 300.0, 14.0), 0.9),
+    ];
+    let languages = vec![
+        LangTag::parse("de-DE").unwrap(),
+        LangTag::parse("en-US").unwrap(),
+    ];
+    let r = rig_with(
+        MockOcr::fixed(lines.clone()).with_languages(languages),
+        MockTranslator::new(),
+        PipelineConfig::new(SourceLang::Auto(de.clone()), LangTag::en()),
+    );
+    let u = cycle(&r, LEFT).await;
+    assert_eq!((&u.status, u.notices.len()), (&LensStatus::Ok, 0));
+    assert_eq!(u.blocks[0].source_lang, de);
+    assert_eq!(
+        u.blocks[0].translation.as_deref(),
+        Some("[en] Möchten Sie die Änderungen speichern?")
+    );
+    assert!(u.blocks[1].passthrough);
+    assert_eq!(r.translator.calls(), 1);
+
+    let r = rig_with(
+        MockOcr::fixed(lines).with_languages(vec![LangTag::parse("en-US").unwrap()]),
+        MockTranslator::new(),
+        PipelineConfig::new(SourceLang::Auto(de.clone()), LangTag::en()),
+    );
+    let u = cycle(&r, LEFT).await;
+    assert_eq!(u.status, LensStatus::Ok);
+    assert_eq!(u.notices, [Notice::OcrLanguageMissing { lang: de }]);
 }
 
 #[tokio::test]

@@ -131,13 +131,29 @@ impl fmt::Display for LangPair {
     }
 }
 
-/// The user's source-language choice (OCR-03).
+/// The user's source-language choice (OCR-03, MDL-07).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", tag = "kind", content = "lang")]
 pub enum SourceLang {
+    /// Every block is in this language.
     Fixed(LangTag),
-    /// Per-block Swedish/English identification (SV-04).
-    AutoSvEn,
+    /// Each block is identified as this language or the target language; blocks already in
+    /// the target pass through (SV-04, TR-07). `Auto(sv)` with target `en` is SPEC's
+    /// "Auto (Swedish/English)".
+    Auto(LangTag),
+}
+
+impl SourceLang {
+    /// The language translated from: the fixed one, or the non-target side of `Auto`.
+    pub fn lang(&self) -> &LangTag {
+        match self {
+            SourceLang::Fixed(l) | SourceLang::Auto(l) => l,
+        }
+    }
+
+    pub fn is_auto(&self) -> bool {
+        matches!(self, SourceLang::Auto(_))
+    }
 }
 
 #[cfg(test)]
@@ -177,6 +193,13 @@ mod tests {
         let j = serde_json::to_string(&s).unwrap();
         assert_eq!(j, r#"{"kind":"fixed","lang":"sv"}"#);
         assert_eq!(serde_json::from_str::<SourceLang>(&j).unwrap(), s);
+        let auto = SourceLang::Auto(LangTag::parse("de").unwrap());
+        assert_eq!(
+            serde_json::to_string(&auto).unwrap(),
+            r#"{"kind":"auto","lang":"de"}"#
+        );
+        assert_eq!(auto.lang().as_str(), "de");
+        assert!(auto.is_auto() && !s.is_auto());
         assert!(serde_json::from_str::<LangTag>(r#""x""#).is_err());
     }
 }
