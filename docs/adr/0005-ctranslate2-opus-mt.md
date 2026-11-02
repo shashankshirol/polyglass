@@ -148,4 +148,43 @@ Not measured: macOS, Linux, arm64; `accelerate` on macOS; translation quality be
   (2026-11-02) built and passed on Linux and Apple silicon; on Intel macOS translation was
   ≈ 35–50× slower (ruy enables its x86 SIMD kernels only for GCC, Clang on Linux and MSVC, not
   Apple clang), so Intel Macs are out of v1 (D-11). German → English
-  (M3-9) uses the same backend.
+  (M3-9) uses the same backend. The runners' numbers are in the next section.
+
+## Measured on GitHub runners (`Measure` workflow, 2026-11-02)
+
+`.github/workflows/measure.yml`, job summaries pasted by the owner (session 14). Release builds,
+OPUS-MT int8, threads per model from `Options::default_threads()` (half the CPUs, 1..4). These
+runs predate D-10, so chrF is the old guard's (Windows dev machine then: 76.45 / 80.71). Runners
+aren't REF-A/REF-B and are shared VMs.
+
+| | Linux x64 (first run) | macOS arm64 (first run) | Windows x64 (`os = windows` rerun) |
+|---|---|---|---|
+| CPU, threads per model | AMD EPYC 9V74, 2 vCPUs → 1 | Apple M2 Pro (VM), 5 CPUs → 2 | AMD EPYC 9V45, 2 vCPUs → 1 |
+| Build (CTranslate2 incl.), `pg-bench` size | 460 s, 5.8 MB | 103 s, 4.6 MB | 676 s, 5.6 MB |
+| Conversion vs. the Windows pins | failed or differs (step log not seen) | failed or differs (step log not seen) | byte-identical |
+| Real-model tests | 5/5 | 5/5 | 5/5 |
+| sv→en short / paragraph / `ui-dialog-sv`, p50 | 116 / 645 / 566 ms | 28 / 165 / 168 ms | 55 / 304 / 278 ms |
+| en→sv short / paragraph / `ui-dialog-en`, p50 | 117 / 641 / 520 ms | 24 / 146 / 167 ms | 54 / 318 / 261 ms |
+| RSS: both loaded / after runs | 206 / 304 MB | 210 / 323 MB | 211 / 275 MB |
+| chrF sv-en (ui / web / doc) | 75.18 (71.38 / 77.28 / 75.90) | 76.66 (76.20 / 77.23 / 76.54) | 76.45 (75.75 / 78.27 / 75.68) |
+| chrF en-sv (ui / web / doc) | 80.76 (75.71 / 80.04 / 84.05) | 81.13 (75.71 / 81.12 / 84.25) | 80.71 (75.71 / 80.97 / 83.45) |
+| Eval segment latency sv-en p50 / p99 / max | 249 / 830 / **6974** ms | 50 / 165 / 196 ms | 119 / 379 / 464 ms |
+| pg-bench cycle, translation stage p50 / p95: sv→en, en→sv | 568 / 573, 517 / 524 ms | 168 / 193, 161 / 180 ms | 281 / 412, 255 / 275 ms |
+
+Notes:
+- PERF-01's budget (≤ 600 ms) is met everywhere, narrowly on the 2-vCPU Linux runner with one
+  thread per model. The first Windows run (also 2 vCPUs, 1 thread) measured 572 ms for the same
+  stage and the rerun 278 ms, so most of the Linux/Windows gap looks like runner hardware rather
+  than the OS. Whether 2-core machines should use 2 threads per model is open; measure it on a
+  2-core-pinned process before changing the policy.
+- The Windows runner selected CTranslate2's AVX2 ISA with ruy for int8 GEMM.
+- chrF differs slightly per OS (Linux sv-en 1.3 points below Windows, mostly UI segments):
+  different CPU kernels give slightly different outputs.
+- Conversion on Linux and macOS didn't match the Windows pins (or failed); which one isn't known
+  without the step log. The models release is only known to be reproducible on Windows, where
+  `models-release.yml` runs.
+- The Linux sv-en eval had one segment at 6974 ms against a p99 of 830 ms; unexplained (a
+  runner stall is likely, not checked).
+- Windows OCR on the runner: `ui-dialog-en` CER 0.00%, OCR p50 18 ms; Swedish skipped (no
+  `sv-SE` on the runner).
+
