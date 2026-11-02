@@ -144,5 +144,8 @@ Not measured: macOS, Linux, arm64; `accelerate` on macOS; translation quality be
 (SV-07). Spot checks show the usual small-model slips (en→sv `save them` → `rädda dem`).
 
 - **Follow-ups:** Linux x86_64 builds and passes the tests in CI, but nothing was measured there;
-  macOS and arm64 builds remain untested (M0-SPK-3 stays `[~]`). German → English
+  macOS and arm64 builds remain untested (M0-SPK-3 stays `[~]`). The first `Measure` run
+  (2026-11-02) built and passed on Linux and Apple silicon; on Intel macOS translation was
+  ≈ 35–50× slower (ruy enables its x86 SIMD kernels only for GCC, Clang on Linux and MSVC, not
+  Apple clang), so Intel Macs are out of v1 (D-11). German → English
   (M3-9) uses the same backend.

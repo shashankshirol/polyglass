@@ -171,7 +171,7 @@ Rough sizing assumes one or two part-time contributors. Each milestone ends with
 
 **Repository files.** README (quick start under 5 minutes), CONTRIBUTING, CODE_OF_CONDUCT (Contributor Covenant), SECURITY.md (private disclosure channel), GOVERNANCE.md (lightweight maintainer model), **PRIVACY.md** (plain-language data flow, linked from the app), DCO sign-off on commits (no CLA).
 
-**CI (GitHub Actions)** on Windows, macOS (arm64 + x86_64), Ubuntu:
+**CI (GitHub Actions)** on Windows, macOS (arm64; Intel Macs are out of v1, D-11), Ubuntu:
 - `cargo fmt --check`, `cargo clippy -D warnings`, unit and fixture tests.
 - `cargo deny` (licenses, advisories, banned crates), `npm audit` for the UI.
 - `pg-bench` on fixtures, failing the build on >20% latency regression vs main.

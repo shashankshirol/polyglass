@@ -7,7 +7,8 @@ name: Measure
 # Actions → Measure → Run workflow (or `gh workflow run measure.yml -f os=macos`).
 #
 # GitHub's runners are not the SPEC reference machines (REF-A/REF-B), so these numbers show how
-# each OS builds and runs the engine, not whether PERF-01 passes there.
+# each OS builds and runs the engine, not whether PERF-01 passes there. Intel Macs are out of v1
+# (D-11), so macOS means Apple silicon (`macos-latest`).
 on:
   workflow_dispatch:
     inputs:
@@ -28,7 +29,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ${{ fromJSON(inputs.os == 'linux' && '["ubuntu-latest"]' || inputs.os == 'windows' && '["windows-latest"]' || inputs.os == 'macos' && '["macos-latest","macos-15-intel"]' || '["ubuntu-latest","windows-latest","macos-latest","macos-15-intel"]') }}
+        os: ${{ fromJSON(inputs.os == 'linux' && '["ubuntu-latest"]' || inputs.os == 'windows' && '["windows-latest"]' || inputs.os == 'macos' && '["macos-latest"]' || '["ubuntu-latest","windows-latest","macos-latest"]') }}
     runs-on: ${{ matrix.os }}
     defaults:
       run:

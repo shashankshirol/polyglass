@@ -1,8 +1,10 @@
 # Polyglass — Product Specification
 
-> **Version:** 0.3 (draft) · **Date:** 2026-11-01 · **Companion:** [`PLAN.md`](./PLAN.md)
+> **Version:** 0.4 (draft) · **Date:** 2026-11-02 · **Companion:** [`PLAN.md`](./PLAN.md)
 > Priorities use MoSCoW: **MUST** (blocks 1.0), **SHOULD** (expected in 1.0), **COULD** (nice to have).
 > Each requirement has an ID; acceptance criteria (AC) are written so they can be checked by a test or a reviewer.
+
+**Changes in v0.4:** Intel Macs are not supported in v1; macOS means Apple silicon (§4, decision D-11).
 
 **Changes in v0.3:** On-device translation moves to CTranslate2 + OPUS-MT models (ADR-0005, decision D-8); SIZE-05 raised to 200 MB. Owner answers to the open questions (§10, decision D-5). Default direction is Swedish → English (SV-01). Language pairs come from the model catalog, so users can add their own (MDL-07); German → English is the next pair (§3). US English is the default variant (SV-10). Panel is the default mode on Linux X11 (MODE-02). Failing online backends fall back to on-device with a notice (TR-06). Apple's Translation framework is out of scope (§8). Minimum OS versions confirmed (§4, D-3).
 
@@ -59,13 +61,15 @@ Language pairs are data, not code: any pair the model catalog or an online backe
 |---|---|---|---|---|---|
 | Windows x64 | Windows 10 2004 | 1 | ✅ | ✅ | ✅ |
 | Windows arm64 | Windows 11 | 2 | ✅ | ✅ | ✅ |
-| macOS (Apple silicon, Intel) | macOS 13 | 1 | ✅ | ✅ | ✅ |
+| macOS (Apple silicon) | macOS 13 | 1 | ✅ | ✅ | ✅ |
 | Linux X11 | Ubuntu 22.04 / Fedora 39 | 2 | Experimental | ✅ | ✅ |
 | Linux Wayland | GNOME 45 / KDE Plasma 6 | 2 | ❌ (post-v1) | ❌ (post-v1) | ✅ |
 
 Tier 1: release-blocking. Tier 2: supported, but bugs don't block a release.
 
 The minimums are confirmed (D-3). Older OS versions are not supported.
+
+Intel Macs are not supported in v1 (D-11): the on-device translation engine runs about 35–50× slower there than on the other platforms (M0-SPK-3), far outside PERF-01.
 
 ## 5. Reference hardware and measurement
 

@@ -39,8 +39,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # push/PR or os=linux → Linux; os=windows / os=macos → that OS; os=all → all four.
-        os: ${{ fromJSON((github.event_name != 'workflow_dispatch' || inputs.os == 'linux') && '["ubuntu-latest"]' || inputs.os == 'windows' && '["windows-latest"]' || inputs.os == 'macos' && '["macos-latest","macos-15-intel"]' || '["ubuntu-latest","windows-latest","macos-latest","macos-15-intel"]') }}
+        # push/PR or os=linux → Linux; os=windows / os=macos → that OS; os=all → all three.
+        # macOS is Apple silicon only: Intel Macs are out of v1 (D-11).
+        os: ${{ fromJSON((github.event_name != 'workflow_dispatch' || inputs.os == 'linux') && '["ubuntu-latest"]' || inputs.os == 'windows' && '["windows-latest"]' || inputs.os == 'macos' && '["macos-latest"]' || '["ubuntu-latest","windows-latest","macos-latest"]') }}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
