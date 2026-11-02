@@ -17,10 +17,11 @@ One command, from the repository root:
 
 The app normally downloads the same files from this repository's GitHub release (owner decision
 D-9; `scripts/models/release_assets.py` stages that release from this script's output). Use this
-script to install offline, to check the release, or to build a new one. Options: `--work DIR` (default `target/opus-mt`), `--store DIR` (default: the
+script to install offline, to check the release, or to build a new one. Options: `--all` (every
+model below, for a models release), `--work DIR` (default `target/opus-mt`), `--store DIR` (default: the
 app's store), `--no-install`, `--clean` (delete downloads and the venv afterwards), `--update-pins`
 (print the output hashes instead of checking them, for a new release or converter version), and
-model ids to limit the run (default: all below). Needs Python >= 3.12 and, for the install step,
+model ids to convert (default: the Swedish ↔ English pair; `opus-mt-de-en` adds German → English). Needs Python >= 3.12 and, for the install step,
 Rust/Cargo. Only the Python standard library is used outside the venv.
 
 Licenses: the models are CC-BY-4.0 (the LICENSE in each zip; Hugging Face's cards say Apache-2.0,
@@ -76,6 +77,26 @@ MODELS = {
         },
     },
 }
+
+# German → English (M3-9, SPEC §3): the newest pair-specific release (released-models.txt,
+# checked 2026-11-02), transformer-align with 32k SentencePiece vocabularies like the Swedish
+# pair. Not part of the default run: `python scripts/models/opus_mt.py opus-mt-de-en`.
+MODELS["opus-mt-de-en"] = {
+    "url": "https://object.pouta.csc.fi/Tatoeba-MT-models/deu-eng/opus%2Bbt-2021-04-30.zip",
+    "size": 289188746,
+    "sha256": "53d2ce3c9ba04eadeaf83e52733cd35ef9f919bfbe033bbd870128d03747cc4d",
+    "outputs": {
+        "LICENSE": ("945fbcb37deca05bccd7c3ca0e261679f1f5373515504fdbad68f6f3cf6f49b9", 18652),
+        "config.json": ("95dabd564e6abdb470e95f9106766647d8dc59e1bc2a1517d292c0cee5ca5812", 231),
+        "model.bin": ("8697c8673cdd7e6720e83292da48b855143cc3fe93e969dfc4198398f3eff0e6", 82713357),
+        "shared_vocabulary.json": ("b62e7b4da570da63cfd384e28bb7f5832729200978b43b26a24de8cc85da8497", 1319001),
+        "source.spm": ("44faa3234c2e663705f548e868d84d204530af95812b24f320a6d9ace9ae6482", 818726),
+        "target.spm": ("209a2bf269540755fc2a29491e57c963bc8c6c1d14dab9f0779cf1dc54fc7d8c", 794463),
+    },
+}
+
+# The default pair (SV-01): what a run without model ids converts and installs.
+DEFAULT_IDS = ["opus-mt-sv-en", "opus-mt-en-sv"]
 
 # What the converter writes, plus what is copied from the zip.
 CONVERTED = ["model.bin", "config.json", "shared_vocabulary.json"]
@@ -194,7 +215,9 @@ def main() -> None:
         sys.exit("Python >= 3.12 is required (numpy 2.5.4)")
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument("ids", nargs="*", metavar="MODEL_ID",
-                   help=f"models to convert (default: all of {', '.join(MODELS)})")
+                   help=f"models to convert, any of {', '.join(MODELS)} "
+                        f"(default: {' '.join(DEFAULT_IDS)})")
+    p.add_argument("--all", action="store_true", help="convert every model above (models releases)")
     p.add_argument("--work", type=Path, default=REPO / "target" / "opus-mt")
     p.add_argument("--store", help="model store to install into (default: the app's)")
     p.add_argument("--no-install", action="store_true")
@@ -202,7 +225,7 @@ def main() -> None:
     p.add_argument("--update-pins", action="store_true",
                    help="print output hashes instead of checking them (implies --no-install)")
     args = p.parse_args()
-    ids = args.ids or list(MODELS)
+    ids = list(MODELS) if args.all else (args.ids or DEFAULT_IDS)
     unknown = [i for i in ids if i not in MODELS]
     if unknown:
         p.error(f"unknown model id(s) {unknown}; known: {list(MODELS)}")

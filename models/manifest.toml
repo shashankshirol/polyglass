@@ -28,6 +28,11 @@ schema_version = 1
 #         286052961 bytes, sha256 2c19bd94e20abc47fc8c58eefab1dcd5de7bd887c6f3eebe0aa15c809769cba1
 #   en→sv https://object.pouta.csc.fi/Tatoeba-MT-models/eng-swe/opus%2Bbt-2021-04-14.zip
 #         286201633 bytes, sha256 1446a6b6d6bcdc6e862eb0cedd733f781ed9d1ee88fbb0bdb2f324549f16b0f9
+#   de→en https://object.pouta.csc.fi/Tatoeba-MT-models/deu-eng/opus%2Bbt-2021-04-30.zip
+#         289188746 bytes, sha256 53d2ce3c9ba04eadeaf83e52733cd35ef9f919bfbe033bbd870128d03747cc4d
+#
+# German → English (M3-9, SPEC §3) is import-only (no `url`) until a models release that
+# includes it is published: `python scripts/models/opus_mt.py opus-mt-de-en` installs it.
 
 [[model]]
 id = "opus-mt-sv-en"
@@ -65,4 +70,23 @@ files = [
   { name = "source.spm", url = "https://github.com/shashankshirol/polyglass/releases/download/models-opus-mt-2026-11-01/opus-mt-en-sv.source.spm", size = 799820, sha256 = "63d083fc4aafe025d3d7bc382cce13e3df54acb23e001a37f48535dbffc44700" },
   { name = "target.spm", url = "https://github.com/shashankshirol/polyglass/releases/download/models-opus-mt-2026-11-01/opus-mt-en-sv.target.spm", size = 811815, sha256 = "fb63614d9ec099e6fcbf1efd42cac97464c9017bc49a44181c986e9d4b18c6da" },
   { name = "LICENSE", url = "https://github.com/shashankshirol/polyglass/releases/download/models-opus-mt-2026-11-01/opus-mt-en-sv.LICENSE", size = 18652, sha256 = "945fbcb37deca05bccd7c3ca0e261679f1f5373515504fdbad68f6f3cf6f49b9" },
+]
+
+[[model]]
+id = "opus-mt-de-en"
+engine = "ctranslate2"
+source = "de"
+target = "en"
+# OPUS-MT release (transformer-align, SentencePiece 32k), converted with ctranslate2 4.8.4, int8.
+version = "opus+bt-2021-04-30-ct2-int8"
+license = "CC-BY-4.0"
+attribution = "OPUS-MT deu-eng model opus+bt-2021-04-30 by Helsinki-NLP (Language Technology Research Group, University of Helsinki), CC-BY 4.0 (https://creativecommons.org/licenses/by/4.0/); converted to CTranslate2 int8 by Polyglass. J. Tiedemann and S. Thottingal, \"OPUS-MT – Building open translation services for the World\", EAMT 2020."
+source_url = "https://github.com/Helsinki-NLP/Tatoeba-Challenge/tree/master/models/deu-eng"
+files = [
+  { name = "model.bin", size = 82713357, sha256 = "8697c8673cdd7e6720e83292da48b855143cc3fe93e969dfc4198398f3eff0e6" },
+  { name = "config.json", size = 231, sha256 = "95dabd564e6abdb470e95f9106766647d8dc59e1bc2a1517d292c0cee5ca5812" },
+  { name = "shared_vocabulary.json", size = 1319001, sha256 = "b62e7b4da570da63cfd384e28bb7f5832729200978b43b26a24de8cc85da8497" },
+  { name = "source.spm", size = 818726, sha256 = "44faa3234c2e663705f548e868d84d204530af95812b24f320a6d9ace9ae6482" },
+  { name = "target.spm", size = 794463, sha256 = "209a2bf269540755fc2a29491e57c963bc8c6c1d14dab9f0779cf1dc54fc7d8c" },
+  { name = "LICENSE", size = 18652, sha256 = "945fbcb37deca05bccd7c3ca0e261679f1f5373515504fdbad68f6f3cf6f49b9" },
 ]

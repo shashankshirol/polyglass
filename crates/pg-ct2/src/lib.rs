@@ -266,7 +266,7 @@ mod tests {
     use pg_models::{ModelFile, sha256_file};
 
     #[test]
-    fn bundled_manifest_has_both_swedish_directions() {
+    fn bundled_manifest_has_both_swedish_directions_and_german() {
         let manifest = Manifest::bundled().unwrap();
         let models: Vec<_> = manifest
             .models
@@ -275,12 +275,21 @@ mod tests {
             .collect();
         let pairs: Vec<_> = models.iter().map(|m| m.pair()).collect();
         assert!(pairs.contains(&LangPair::sv_en()) && pairs.contains(&LangPair::en_sv()));
+        // M3-9: German → English, from the catalog alone (MDL-07).
+        let de_en = LangPair::new(
+            pg_core::LangTag::parse("de").unwrap(),
+            pg_core::LangTag::en(),
+        );
+        assert!(pairs.contains(&de_en));
         for m in &models {
             assert_eq!(m.license, "CC-BY-4.0", "{}", m.id);
             let attribution = m.attribution.as_deref().unwrap_or_default();
             assert!(attribution.contains("OPUS-MT"), "{}: {attribution}", m.id);
+            // The Swedish pair is downloadable (D-9); German → English is import-only until a
+            // models release carries it.
+            let import_only = m.pair() == de_en && !m.is_downloadable();
             // MDL-02, D-9: downloadable from this repository's GitHub releases.
-            for f in &m.files {
+            for f in m.files.iter().filter(|_| !import_only) {
                 let url = f.url.as_deref().unwrap_or_default();
                 assert!(
                     url.starts_with("https://github.com/shashankshirol/polyglass/releases/download/models-opus-mt-"),

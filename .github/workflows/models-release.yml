@@ -34,7 +34,7 @@ jobs:
       # Pinned input zips (SHA-256), hash-locked converter, output files checked against the
       # pinned SHA-256s: the result is byte-identical to a local run.
       - name: Convert the models
-        run: python scripts/models/opus_mt.py --no-install --work "$RUNNER_TEMP/opus-mt"
+        run: python scripts/models/opus_mt.py --all --no-install --work "$RUNNER_TEMP/opus-mt"
       # Checks the manifest URLs name this tag and every file against the manifest's size and
       # SHA-256; writes the license, attribution, SHA256SUMS and the release notes.
       - name: Stage the release assets
