@@ -88,8 +88,17 @@ mod tests {
     use crate::metrics::normalize;
 
     #[test]
-    fn sv07_both_sets_have_200_clean_segments() {
-        for (name, pair) in [("sv-en", LangPair::sv_en()), ("en-sv", LangPair::en_sv())] {
+    fn sv07_every_set_has_200_clean_segments() {
+        let de_en = LangPair::new(
+            pg_core::LangTag::parse("de").unwrap(),
+            pg_core::LangTag::en(),
+        );
+        for (name, pair) in [
+            ("sv-en", LangPair::sv_en()),
+            ("en-sv", LangPair::en_sv()),
+            // M3-9.
+            ("de-en", de_en),
+        ] {
             let set = load(name).unwrap();
             assert_eq!(set.set, name);
             assert_eq!(set.license, "CC0-1.0", "{name}");

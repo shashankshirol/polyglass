@@ -6,6 +6,7 @@ Written for this project and released under **CC0-1.0**, like the fixtures.
 |---|---|---|---|
 | `sv-en` | Swedish → English | 200: 80 UI, 60 web, 60 document | US English (SV-10) |
 | `en-sv` | English → Swedish | 200: 80 UI, 60 web, 60 document | Swedish |
+| `de-en` | German → English | 200: 80 UI, 60 web, 60 document | US English (M3-9) |
 
 The two sets were written separately: `en-sv`'s English sources are not `sv-en`'s references
 (test `the_sets_are_written_separately`), so neither direction is scored on the other's output.
@@ -36,7 +37,7 @@ quality.
 ```
 
 Ids run 1–200 in file order. Text is NFC with single spaces (test
-`sv07_both_sets_have_200_clean_segments` in `pg-testkit`, which loads them through
+`sv07_every_set_has_200_clean_segments` in `pg-testkit`, which loads them through
 `pg_testkit::eval`).
 
 ## Scoring
@@ -56,10 +57,20 @@ from the app's store (`--models <dir>` for another one) and wraps them in the SV
 the app does; `--no-guard` leaves the guard out.
 
 The sources double as a held-out set for the Auto-mode language identification (SV-04, test
-`sv04_held_out_eval_sources` in `pg-translate`).
+`sv04_held_out_eval_sources` in `pg-translate`; for German/English, `de-en`'s sources and
+references: `m3_9_held_out_german_english`).
+
+Scores so far (OPUS-MT int8 behind the app's SV-05 guard, release build, Windows dev machine):
+
+| Set | chrF | ui / web / doc | Left untranslated by the guard |
+|---|---|---|---|
+| `sv-en` | 77.14 | 75.75 / 78.30 / 77.12 | 0 |
+| `en-sv` | 81.59 | 75.71 / 84.51 / 83.45 | 1 |
+| `de-en` | 74.71 (75.74 without the guard) | 76.37 / 76.97 / 73.02 | 4 (dates turned into US order, which SV-05 rejects) |
 
 ## Not done yet
 
-- A native Swedish speaker hasn't reviewed the Swedish sources and references.
+- A native Swedish speaker hasn't reviewed the Swedish sources and references, nor a native
+  German speaker the German ones.
 - SV-07's per-release chrF report and the native-speaker rating of 50 outputs per direction are
   M5-6.

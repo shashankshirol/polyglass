@@ -663,6 +663,43 @@ mod tests {
         }
     }
 
+    /// M3-9: the de-en eval set's German sources and English references, decided between German
+    /// and English. Written after the German profile, never tuned on it.
+    #[test]
+    fn m3_9_held_out_german_english() {
+        #[derive(serde::Deserialize)]
+        struct Segment {
+            source: String,
+            reference: String,
+        }
+        #[derive(serde::Deserialize)]
+        struct Set {
+            segments: Vec<Segment>,
+        }
+        let set: Set =
+            serde_json::from_str(include_str!("../../../tests/eval/de-en/segments.json")).unwrap();
+        let (de, en) = (LangTag::parse("de").unwrap(), LangTag::en());
+        let (mut correct, mut total) = (0, 0);
+        for s in &set.segments {
+            for (text, want) in [(&s.source, &de), (&s.reference, &en)] {
+                if text.chars().count() < MIN_IDENTIFY_CHARS {
+                    continue;
+                }
+                total += 1;
+                let got = decide(text, &de, &en);
+                if got == *want {
+                    correct += 1;
+                } else {
+                    eprintln!("wrong: {text:?} → {got}");
+                }
+            }
+        }
+        let acc = correct as f32 / total as f32;
+        eprintln!("held-out de/en: {correct}/{total} = {acc}");
+        assert!(total > 200, "{total}");
+        assert!(acc >= 0.9, "accuracy {acc}");
+    }
+
     #[test]
     fn short_blocks_are_non_target() {
         let (sv, en) = (LangTag::sv(), LangTag::en());
