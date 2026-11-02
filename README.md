@@ -3,7 +3,8 @@
 Polyglass shows a movable lens over your desktop. Text under the lens is recognized and
 translated in near real time, and the translation is drawn inside the lens. Everything can run
 **on your device**; online translation backends are opt-in. Swedish ↔ English is the primary
-language pair for v1.
+language pair for v1; German → English is the next one. Language pairs come from the model
+catalog (`models/manifest.toml`), so a new pair is a catalog entry, not a code change.
 
 **Status:** pre-alpha (milestone M0/M1). The headless core (`crates/pg-*`) builds and is tested.
 The desktop lens window (`apps/desktop`) runs on Windows with real screen capture (Windows
@@ -121,6 +122,15 @@ This one command:
   `cargo run -p pg-models --bin import-models`, which verifies them against
   `models/manifest.toml` again.
 
+**German → English** isn't in a models release yet, so it is installed this way only:
+
+```
+python scripts/models/opus_mt.py opus-mt-de-en
+```
+
+(one 289 MB download, 86 MB installed). Model ids pick what to convert; `--all` converts every
+model the script knows (the models release workflow uses it).
+
 Then restart Polyglass. Later launches load the models from disk, and nothing goes online. Use
 `--clean` to delete the downloads and the venv afterwards, `--store <dir>` for another model
 store, and `--no-install` to only convert. The OPUS-MT models are CC-BY-4.0: the attribution is
@@ -141,12 +151,21 @@ file against the manifest and creates the pre-release with the license, attribut
   focused, the arrow keys move it by 1 px, and Shift+arrow moves it by 10 px.
 - Put the lens over Swedish text. The translation is drawn in place once the lens stops
   moving.
+- The two pickers at the left of the toolbar choose the language pair: every pair in the model
+  catalog, installed or not (⬇ marks a missing model; ⬇ or ⚙ in the toolbar downloads it). The
+  source picker offers each language as "Swedish/English" (each block is detected; text already
+  in the target language is shown as it is) or "Swedish only". The choice is saved in
+  `settings.toml` (`[translation] source`, `target`, `auto`). OCR uses the source language: for
+  German, add German text recognition in Windows Settings (the lens says how; ⚠ DE opens the
+  page).
 - The toolbar buttons:
+  - ⇄ (Ctrl+Alt+S) swaps the direction when the catalog has the reverse pair;
   - ❚❚ pauses translation;
   - ⇲ turns click-through on or off, so clicks reach the window underneath;
   - ✕ hides the lens.
-- The tray icon menu has **Show/hide lens** and **Quit Polyglass**. While the lens is hidden,
-  nothing is captured.
+- The tray icon menu has **Show/hide lens**, **Translation models…** and **Quit Polyglass**;
+  a left click on the icon shows or hides the lens. While the lens is hidden, nothing is
+  captured.
 
 ### 5. Release build
 
