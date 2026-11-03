@@ -2,9 +2,10 @@
 
 Polyglass shows a movable lens over your desktop. Text under the lens is recognized and
 translated in near real time, and the translation is drawn inside the lens. Everything can run
-**on your device**; online translation backends are opt-in. Swedish ↔ English is the primary
-language pair for v1; German → English is the next one. Language pairs come from the model
-catalog (`models/manifest.toml`), so a new pair is a catalog entry, not a code change.
+**on your device**; online translation backends are opt-in. v1 is built and tested for
+Swedish ↔ English. German → English is also in the catalog, and you can
+[set it up yourself](#optional-german--english). Language pairs come from the model catalog
+(`models/manifest.toml`), so a new pair is a catalog entry, not a code change.
 
 **Status:** pre-alpha (milestone M0/M1). The headless core (`crates/pg-*`) builds and is tested.
 The desktop lens window (`apps/desktop`) runs on Windows with real screen capture (Windows
@@ -122,14 +123,8 @@ This one command:
   `cargo run -p pg-models --bin import-models`, which verifies them against
   `models/manifest.toml` again.
 
-**German → English** isn't in a models release yet, so it is installed this way only:
-
-```
-python scripts/models/opus_mt.py opus-mt-de-en
-```
-
-(one 289 MB download, 86 MB installed). Model ids pick what to convert; `--all` converts every
-model the script knows (the models release workflow uses it).
+Model ids pick what to convert (see [German → English](#optional-german--english)); `--all`
+converts every model the script knows (the models release workflow uses it).
 
 Then restart Polyglass. Later launches load the models from disk, and nothing goes online. Use
 `--clean` to delete the downloads and the venv afterwards, `--store <dir>` for another model
@@ -145,6 +140,38 @@ name. `.github/workflows/models-release.yml` converts the models on a clean runn
 file against the manifest and creates the pre-release with the license, attribution and
 `SHA256SUMS`. It never replaces an existing release.
 
+### Optional: German → English
+
+German → English isn't part of v1's tested scope and isn't in a models release, so you set it
+up yourself. It uses the same pinned, hash-checked steps as the Swedish models.
+
+1. **Install the model** (Python 3.12 or newer; one 289 MB download, 86 MB installed). From the
+   repository root:
+
+   ```
+   python scripts/models/opus_mt.py opus-mt-de-en
+   ```
+
+   Add `--clean` to delete the download and the converter venv afterwards. Restart Polyglass
+   when it finishes.
+2. **Add German text recognition (Windows).** Either of these works:
+   - Settings → Time & language → Language & region → Add a language → German (Germany). In
+     the next dialog, untick "Set as my Windows display language" and every optional feature
+     except "Optical character recognition". Windows also adds a German keyboard layout; remove
+     it under German → Language options → Keyboards if you don't want it.
+   - Or, in a PowerShell terminal run as administrator, install only the OCR feature:
+
+     ```powershell
+     Add-WindowsCapability -Online -Name "Language.OCR~~~de-DE~0.0.1.0"
+     ```
+
+   Without it, the lens shows ⚠ DE (click it to open the language settings) and reads German
+   text with the English recognizer, which reads most words but may get ä, ö, ü and ß wrong.
+   On macOS and Linux, German OCR comes with those platforms' OCR engines, which aren't
+   implemented yet.
+3. **Pick the pair:** in the lens toolbar, set the source to "German/English" (each block is
+   detected, and English text is shown as it is) or "German only", and the target to English.
+
 ### 4. Use the lens
 
 - Drag the toolbar to move the lens, or drag any edge or corner to resize it. With the lens
@@ -156,8 +183,7 @@ file against the manifest and creates the pre-release with the license, attribut
   source picker offers each language as "Swedish/English" (each block is detected; text already
   in the target language is shown as it is) or "Swedish only". The choice is saved in
   `settings.toml` (`[translation] source`, `target`, `auto`). OCR uses the source language: for
-  German, add German text recognition in Windows Settings (the lens says how; ⚠ DE opens the
-  page).
+  German, see [German → English](#optional-german--english).
 - The toolbar buttons:
   - ⇄ (Ctrl+Alt+S) swaps the direction when the catalog has the reverse pair;
   - ❚❚ pauses translation;
