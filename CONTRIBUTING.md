@@ -17,7 +17,7 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 ```
 
-All three must pass. CI runs them on Linux for every push and pull request; Windows and macOS run only when the CI workflow is started by hand (Actions → CI → Run workflow), which maintainers do for large changes.
+All three must pass. v1 is Windows only, so build and test on Windows. CI checks formatting, the lens UI and `cargo deny` on every push and pull request; clippy, the tests and the MSRV check run on Windows only when the CI workflow is started by hand (Actions → CI → Run workflow), which maintainers do for large changes.
 
 ## Rules that are easy to miss
 

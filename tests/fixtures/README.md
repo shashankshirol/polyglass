@@ -77,7 +77,5 @@ The first of these that exists is used (`pg_testkit::TextRenderer::system`):
 |---|---|---|---|
 | Windows | `%WINDIR%\Fonts\segoeui.ttf` (Segoe UI; v5.72, SHA-256 `704eada1…0f6e` on the dev machine) | Microsoft, licensed with Windows | No (font file); CC0 release of renderings unclear → D-7 |
 | Windows | `%WINDIR%\Fonts\arial.ttf` (fallback) | Monotype, licensed with Windows | No; same question |
-| macOS | `/System/Library/Fonts/Supplemental/Arial.ttf`, `/Library/Fonts/Arial.ttf` | Monotype, licensed with macOS | No; same question |
-| Linux | DejaVu Sans (`/usr/share/fonts/…/DejaVuSans.ttf`) | Bitstream Vera / DejaVu license (permissive) | Yes |
-
-No font file and no rendering is in the repository.
+No font file and no rendering is in the repository. v1 is Windows only; on other systems no
+font is found and the tests that need one skip.

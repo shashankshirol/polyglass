@@ -14,7 +14,7 @@ pub enum Error {
     #[error("screen capture failed: {0}")]
     Capture(String),
 
-    /// Screen Recording permission (macOS) or portal access (Wayland) is missing (CAP-05).
+    /// The OS denied screen capture to the app (CAP-05).
     #[error("screen capture permission denied")]
     CapturePermissionDenied,
 

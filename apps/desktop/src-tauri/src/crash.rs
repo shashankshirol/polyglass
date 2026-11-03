@@ -123,14 +123,7 @@ pub fn reports(dir: &Path) -> Vec<PathBuf> {
 
 /// Show `dir` in the system file manager.
 pub fn open_folder(dir: &Path) -> std::io::Result<()> {
-    let opener = if cfg!(windows) {
-        "explorer.exe"
-    } else if cfg!(target_os = "macos") {
-        "open"
-    } else {
-        "xdg-open"
-    };
-    std::process::Command::new(opener)
+    std::process::Command::new("explorer.exe")
         .arg(dir)
         .spawn()
         .map(drop)

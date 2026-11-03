@@ -1,22 +1,16 @@
 name: Measure
 
-# M0-SPK-3 on every OS: builds CTranslate2 (pg-ct2), converts the OPUS-MT models with the pinned
-# converter, runs the real-model tests and times on-device translation with pg-bench (eval sets
-# and the translation stage of a pipeline cycle; OCR is the mock outside Windows). Manual only,
-# because it downloads ≈ 570 MB of model zips per OS and macOS minutes count 10×:
-# Actions → Measure → Run workflow (or `gh workflow run measure.yml -f os=macos`).
+# M0-SPK-3 on a clean Windows runner: builds CTranslate2 (pg-ct2), converts the OPUS-MT models
+# with the pinned converter, runs the real-model tests and times on-device translation with
+# pg-bench (eval sets, the translation stage of a pipeline cycle, and a cycle with Windows OCR).
+# Manual only, because it downloads ≈ 570 MB of model zips:
+# Actions → Measure → Run workflow (or `gh workflow run measure.yml`).
 #
 # GitHub's runners are not the SPEC reference machines (REF-A/REF-B), so these numbers show how
-# each OS builds and runs the engine, not whether PERF-01 passes there. Intel Macs are out of v1
-# (D-11), so macOS means Apple silicon (`macos-latest`).
+# a clean machine builds and runs the engine, not whether PERF-01 passes there. v1 is Windows
+# only; the macOS and Linux jobs were removed (their results are in ADR-0005).
 on:
   workflow_dispatch:
-    inputs:
-      os:
-        description: Which OSes to measure on
-        type: choice
-        default: all
-        options: [all, windows, macos, linux]
 
 permissions:
   contents: read
@@ -26,11 +20,7 @@ env:
 
 jobs:
   translation:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: ${{ fromJSON(inputs.os == 'linux' && '["ubuntu-latest"]' || inputs.os == 'windows' && '["windows-latest"]' || inputs.os == 'macos' && '["macos-latest"]' || '["ubuntu-latest","windows-latest","macos-latest"]') }}
-    runs-on: ${{ matrix.os }}
+    runs-on: windows-latest
     defaults:
       run:
         shell: bash
@@ -47,14 +37,7 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
-      - name: CMake and C++ (Linux)
-        if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y cmake g++
-      - name: CMake (macOS; Xcode's clang is the C++ compiler)
-        if: runner.os == 'macOS'
-        run: command -v cmake || brew install cmake
-      - name: Ninja (Windows)
-        if: runner.os == 'Windows'
+      - name: Ninja
         shell: pwsh
         run: if (-not (Get-Command ninja -ErrorAction SilentlyContinue)) { choco install ninja -y --no-progress }
       - name: Machine
@@ -62,10 +45,7 @@ jobs:
           mkdir -p "$RESULTS"
           {
             echo "runner: $RUNNER_OS $RUNNER_ARCH ($ImageOS $ImageVersion)"
-            if [ "$RUNNER_OS" = macOS ]; then sysctl -n machdep.cpu.brand_string hw.ncpu hw.memsize
-            elif [ "$RUNNER_OS" = Linux ]; then lscpu | grep -E 'Model name|^CPU\(s\)'; free -m | head -2
-            else powershell -NoProfile -Command "(Get-CimInstance Win32_Processor).Name; [Environment]::ProcessorCount"
-            fi
+            powershell -NoProfile -Command "(Get-CimInstance Win32_Processor).Name; [Environment]::ProcessorCount"
             cmake --version | head -1
             c++ --version 2>/dev/null | head -1 || true
           } | tee "$RESULTS/machine.txt"
@@ -117,12 +97,10 @@ jobs:
           done
           $b --fixture tests/fixtures/ui-dialog-sv --translator ct2 --models "$MODELS" --runs 50 | tee -a "$RESULTS/pg-bench.txt"
           $b --fixture tests/fixtures/ui-dialog-en --target sv --translator ct2 --models "$MODELS" --runs 50 | tee -a "$RESULTS/pg-bench.txt"
-          if [ "$RUNNER_OS" = Windows ]; then
-            # GitHub's Windows images have the en-US OCR language but not sv-SE.
-            $b --fixture tests/fixtures/ui-dialog-en --target sv --ocr windows --translator ct2 --models "$MODELS" --runs 50 | tee -a "$RESULTS/pg-bench.txt"
-            $b --fixture tests/fixtures/ui-dialog-sv --ocr windows --translator ct2 --models "$MODELS" --runs 50 2>&1 | tee -a "$RESULTS/pg-bench.txt" \
-              || echo "ui-dialog-sv with Windows OCR skipped: no Swedish OCR on this runner" | tee -a "$RESULTS/pg-bench.txt"
-          fi
+          # GitHub's Windows images have the en-US OCR language but not sv-SE.
+          $b --fixture tests/fixtures/ui-dialog-en --target sv --ocr windows --translator ct2 --models "$MODELS" --runs 50 | tee -a "$RESULTS/pg-bench.txt"
+          $b --fixture tests/fixtures/ui-dialog-sv --ocr windows --translator ct2 --models "$MODELS" --runs 50 2>&1 | tee -a "$RESULTS/pg-bench.txt" \
+            || echo "ui-dialog-sv with Windows OCR skipped: no Swedish OCR on this runner" | tee -a "$RESULTS/pg-bench.txt"
           du -sh "$MODELS"/* | tee -a "$RESULTS/pg-bench.txt"
       - name: Summary
         if: always()
@@ -139,6 +117,6 @@ jobs:
       - uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: measure-${{ matrix.os }}
+          name: measure-windows
           path: target/measure/results/
           retention-days: 30

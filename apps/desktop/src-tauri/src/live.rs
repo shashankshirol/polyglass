@@ -64,7 +64,7 @@ pub fn pipeline(store: &ModelStore, dump: Option<std::path::PathBuf>) -> Result<
     ))
 }
 
-/// Capture on macOS and Linux is M1-CAP-3 / M2-1.
+/// v1 captures on Windows only; elsewhere the app runs in demo mode.
 #[cfg(not(windows))]
 pub fn pipeline(_store: &ModelStore, _dump: Option<std::path::PathBuf>) -> Result<Pipeline> {
     Err(Error::Capture(

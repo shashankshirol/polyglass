@@ -5,9 +5,9 @@ use crate::{Error, PhysRect, Result};
 /// Pixel layout of a [`Frame`]. All formats are 8 bits per channel.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PixelFormat {
-    /// Blue, green, red, alpha (Windows Graphics Capture, ScreenCaptureKit).
+    /// Blue, green, red, alpha (Windows Graphics Capture).
     Bgra8,
-    /// Red, green, blue, alpha (image files, X11 after conversion).
+    /// Red, green, blue, alpha (image files).
     Rgba8,
     /// Single luminance channel.
     Gray8,

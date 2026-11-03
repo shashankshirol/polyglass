@@ -1,6 +1,6 @@
 [package]
 name = "pg-ocr"
-description = "OCR engine trait and implementations (WinRT, Vision, Tesseract) for Polyglass."
+description = "OCR engine trait and the Windows OCR engine for Polyglass."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

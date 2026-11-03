@@ -184,13 +184,6 @@ fn system_font_candidates() -> Vec<PathBuf> {
         let fonts = PathBuf::from(windir).join("Fonts");
         out.push(fonts.join("segoeui.ttf"));
         out.push(fonts.join("arial.ttf"));
-    } else if cfg!(target_os = "macos") {
-        out.push("/System/Library/Fonts/Supplemental/Arial.ttf".into());
-        out.push("/Library/Fonts/Arial.ttf".into());
-    } else {
-        out.push("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf".into());
-        out.push("/usr/share/fonts/dejavu/DejaVuSans.ttf".into());
-        out.push("/usr/share/fonts/TTF/DejaVuSans.ttf".into());
     }
     out
 }

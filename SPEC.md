@@ -1,8 +1,10 @@
 # Polyglass — Product Specification
 
-> **Version:** 0.5 (draft) · **Date:** 2026-11-02 · **Companion:** [`PLAN.md`](./PLAN.md)
+> **Version:** 0.6 (draft) · **Date:** 2026-11-03 · **Companion:** [`PLAN.md`](./PLAN.md)
 > Priorities use MoSCoW: **MUST** (blocks 1.0), **SHOULD** (expected in 1.0), **COULD** (nice to have).
 > Each requirement has an ID; acceptance criteria (AC) are written so they can be checked by a test or a reviewer.
+
+**Changes in v0.6:** v1 ships on Windows only (decision D-15). macOS and Linux are post-v1 platforms: any requirement, clause, table row or target that names macOS, Linux, X11, Wayland, REF-B, Tesseract or Apple Vision applies only once that platform is back in scope, and is kept here as its target (§4). German → English is a COULD that users set up themselves (§3, D-13/D-14).
 
 **Changes in v0.5:** A clock time may be written in 12- or 24-hour form in a translation if its value is unchanged (SV-05, decision D-10).
 
@@ -37,7 +39,7 @@ Swedish is the primary language for v1.
 |---|---|---|
 | MUST | Swedish → English | On-device and online |
 | MUST | English → Swedish | On-device and online |
-| SHOULD | German → English | Next pair after sv↔en (D-5): most users are English speakers. On-device model from the same catalog |
+| COULD | German → English | Next pair after sv↔en (D-5): most users are English speakers. On-device model in the catalog; users install it themselves (D-14), and German OCR isn't gated (D-13) |
 | SHOULD | Swedish ↔ other languages that have on-device models | Pivot through English (TR-03) |
 | COULD | Any other pair a backend offers | No Swedish-specific testing |
 
@@ -47,8 +49,8 @@ Language pairs are data, not code: any pair the model catalog or an online backe
 
 - **On-device translation:** OPUS-MT (Helsinki-NLP) publishes sv→en, en→sv and de→en models, which Polyglass runs with CTranslate2 (ADR-0005), so these pairs work fully offline.
 - **OCR on Windows:** Windows OCR supports Swedish (`sv-SE`), but only once the Swedish OCR feature is installed on the machine.
-- **OCR on macOS:** Apple Vision does not support Swedish text recognition. Swedish source text on macOS therefore uses Tesseract with Swedish data by default (OCR-01, SV-02).
-- **OCR on Linux:** Tesseract with Swedish data (`tesseract-ocr-swe` on Debian/Ubuntu, `tesseract-langpack-swe` on Fedora).
+- **OCR on macOS (post-v1):** Apple Vision does not support Swedish text recognition. Swedish source text on macOS therefore uses Tesseract with Swedish data by default (OCR-01, SV-02).
+- **OCR on Linux (post-v1):** Tesseract with Swedish data (`tesseract-ocr-swe` on Debian/Ubuntu, `tesseract-langpack-swe` on Fedora).
 
 **Swedish text features the tests must cover:**
 
@@ -59,24 +61,31 @@ Language pairs are data, not code: any pair the model catalog or an online backe
 
 ## 4. Platform support (v1)
 
+v1 ships on Windows only (D-15):
+
 | Platform | Minimum | Tier | Overlay mode | Panel mode | Freeze mode |
 |---|---|---|---|---|---|
 | Windows x64 | Windows 10 2004 | 1 | ✅ | ✅ | ✅ |
 | Windows arm64 | Windows 11 | 2 | ✅ | ✅ | ✅ |
-| macOS (Apple silicon) | macOS 13 | 1 | ✅ | ✅ | ✅ |
-| Linux X11 | Ubuntu 22.04 / Fedora 39 | 2 | Experimental | ✅ | ✅ |
-| Linux Wayland | GNOME 45 / KDE Plasma 6 | 2 | ❌ (post-v1) | ❌ (post-v1) | ✅ |
 
 Tier 1: release-blocking. Tier 2: supported, but bugs don't block a release.
 
 The minimums are confirmed (D-3). Older OS versions are not supported.
 
+**Post-v1 platforms.** The code keeps platform-specific parts behind traits (capture, OCR) and `#[cfg]` modules, so these can be added later without restructuring. When one comes back, this table is its target:
+
+| Platform | Minimum | Tier | Overlay mode | Panel mode | Freeze mode |
+|---|---|---|---|---|---|
+| macOS (Apple silicon) | macOS 13 | 1 | ✅ | ✅ | ✅ |
+| Linux X11 | Ubuntu 22.04 / Fedora 39 | 2 | Experimental | ✅ | ✅ |
+| Linux Wayland | GNOME 45 / KDE Plasma 6 | 2 | ❌ | ❌ | ✅ |
+
 Intel Macs are not supported in v1 (D-11): the on-device translation engine runs about 35–50× slower there than on the other platforms (M0-SPK-3), far outside PERF-01.
 
 ## 5. Reference hardware and measurement
 
-- **REF-A:** x86_64, 4 cores / 8 threads (Intel Core i5-10210U class), 8 GB RAM, integrated GPU; Windows 11 and Ubuntu 24.04.
-- **REF-B:** Apple M1, 8 GB RAM, macOS 14.
+- **REF-A:** x86_64, 4 cores / 8 threads (Intel Core i5-10210U class), 8 GB RAM, integrated GPU; Windows 11 (Ubuntu 24.04 once Linux is in scope).
+- **REF-B (post-v1, macOS):** Apple M1, 8 GB RAM, macOS 14.
 - **Method:** `pg-bench` runs the pipeline in a 600×300 logical-px lens at 100% scale on two fixtures: `ui-dialog-sv` (≈ 40 words, Swedish → English; the primary measurement) and `ui-dialog-en` (≈ 40 words, English → Swedish). 5 warm-up runs, then percentiles over 100 runs. In-app timings come from the debug trace (`--trace-timings`).
 - **Fixtures** are created by the project and released under CC0, so they can be shared and extended freely.
 
@@ -427,7 +436,7 @@ Online backend round trips are excluded from PERF-01 and PERF-06.
 - **OSS-02 — MUST:** Releases are built only in CI from signed tags, with `SHA256SUMS`, CycloneDX SBOM and build-provenance attestations attached.
 - **OSS-03 — MUST:** README, CONTRIBUTING, CODE_OF_CONDUCT, SECURITY, PRIVACY docs present; PRIVACY.md is linked from Settings and available in Swedish.
 - **OSS-04 — SHOULD:** Release binaries for Windows and macOS are code-signed (and notarized on macOS) from the first public beta.
-- **QUAL-01 — MUST:** CI passes `fmt`, `clippy -D warnings`, unit, fixture and pipeline tests on all three OSes, including the Swedish fixtures.
+- **QUAL-01 — MUST:** CI passes `fmt`, `clippy -D warnings`, unit, fixture and pipeline tests on every supported OS (Windows in v1), including the Swedish fixtures.
 - **QUAL-02 — MUST:** CI fails on > 20% regression in `pg-bench` p50 latency versus `main`.
 - **QUAL-03 — SHOULD:** Core crates (`pg-*`) have ≥ 70% line coverage.
 
@@ -439,6 +448,7 @@ Online backend round trips are excluded from PERF-01 and PERF-06.
 - Text-to-speech, mobile apps, browser extension.
 - Replacing text inside other applications.
 - Required GPU acceleration.
+- macOS and Linux (D-15; post-v1 targets in §4).
 - Mac App Store / Microsoft Store distribution.
 - Live (non-Freeze) capture on Wayland.
 - Apple's Translation framework or other OS-specific translation engines: every OS uses the same on-device backend (D-5).
@@ -447,9 +457,10 @@ Online backend round trips are excluded from PERF-01 and PERF-06.
 
 | Milestone | Requirements that must pass |
 |---|---|
-| M0 Spikes | ADRs for capture, click-through, on-device backend, macOS Swedish OCR (Tesseract vs Vision); Swedish fixtures created; `pg-bench` running; QUAL-01 skeleton |
-| M1 MVP (Win + mac) | LENS-01–06, MODE-01, CAP-01–05, OCR-01–04, OCR-06, TR-01 (on-device), TR-02, TR-04, TR-06, TR-07, REN-01, REN-02, REN-04, REN-05, MDL-01–03, MDL-05, MDL-06, SET-01, PRIV-01, PRIV-02, PRIV-05–07, SV-01–05, SV-09, PERF-01, PERF-02, PERF-05, PERF-06 |
-| M2 Linux + modes | MODE-02, MODE-03, CAP-02 (X11), CAP-06, HK-03, OCR-05, SV-02 (Linux), SIZE-03, SIZE-04 |
+| M0 Spikes | ADRs for capture, click-through, on-device backend; Swedish fixtures created; `pg-bench` running; QUAL-01 skeleton |
+| M1 MVP (Windows) | LENS-01–06, MODE-01, CAP-01–05, OCR-01–04, OCR-06, TR-01 (on-device), TR-02, TR-04, TR-06, TR-07, REN-01, REN-02, REN-04, REN-05, MDL-01–03, MDL-05, MDL-06, SET-01, PRIV-01, PRIV-02, PRIV-05–07, SV-01–05, SV-09, PERF-01, PERF-02, PERF-05, PERF-06 |
+| M2 Modes | MODE-02, MODE-03, CAP-06, OCR-05 |
+| Post-v1 platforms | macOS: CAP-02/05 (mac), SV-02 (mac), SIZE-02, REF-B targets. Linux: CAP-02 (X11), CAP-05 (Wayland), HK-03, SV-02 (Linux), SIZE-03, SIZE-04 |
 | M3 Online backends | TR-01 (all), TR-03, TR-05, SET-02, PRIV-03, PRIV-04, PRIV-08, SEC-03, SV-10 |
 | M4 Polish | LENS-07, HK-01, HK-02, REN-06, SV-06, SV-08, A11Y-01, A11Y-02, I18N-01, MDL-04 |
 | M5 1.0 | All MUSTs; SV-07; PERF-*, RES-*, SIZE-*, SEC-*, OSS-*, QUAL-* |

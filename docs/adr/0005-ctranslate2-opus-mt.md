@@ -1,7 +1,8 @@
 # ADR-0005: Move on-device translation to CTranslate2 + OPUS-MT
 
 - **Status:** accepted (owner decision D-8, 2026-11-01); implemented and verified on Windows in
-  M1-TR-6 (session 8, 2026-11-01)
+  M1-TR-6 (session 8, 2026-11-01). Since D-15 (2026-11-03) v1 is Windows only; the macOS and
+  Linux results below are kept for when those platforms come back.
 - **Date:** 2026-11-01
 - **Supersedes:** [ADR-0004](./0004-on-device-translation.md) (its option C, `fxtranslate` +
   Mozilla models)
@@ -73,7 +74,8 @@ Measured results from the implementation (M1-TR-6) are in "Verified on this mach
     CMake's Debug compiler probe, `/RTC1`.)
   - The long-path try-compile failure didn't occur with the repository at `E:\Dev\Polyglass`; the
     README advises a short checkout path. Clean debug build of `pg-ct2` with Ninja ≈ 1 min.
-  - Linux: `pg-ct2` turns on ct2rs's `disable-cpu-dispatch` feature for `target_os = "linux"`
+  - Linux (*removed on 2026-11-03 with D-15, v1 is Windows only; re-add this when Linux comes
+    back*): `pg-ct2` turns on ct2rs's `disable-cpu-dispatch` feature for `target_os = "linux"`
     only; Windows and macOS keep CTranslate2's runtime CPU dispatch. Dispatch compiles
     `kernels.cc` once per ISA and expects the base copy to be generic. The `ubuntu-latest` runner's
     GCC 15.2 (Ubuntu 26.04) targets x86-64-v3 by default (`__AVX2__` and `__FMA__` defined

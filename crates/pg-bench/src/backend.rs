@@ -24,18 +24,10 @@ pub enum Backend {
 /// its models and `scripts/models/opus_mt.py` installs them.
 pub fn app_model_store() -> Option<PathBuf> {
     const APP: &str = "org.polyglass.desktop";
-    let env = |k: &str| {
-        std::env::var_os(k)
-            .filter(|v| !v.is_empty())
-            .map(PathBuf::from)
-    };
-    let base = if cfg!(windows) {
-        env("LOCALAPPDATA")?
-    } else if cfg!(target_os = "macos") {
-        env("HOME")?.join("Library/Application Support")
-    } else {
-        env("XDG_DATA_HOME").or_else(|| env("HOME").map(|h| h.join(".local/share")))?
-    };
+    // Windows only (v1); elsewhere pass `--models`.
+    let base = std::env::var_os("LOCALAPPDATA")
+        .filter(|v| cfg!(windows) && !v.is_empty())
+        .map(PathBuf::from)?;
     Some(base.join(APP).join("models"))
 }
 

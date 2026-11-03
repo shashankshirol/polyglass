@@ -1,7 +1,8 @@
 # Architecture
 
 Companion to [PLAN.md §3](../PLAN.md). This describes the code as it exists; PLAN.md describes
-the target.
+the target. v1 is Windows only (D-15); [Adding a platform](#adding-a-platform) lists where
+macOS or Linux would plug in.
 
 ## Crates
 
@@ -20,7 +21,7 @@ pg-testkit (dev-only: fixture images and OCR scoring for tests and pg-bench)
 |---|---|---|
 | `pg-core` | Types shared by everything | `PhysRect`, `LogicalRect::to_physical` (CAP-04), `Frame` (redacted `Debug`), `Line`, `Block::text` (de-hyphenation), `LangTag`, `LangPair`, `SourceLang`, `Error` |
 | `pg-capture` | Getting pixels | `ScreenCapturer` (incl. `release` while hidden), `StaticCapturer`, `FixtureCapturer` (PNG file or bytes), `WgcCapturer` + `monitors()` (Windows Graphics Capture, Windows only; ADR-0003) |
-| `pg-ocr` | Pixels → lines | `OcrEngine`, `default_engine` (OCR-01 table), `resolve_language` (OCR-06/SV-02), `MockOcr`, `WindowsOcr` (WinRT `Windows.Media.Ocr`, Windows only) |
+| `pg-ocr` | Pixels → lines | `OcrEngine`, `resolve_language` (OCR-06/SV-02), `MockOcr`, `WindowsOcr` (WinRT `Windows.Media.Ocr`, Windows only) |
 | `pg-translate` | Text → text | `Translator`, `TranslateError` (TR-06 kinds + Fluent IDs), `langid` (SV-04/TR-07; Swedish, English and German profiles, any two of them as a pair), `tokens` (SV-05 check), `TokenGuard` (SV-05: masked retry, else source), `PivotTranslator`/`plan_route` (TR-03), `MockTranslator` |
 | `pg-ct2` | On-device translation (ADR-0005) | `Ct2Translator` (id `ctranslate2`, local): CTranslate2 through `ct2rs` running OPUS-MT models converted to int8; `load_installed` loads every installed `ctranslate2` model, any pair; `Options` (threads, beam); `split_sentences` |
 | `pg-pipeline` | Orchestration | `Scheduler` (CAP-03, LENS-06), `change` (CAP-03/06), `grouping` (OCR-02), `cache` (TR-04), `color` (REN-01), `Pipeline::run_cycle`, `driver::spawn`, `LensUpdate` |
@@ -159,3 +160,19 @@ CTranslate2 is C++, and its `cxx` bridge (with its `unsafe`) lives inside `ct2rs
   the first-run wizard (MDL-06). Imported
   models are checked against the same SHA-256 (MDL-04).
 - Translation stays on the device with `pg-ct2` (`is_local() == true`, PRIV-05).
+
+## Adding a platform
+
+v1 ships on Windows only (D-15). Everything OS-specific sits behind a trait or a `cfg(windows)`
+item, and the rest (`pg-core`, `pg-translate`, `pg-ct2`, `pg-pipeline`, `pg-models`, the UI) has
+no platform code. The non-Windows branches return "unsupported" or nothing, so the app would
+start in demo mode elsewhere; no CI job builds it there, so expect some rot. To add macOS or
+Linux:
+
+| Where | What to add |
+|---|---|
+| `pg-capture` | A `ScreenCapturer` for the platform in its own `#[cfg]` module, next to `wgc` (SPEC CAP-01/02/05; PLAN §4–5 has the chosen APIs) |
+| `pg-ocr` | An `OcrEngine` in its own `#[cfg]` module, next to `winrt`; if a platform needs different engines per language (macOS: Vision has no Swedish), add a selection function (SPEC OCR-01) |
+| `apps/desktop/src-tauri` | `live.rs` `pipeline()` (pick the capturer and engine), `lens.rs` `exclude_from_capture`, `hold.rs` `keys()` (REN-04), `commands.rs` `open_ocr_language_settings`, `crash.rs` `open_folder`, `hotkeys.rs` `modifiers()` (⌘⌥ on macOS); Tauri's `macos-private-api` feature and `macOSPrivateApi` for transparent windows on macOS; `tauri.conf.json` bundle targets and icons |
+| Paths | The model store path in `pg-bench` (`app_model_store`) and `import-models` (`app_store`) is `%LOCALAPPDATA%` only; `pg-testkit`'s system fonts are Windows fonts |
+| Build and CI | `ci.yml` and `measure.yml` (a job per OS), `deny.toml` `[graph] targets`, and the platform notes in CHECKLIST.md "Post-v1 platforms" (e.g. Linux needs `ct2rs`'s `disable-cpu-dispatch`) |

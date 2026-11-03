@@ -7,13 +7,14 @@ Swedish ↔ English. German → English is also in the catalog, and you can
 [set it up yourself](#optional-german--english). Language pairs come from the model catalog
 (`models/manifest.toml`), so a new pair is a catalog entry, not a code change.
 
-**Status:** pre-alpha (milestone M0/M1). The headless core (`crates/pg-*`) builds and is tested.
-The desktop lens window (`apps/desktop`) runs on Windows with real screen capture (Windows
-Graphics Capture), Windows OCR and on-device Swedish ↔ English translation with CTranslate2 and
-Helsinki-NLP's OPUS-MT models ([ADR-0005](./docs/adr/0005-ctranslate2-opus-mt.md)). The models
-aren't hosted for download yet, so you convert and install them once with a script (step 3).
-macOS and Linux capture/OCR are not implemented yet. See [CHECKLIST.md](./CHECKLIST.md) for
-progress.
+**Status:** pre-alpha (milestone M1). **v1 is Windows only.** The desktop lens window
+(`apps/desktop`) runs with real screen capture (Windows Graphics Capture), Windows OCR and
+on-device Swedish ↔ English translation with CTranslate2 and Helsinki-NLP's OPUS-MT models
+([ADR-0005](./docs/adr/0005-ctranslate2-opus-mt.md)). The models aren't hosted for download yet,
+so you convert and install them once with a script (step 3). macOS and Linux may come after v1;
+capture and OCR sit behind traits so they can be added
+([docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md#adding-a-platform)). See
+[CHECKLIST.md](./CHECKLIST.md) for progress.
 
 ## Documents
 
@@ -27,29 +28,24 @@ progress.
 
 ## Build and run locally
 
-Only Windows runs the full app today (live capture, OCR and translation). On macOS and Linux the
-core crates build and test, and the app runs in demo mode only.
+Polyglass builds and runs on Windows 10 2004 or newer (x64).
 
 ### 1. Prerequisites
 
-- **Rust** stable, 1.90 or newer, via [rustup](https://rustup.rs). On Windows use the MSVC
-  toolchain (`x86_64-pc-windows-msvc`).
+- **Rust** stable, 1.90 or newer, via [rustup](https://rustup.rs), with the MSVC toolchain
+  (`x86_64-pc-windows-msvc`).
 - **Node.js** 20 or newer (npm comes with it).
-- **The [Tauri 2 prerequisites](https://v2.tauri.app/start/prerequisites/) for your OS:**
-  - Windows: the Microsoft C++ Build Tools or Visual Studio 2022 or newer with "Desktop
-    development with C++", and the WebView2 runtime, which Windows 11 already has.
-  - Linux: `libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev`.
-  - macOS: the Xcode command-line tools.
-- **CMake 3.x or newer and a C++17 compiler**, on `PATH`. The translation engine
-  (CTranslate2, through the `ct2rs` crate) is C++ and is compiled during the first build.
-  - Windows: one-time setup, `winget install Kitware.CMake Ninja-build.Ninja`, then open a new
-    terminal. The C++ compiler is the MSVC one from the Build Tools above; the build finds it by
-    itself, so a normal PowerShell terminal works (no Developer Prompt needed). Visual Studio also
-    ships CMake and Ninja, but they aren't on `PATH` outside the Developer Prompt.
-  - Linux: `cmake g++` (for example `sudo apt-get install cmake g++`).
-  - macOS: `brew install cmake`; the Xcode command-line tools provide the compiler.
+- **The [Tauri 2 prerequisites](https://v2.tauri.app/start/prerequisites/):** the Microsoft C++
+  Build Tools or Visual Studio 2022 or newer with "Desktop development with C++", and the
+  WebView2 runtime, which Windows 11 already has.
+- **CMake 3.x or newer and Ninja**, on `PATH`. The translation engine (CTranslate2, through the
+  `ct2rs` crate) is C++ and is compiled during the first build. One-time setup:
+  `winget install Kitware.CMake Ninja-build.Ninja`, then open a new terminal. The C++ compiler
+  is the MSVC one from the Build Tools above; the build finds it by itself, so a normal
+  PowerShell terminal works (no Developer Prompt needed). Visual Studio also ships CMake and
+  Ninja, but they aren't on `PATH` outside the Developer Prompt.
 - **Python 3.12 or newer**, only to convert the translation models (step 3).
-- **Swedish text recognition (Windows, optional):** Settings → Time & language → Language &
+- **Swedish text recognition (optional):** Settings → Time & language → Language &
   region → add Swedish → Language options → install its optical character recognition feature.
   Without it the lens reads English only and shows ⚠ SV in the toolbar.
 
@@ -68,7 +64,7 @@ CMake, which takes a few minutes. After that the UI reloads when you save a chan
 changes trigger a rebuild. The lens opens centred on the monitor your cursor is on, and a tray
 icon appears.
 
-On Windows, `.cargo/config.toml` does two things for CTranslate2, so nothing else needs setting
+`.cargo/config.toml` does two things for CTranslate2, so nothing else needs setting
 up: it links the static C runtime (`+crt-static`), which CTranslate2 requires, and it makes
 CMake use Ninja. With the Visual Studio generator, the build tooling (cmake-rs) drops the
 optimization flags and translation is about 13× slower. If you set a `RUSTFLAGS` environment
@@ -154,7 +150,7 @@ up yourself. It uses the same pinned, hash-checked steps as the Swedish models.
 
    Add `--clean` to delete the download and the converter venv afterwards. Restart Polyglass
    when it finishes.
-2. **Add German text recognition (Windows).** Either of these works:
+2. **Add German text recognition.** Either of these works:
    - Settings → Time & language → Language & region → Add a language → German (Germany). In
      the next dialog, untick "Set as my Windows display language" and every optional feature
      except "Optical character recognition". Windows also adds a German keyboard layout; remove
@@ -167,8 +163,6 @@ up yourself. It uses the same pinned, hash-checked steps as the Swedish models.
 
    Without it, the lens shows ⚠ DE (click it to open the language settings) and reads German
    text with the English recognizer, which reads most words but may get ä, ö, ü and ß wrong.
-   On macOS and Linux, German OCR comes with those platforms' OCR engines, which aren't
-   implemented yet.
 3. **Pick the pair:** in the lens toolbar, set the source to "German/English" (each block is
    detected, and English text is shown as it is) or "German only", and the target to English.
 
@@ -301,7 +295,7 @@ report.
 apps/desktop         Tauri 2 shell (src-tauri/) + lens UI (ui/, TypeScript + Vite, no framework)
 crates/pg-core       shared types (geometry, frames, lines/blocks, languages, errors)
 crates/pg-capture    ScreenCapturer trait, Windows Graphics Capture, fixture capturer
-crates/pg-ocr        OcrEngine trait, default-engine table, language resolution, Windows OCR
+crates/pg-ocr        OcrEngine trait, language resolution, Windows OCR
 crates/pg-translate  Translator trait, sv/en language ID, preserved-token checks + guard, pivoting
 crates/pg-ct2        on-device translation: CTranslate2 (ct2rs) running OPUS-MT models
 crates/pg-pipeline   scheduler, change detection, block grouping, cache, live driver

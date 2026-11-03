@@ -1,19 +1,15 @@
 name: CI
 
-# Pushes and pull requests run everything on Linux only. Windows and macOS runners count 2× and
-# 10× against a private repository's Actions minutes, so their test jobs run only when started by
-# hand: Actions → CI → Run workflow (or `gh workflow run ci.yml -f os=all`), e.g. for large changes.
+# v1 is Windows only. Pushes and pull requests run the checks that don't depend on the OS (fmt,
+# the lens UI, cargo-deny) on cheap Linux runners. The Rust build, tests and MSRV check need
+# Windows, whose runners count 2× against a private repository's Actions minutes, so on the
+# owner's request they run only when started by hand: Actions → CI → Run workflow (or
+# `gh workflow run ci.yml`), e.g. for large changes.
 on:
   push:
     branches: [main]
   pull_request:
   workflow_dispatch:
-    inputs:
-      os:
-        description: Which OSes the test job runs on
-        type: choice
-        default: all
-        options: [all, windows, macos, linux]
 
 permissions:
   contents: read
@@ -34,44 +30,25 @@ jobs:
       - run: cargo fmt --all -- --check
 
   test:
-    # QUAL-01: clippy + unit, fixture and pipeline tests; Linux on every push, Windows and macOS
-    # on a manual run (see `on:` above).
-    strategy:
-      fail-fast: false
-      matrix:
-        # push/PR or os=linux → Linux; os=windows / os=macos → that OS; os=all → all three.
-        # macOS is Apple silicon only: Intel Macs are out of v1 (D-11).
-        os: ${{ fromJSON((github.event_name != 'workflow_dispatch' || inputs.os == 'linux') && '["ubuntu-latest"]' || inputs.os == 'windows' && '["windows-latest"]' || inputs.os == 'macos' && '["macos-latest"]' || '["ubuntu-latest","windows-latest","macos-latest"]') }}
-    runs-on: ${{ matrix.os }}
+    # QUAL-01: clippy + unit, fixture and pipeline tests.
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
       - uses: Swatinem/rust-cache@v2
-      - name: Linux webview and tray libraries (apps/desktop, Tauri 2), CMake and C++
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev cmake g++
-      - name: CMake (macOS; Xcode's clang is the C++ compiler)
-        if: runner.os == 'macOS'
-        run: command -v cmake || brew install cmake
       # Windows runners ship Visual Studio (MSVC) and CMake. `.cargo/config.toml` selects Ninja,
       # and cmake-rs hands CMake the MSVC environment, so no developer prompt is needed (ADR-0005).
-      - name: Ninja (Windows)
-        if: runner.os == 'Windows'
+      - name: Ninja
         run: if (-not (Get-Command ninja -ErrorAction SilentlyContinue)) { choco install ninja -y --no-progress }
       - name: C++ toolchain for CTranslate2 (pg-ct2)
         shell: bash
         run: |
           cmake --version
-          if [ "$RUNNER_OS" = Windows ]; then
-            ninja --version
-            "/c/Program Files (x86)/Microsoft Visual Studio/Installer/vswhere.exe" -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property displayName
-          else
-            c++ --version
-          fi
+          ninja --version
+          "/c/Program Files (x86)/Microsoft Visual Studio/Installer/vswhere.exe" -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property displayName
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace
       - name: pg-bench smoke run
@@ -79,15 +56,14 @@ jobs:
 
   msrv:
     # D-6: rust-version = 1.90.
-    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@1.90
       - uses: Swatinem/rust-cache@v2
-      - name: Tauri libraries, CMake and C++
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev cmake g++
+      - name: Ninja
+        run: if (-not (Get-Command ninja -ErrorAction SilentlyContinue)) { choco install ninja -y --no-progress }
       - run: cargo check --workspace --all-targets
 
   ui:
@@ -109,7 +85,7 @@ jobs:
       - run: npm audit --audit-level=moderate
 
   deny:
-    # SEC-05: advisories + licenses.
+    # SEC-05: advisories + licenses, for the Windows target (`deny.toml` [graph]).
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

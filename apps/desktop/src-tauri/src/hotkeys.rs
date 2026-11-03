@@ -1,7 +1,7 @@
 //! Default global hotkeys (HK-01) and the actions behind them and the matching toolbar buttons.
 //!
 //! Registered from Rust through `tauri-plugin-global-shortcut`; the webview gets no permission
-//! for the plugin. Ctrl+Alt (⌘⌥ on macOS) with L, C, S and T produce no character with AltGr on
+//! for the plugin. Ctrl+Alt with L, C, S and T produce no character with AltGr on
 //! the Swedish layout, where AltGr arrives as Ctrl+Alt, so registering them takes nothing away
 //! from typing (SV-09, `sv09_hotkeys_type_nothing_with_altgr_on_the_swedish_layout`). A hotkey
 //! another app already holds is logged and skipped; reporting it in the UI is HK-02 (M4-2).
@@ -35,11 +35,7 @@ pub const DEFAULTS: [(Action, Code); 4] = [
 ];
 
 pub fn modifiers() -> Modifiers {
-    if cfg!(target_os = "macos") {
-        Modifiers::SUPER | Modifiers::ALT
-    } else {
-        Modifiers::CONTROL | Modifiers::ALT
-    }
+    Modifiers::CONTROL | Modifiers::ALT
 }
 
 fn action_for(shortcut: &Shortcut) -> Option<Action> {

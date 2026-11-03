@@ -1,8 +1,8 @@
 //! Screen capture for Polyglass.
 //!
 //! Only the lens interior is captured (CAP-01). Platform implementations: [`WgcCapturer`]
-//! (Windows Graphics Capture); ScreenCaptureKit, X11 and xdg-desktop-portal follow per
-//! CHECKLIST M1-CAP-3 / M2-1.
+//! (Windows Graphics Capture). Another platform's capturer is one more `#[cfg]` module
+//! implementing [`ScreenCapturer`] (v1 is Windows only).
 
 use pg_core::{Frame, PhysRect, Result};
 

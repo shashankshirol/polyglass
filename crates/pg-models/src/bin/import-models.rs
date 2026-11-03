@@ -18,14 +18,10 @@ use pg_models::{Manifest, ModelStore};
 /// The desktop app's model store: Tauri's `app_local_data_dir()` for the bundle identifier
 /// `org.polyglass.desktop`, plus `models` (see `apps/desktop/src-tauri/src/main.rs`).
 fn app_store() -> Option<PathBuf> {
-    let env = |k| std::env::var_os(k).map(PathBuf::from);
-    let base = if cfg!(windows) {
-        env("LOCALAPPDATA")?
-    } else if cfg!(target_os = "macos") {
-        env("HOME")?.join("Library/Application Support")
-    } else {
-        env("XDG_DATA_HOME").or_else(|| Some(env("HOME")?.join(".local/share")))?
-    };
+    // Windows only (v1); elsewhere pass `--store`.
+    let base = std::env::var_os("LOCALAPPDATA")
+        .filter(|v| cfg!(windows) && !v.is_empty())
+        .map(PathBuf::from)?;
     Some(base.join("org.polyglass.desktop").join("models"))
 }
 

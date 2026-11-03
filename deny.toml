@@ -2,14 +2,14 @@
 
 [graph]
 all-features = true
+# v1 ships on Windows only; dependencies of other targets (Tauri's Linux GTK stack, macOS crates)
+# aren't checked. Add a target here when its platform comes back.
+targets = ["x86_64-pc-windows-msvc"]
 
 [advisories]
 version = 2
 yanked = "deny"
 ignore = [
-  # proc-macro-error (unmaintained) comes in through gtk-rs 0.18, the GTK 3 bindings Tauri 2 uses
-  # on Linux (tray-icon, wry). Tauri 2.x has no GTK 4 port, so there is nothing to upgrade to.
-  { id = "RUSTSEC-2024-0370", reason = "Linux GTK 3 stack of Tauri 2; no fixed version in Tauri 2.x" },
   # ttf-parser (unmaintained) comes in through ab_glyph 0.2.32 (latest), used only by pg-testkit
   # for tests and pg-bench; it never ships in the app.
   { id = "RUSTSEC-2026-0192", reason = "via ab_glyph (latest) in pg-testkit, dev/bench only; no fix upstream" },
@@ -21,17 +21,12 @@ confidence-threshold = 0.9
 allow = [
   "MIT",
   "Apache-2.0",
-  "Apache-2.0 WITH LLVM-exception",
-  "BSD-2-Clause",
   "BSD-3-Clause",
   "ISC",
   "Zlib",
   "Unicode-3.0",
-  "Unicode-DFS-2016",
   "MPL-2.0",          # cssparser, dtoa-short etc. via Tauri (file-level copyleft, PLAN §8)
-  "CDLA-Permissive-2.0",
-  "OpenSSL",          # aws-lc
-  "BSL-1.0",          # clipboard-win, error-code via arboard (REN-05 copy); permissive, OSI
+  "BSL-1.0",         # clipboard-win, error-code via arboard (REN-05 copy); permissive, OSI
 ]
 
 [bans]

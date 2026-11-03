@@ -1,13 +1,13 @@
 # Polyglass — Project Plan
 
 > **Working name:** Polyglass (placeholder; check name/trademark availability before the public launch).
-> **Status:** Draft v0.2 · 2026-10-30 · Companion document: [`SPEC.md`](./SPEC.md)
+> **Status:** Draft v0.3 · 2026-11-03 (v1 is Windows only, D-15) · Companion document: [`SPEC.md`](./SPEC.md)
 
 ## 1. Summary
 
 Polyglass is a lightweight, open-source desktop app. When launched, it shows a movable, always-on-top **lens**. Text visible beneath the lens is recognized (OCR) and translated in near real time, and the translation is drawn inside the lens. Translation runs **on-device by default**; online backends (LibreTranslate, DeepL, Google) are opt-in.
 
-Built with **Rust + Tauri 2**, targeting **Windows, macOS and Linux**.
+Built with **Rust + Tauri 2**. **v1 targets Windows only** (owner decision D-15, 2026-11-03; SPEC v0.6 §4). macOS and Linux are post-v1: the design notes for them below are kept for when they come back, and the code keeps every OS-specific part behind a trait (`ScreenCapturer`, `OcrEngine`) and a `#[cfg]` module, so adding a platform means adding modules, not restructuring (`docs/ARCHITECTURE.md`, "Adding a platform").
 
 ## 2. Goals, non-goals, principles
 
@@ -115,6 +115,8 @@ pub trait Translator: Send + Sync {
 
 ## 5. Platform notes (the hard parts)
 
+Everything here about macOS, Linux X11 and Wayland is post-v1 (D-15).
+
 **Capturing what's behind your own window.** The lens draws translated text over the very pixels it needs to read. If the capture includes the lens, OCR would read our own output.
 - Windows and macOS: solved by OS-level capture exclusion (above). Overlay mode is Tier 1 here.
 - Linux X11: no exclusion API. Options are (a) **Panel mode** (lens interior stays transparent; translation is shown in a strip attached to the lens), which captures cleanly, and (b) Overlay mode that hides the overlay for one frame while capturing, only when the lens comes to rest. (b) causes a brief flicker, so it ships as experimental.
@@ -155,15 +157,17 @@ Rough sizing assumes one or two part-time contributors. Each milestone ends with
 - Spike 5: Wayland portal screenshot + fullscreen Freeze window on GNOME and KDE.
 - Output: ADRs in `docs/adr/`, CI skeleton, `pg-bench` harness.
 
-**M1 — MVP on Windows + macOS (≈ 5 weeks).** Overlay mode, on-device only, model manager with download + verify, Swedish ↔ English (SPEC §3), tray icon, basic settings. Private alpha builds from CI.
+M0's macOS, Linux and Wayland spikes were dropped with D-15 (macOS and Linux translation was measured on GitHub's runners, ADR-0005).
 
-**M2 — Linux + more modes (≈ 4 weeks).** X11 capture, Tesseract, Panel mode, Freeze mode on all platforms, Wayland via Freeze mode. Public alpha.
+**M1 — MVP on Windows (≈ 5 weeks).** Overlay mode, on-device only, model manager with download + verify, Swedish ↔ English (SPEC §3), tray icon, basic settings. Private alpha builds from CI.
+
+**M2 — More modes (≈ 2 weeks).** Panel mode and Freeze mode on Windows. Public alpha. (Linux X11 capture, Tesseract and Wayland via Freeze mode were planned here; post-v1 since D-15.)
 
 **M3 — Online backends (≈ 3 weeks).** LibreTranslate, DeepL, Google; consent dialogs; keychain storage; network activity log; persistent on-device/cloud indicator.
 
 **M4 — Polish (≈ 3 weeks).** Configurable hotkeys, accessibility pass, Swedish UI translation, multi-monitor/mixed-DPI hardening, UI string externalization. Beta.
 
-**M5 — 1.0 hardening (≈ 3 weeks).** Code signing and notarization, opt-in signed updater, performance gate in CI, docs site, packaging (MSI/NSIS, DMG, .deb, .rpm, AppImage, Flatpak if feasible, Homebrew cask, winget).
+**M5 — 1.0 hardening (≈ 3 weeks).** Code signing and notarization, opt-in signed updater, performance gate in CI, docs site, packaging (MSI/NSIS, winget; DMG, .deb, .rpm, AppImage, Flatpak and a Homebrew cask once macOS and Linux are back).
 
 ## 8. Open-source and release setup
 
@@ -171,7 +175,7 @@ Rough sizing assumes one or two part-time contributors. Each milestone ends with
 
 **Repository files.** README (quick start under 5 minutes), CONTRIBUTING, CODE_OF_CONDUCT (Contributor Covenant), SECURITY.md (private disclosure channel), GOVERNANCE.md (lightweight maintainer model), **PRIVACY.md** (plain-language data flow, linked from the app), DCO sign-off on commits (no CLA).
 
-**CI (GitHub Actions)** on Windows, macOS (arm64; Intel Macs are out of v1, D-11), Ubuntu:
+**CI (GitHub Actions)** on Windows (v1, D-15; OS-independent checks such as fmt, the UI and `cargo deny` run on cheaper Ubuntu runners):
 - `cargo fmt --check`, `cargo clippy -D warnings`, unit and fixture tests.
 - `cargo deny` (licenses, advisories, banned crates), `npm audit` for the UI.
 - `pg-bench` on fixtures, failing the build on >20% latency regression vs main.

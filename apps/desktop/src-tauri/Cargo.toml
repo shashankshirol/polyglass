@@ -29,8 +29,7 @@ pg-ct2.workspace = true
 image.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-# `macos-private-api` is needed for transparent windows on macOS (PLAN §5; rules out the Mac App Store).
-tauri = { version = "2.12", features = ["tray-icon", "macos-private-api"] }
+tauri = { version = "2.12", features = ["tray-icon"] }
 # HK-01 hotkeys, registered from Rust only (the webview gets no permission for them).
 tauri-plugin-global-shortcut = "2"
 tokio.workspace = true
