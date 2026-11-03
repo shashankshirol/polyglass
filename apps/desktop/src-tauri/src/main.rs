@@ -5,6 +5,7 @@
 // No console window in release builds on Windows.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod appearance;
 mod clickthrough;
 mod clipboard;
 mod commands;
@@ -18,6 +19,7 @@ mod langs;
 mod lens;
 mod live;
 mod models;
+mod prefs;
 mod settings;
 mod state;
 mod tray;
@@ -80,6 +82,9 @@ fn main() {
             commands::hide_lens,
             commands::open_ocr_language_settings,
             commands::open_model_manager,
+            commands::open_settings,
+            commands::settings_state,
+            commands::set_appearance,
             commands::copy_translation,
             commands::swap_languages,
             commands::set_languages,

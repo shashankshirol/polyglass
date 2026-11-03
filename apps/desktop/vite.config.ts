@@ -14,11 +14,10 @@ export default defineConfig({
     outDir: "../dist",
     emptyOutDir: true,
     target: "es2022",
-    // Three pages: the lens, the model manager / first-run wizard window and the Freeze mode
-    // snapshot window. Paths are relative
-    // to this folder, where npm runs.
+    // Four pages: the lens, the model manager / first-run wizard window, the Freeze mode
+    // snapshot window and Settings. Paths are relative to this folder, where npm runs.
     rollupOptions: {
-      input: ["ui/index.html", "ui/models.html", "ui/freeze.html"],
+      input: ["ui/index.html", "ui/models.html", "ui/freeze.html", "ui/settings.html"],
     },
   },
 });

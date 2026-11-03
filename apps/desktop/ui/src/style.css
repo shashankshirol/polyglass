@@ -1,5 +1,7 @@
 /* Lens window. The page is transparent; only the frame, toolbar and translated blocks paint.
-   --frame and --toolbar come from Rust (`lens_config`) so they match the click-through hit-test. */
+   --frame and --toolbar come from Rust (`lens_config`) so they match the click-through hit-test.
+   --chrome, --chrome-fg, --accent, --chrome-ok, --chrome-warn, --text-font and --font-scale
+   follow the appearance settings (LENS-07, `appearance.ts`); these are the defaults. */
 
 :root {
   --frame: 6px;
@@ -8,7 +10,11 @@
   --chrome: rgba(24, 44, 66, 0.92);
   --chrome-fg: #f2f6fa;
   --accent: #7fd3ff;
+  --chrome-ok: #8be08b;
+  --chrome-warn: #ffd166;
   --focus: #ffd34d;
+  --text-font: "Segoe UI", system-ui, sans-serif;
+  --font-scale: 1;
   color-scheme: dark;
   font-family: "Segoe UI", system-ui, -apple-system, "Noto Sans", sans-serif;
   font-size: 13px;
@@ -95,7 +101,7 @@ body {
 }
 
 #toolbar button:hover {
-  background: rgba(255, 255, 255, 0.14);
+  background: color-mix(in srgb, var(--chrome-fg) 14%, transparent);
 }
 
 #toolbar button:focus-visible {
@@ -109,7 +115,7 @@ body {
 }
 
 #toolbar button[aria-pressed="true"] {
-  background: rgba(127, 211, 255, 0.25);
+  background: color-mix(in srgb, var(--accent) 25%, transparent);
   color: var(--accent);
 }
 
@@ -129,7 +135,7 @@ select.lang {
 }
 
 select.lang:hover {
-  background: rgba(255, 255, 255, 0.14);
+  background: color-mix(in srgb, var(--chrome-fg) 14%, transparent);
 }
 
 select.lang:focus-visible {
@@ -164,11 +170,11 @@ select.lang option {
   align-items: center;
   gap: 3px;
   padding: 0 4px;
-  color: #8be08b;
+  color: var(--chrome-ok);
 }
 
 .privacy.online {
-  color: #ffc56b;
+  color: var(--chrome-warn);
 }
 
 .privacy svg {
@@ -205,6 +211,7 @@ select.lang option {
 .block {
   position: absolute;
   padding: 0 2px;
+  font-family: var(--text-font);
   line-height: 1.2;
   border-radius: 2px;
   overflow-wrap: anywhere;
@@ -254,7 +261,7 @@ select.lang option {
   margin: 0;
   padding: 4px 8px;
   border-radius: 4px;
-  background: rgba(24, 44, 66, 0.85);
+  background: var(--chrome);
   color: var(--chrome-fg);
   font-size: 12px;
 }
@@ -268,6 +275,7 @@ select.lang option {
 #notice {
   bottom: 6px;
   background: rgba(120, 80, 0, 0.88);
+  color: #fff;
 }
 
 /* REN-06: read by screen readers, not drawn. */
@@ -324,6 +332,8 @@ body.strip-above #toolbar {
 
 #panel-list li {
   padding: 3px 0;
+  font-family: var(--text-font);
+  font-size: calc(13px * var(--font-scale));
   line-height: 1.3;
   overflow-wrap: anywhere;
 }
@@ -419,6 +429,6 @@ body.strip-above #toolbar {
 
 /* SV-02: shown only while Swedish OCR is missing. */
 #toolbar button.warn {
-  color: #ffd166;
+  color: var(--chrome-warn);
   font-weight: 700;
 }

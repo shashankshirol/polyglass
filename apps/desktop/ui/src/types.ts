@@ -1,5 +1,7 @@
 // Mirrors `pg_pipeline::update` (serde output). The UI only draws these (PLAN §3.3).
 
+import type { Appearance } from "./appearance";
+
 export interface LensUpdate {
   generation: number;
   status: LensStatus;
@@ -75,6 +77,8 @@ export interface LensConfig {
   traceTimings: boolean;
   /** `--debug-dump-frames`: the folder frames are saved to (PRIV-02 red banner). */
   dumpFrames: string | null;
+  /** LENS-07; `lens-appearance` events carry later changes. */
+  appearance: Appearance;
 }
 
 /** `langs::LanguagesView`: the pair in use and every pair the model catalog lists. */

@@ -92,8 +92,8 @@ On first launch a welcome window offers both directions (about 170 MB together) 
 **Download** and **Not now**; nothing is downloaded until you choose Download. Each file is
 checked against its SHA-256 before it's saved to the model store,
 `%LOCALAPPDATA%\org.polyglass.desktop\models` on Windows. Translation starts once the download
-finishes, without a restart. Later, ⚙ in the lens toolbar (or ⬇ while the models are missing,
-or "Translation models…" in the tray menu) opens the model manager: download with progress,
+finishes, without a restart. Later, ⬇ in the lens toolbar while the models are missing,
+"Translation models…" in Settings (⚙) or in the tray menu opens the model manager: download with progress,
 cancel and resume, delete, licenses and disk usage.
 
 The repository is private until the first app release, so the models release can't be
@@ -180,7 +180,7 @@ up yourself. It uses the same pinned, hash-checked steps as the Swedish models.
   lens can be moved over the picture to translate it, e.g. text that scrolls or disappears.
   Esc, ❄ or Ctrl+Alt+F goes back to the live screen. The picture is kept in memory only.
 - The two pickers at the left of the toolbar choose the language pair: every pair in the model
-  catalog, installed or not (⬇ marks a missing model; ⬇ or ⚙ in the toolbar downloads it). The
+  catalog, installed or not (⬇ marks a missing model; ⬇ in the toolbar downloads it). The
   source picker offers each language as "Swedish/English" (each block is detected; text already
   in the target language is shown as it is) or "Swedish only". The choice is saved in
   `settings.toml` (`[translation] source`, `target`, `auto`). OCR uses the source language: for
@@ -189,8 +189,12 @@ up yourself. It uses the same pinned, hash-checked steps as the Swedish models.
   - ⇄ (Ctrl+Alt+S) swaps the direction when the catalog has the reverse pair;
   - ❚❚ pauses translation;
   - ⇲ turns click-through on or off, so clicks reach the window underneath;
+  - ⚙ opens Settings: the frame colour, how opaque the boxes behind translations are
+    (20–100 %), the translation font and text size (75–200 %), saved in `settings.toml`
+    (`[appearance]`), and the way to the model manager. With Windows' Animation effects off
+    (Settings → Accessibility → Visual effects), Polyglass draws no animations;
   - ✕ hides the lens.
-- The tray icon menu has **Show/hide lens**, **Translation models…** and **Quit Polyglass**;
+- The tray icon menu has **Show/hide lens**, **Settings…**, **Translation models…** and **Quit Polyglass**;
   a left click on the icon shows or hides the lens. While the lens is hidden, nothing is
   captured.
 

@@ -26,6 +26,8 @@ pub struct Settings {
     pub lens: LensSettings,
     pub translation: TranslationSettings,
     pub models: ModelSettings,
+    /// LENS-07; values out of range are brought into range when the file is read.
+    pub appearance: crate::appearance::Appearance,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -101,8 +103,11 @@ impl Settings {
             }
         };
         // Windows editors may save UTF-8 with a byte order mark, which TOML doesn't allow.
-        match toml::from_str(text.strip_prefix('\u{feff}').unwrap_or(&text)) {
-            Ok(s) => s,
+        match toml::from_str::<Self>(text.strip_prefix('\u{feff}').unwrap_or(&text)) {
+            Ok(mut s) => {
+                s.appearance = s.appearance.clamped();
+                s
+            }
             Err(e) => {
                 // Only the position: the message quotes the file.
                 tracing::warn!(
@@ -187,6 +192,10 @@ mod tests {
         s.translation.source = "de".into();
         s.translation.auto = false;
         s.models.first_run_done = true;
+        s.appearance.frame_color = "#3a1f5c".into();
+        s.appearance.opacity = 70;
+        s.appearance.font = crate::appearance::Font::Georgia;
+        s.appearance.font_scale = 150;
         s.save(&path).unwrap();
         let text = fs::read_to_string(&path).unwrap();
         assert!(text.starts_with("# Polyglass settings"), "{text}");
@@ -201,6 +210,13 @@ mod tests {
         );
         assert!(
             text.contains("[models]") && text.contains("first_run_done = true"),
+            "{text}"
+        );
+        assert!(
+            text.contains("[appearance]")
+                && text.contains("frame_color = \"#3a1f5c\"")
+                && text.contains("font = \"georgia\"")
+                && text.contains("font_scale = 150"),
             "{text}"
         );
         assert_eq!(Settings::load(&path), s);
@@ -223,6 +239,17 @@ mod tests {
         assert_eq!(s.lens.mode, crate::lens::DisplayMode::Overlay);
         assert_eq!(s.translation, TranslationSettings::default());
         assert!(!s.models.first_run_done, "the wizard is offered");
+        assert_eq!(s.appearance, crate::appearance::Appearance::default());
+    }
+
+    #[test]
+    fn lens07_hand_edited_appearance_is_brought_into_range() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(FILE);
+        fs::write(&path, "[appearance]\nopacity = 3\nfont_scale = 400\n").unwrap();
+        let a = Settings::load(&path).appearance;
+        assert_eq!((a.opacity, a.font_scale), (20, 200));
+        assert!(a.validate().is_ok());
     }
 
     #[test]

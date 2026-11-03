@@ -6,11 +6,13 @@ use serde::Serialize;
 use tauri::ipc::Response;
 use tauri::{AppHandle, Manager, State, WebviewWindow};
 
+use crate::appearance::Appearance;
 use crate::clipboard;
 use crate::freeze;
 use crate::langs::{self, LanguagesView};
 use crate::lens::{self, DisplayMode, LAYOUT, Layout, Strip};
 use crate::models::{self, Models};
+use crate::prefs::{self, SettingsView};
 use crate::settings;
 use crate::state::{Lens, Mode};
 
@@ -43,6 +45,8 @@ pub struct LensConfig {
     trace_timings: bool,
     /// `--debug-dump-frames`: where frames are saved; the lens shows a red banner (PRIV-02).
     dump_frames: Option<String>,
+    /// Frame colour, opacity, font (LENS-07); `lens-appearance` events carry later changes.
+    appearance: Appearance,
 }
 
 #[tauri::command]
@@ -70,6 +74,7 @@ pub fn lens_config(
             .0
             .as_ref()
             .map(|d| d.display().to_string()),
+        appearance: app.state::<settings::Store>().get().appearance,
     })
 }
 
@@ -83,12 +88,39 @@ pub fn lens_drawn(window: WebviewWindow, state: State<'_, Lens>, generation: u64
     Ok(())
 }
 
-/// Open the model manager (the toolbar's ⬇ and ⚙). `async` because a window built inside a
-/// synchronous command deadlocks on Windows.
+/// Open the model manager (the toolbar's ⬇, the Settings window's "Translation models…").
+/// `async` because a window built inside a synchronous command deadlocks on Windows.
 #[tauri::command]
 pub async fn open_model_manager(window: WebviewWindow, app: AppHandle) -> CmdResult<()> {
-    ensure_lens(&window)?;
+    if window.label() != prefs::WINDOW {
+        ensure_lens(&window)?;
+    }
     models::open_window(&app).map_err(|e| e.to_string())
+}
+
+/// Open the Settings window (the toolbar's ⚙). `async` like `open_model_manager`.
+#[tauri::command]
+pub async fn open_settings(window: WebviewWindow, app: AppHandle) -> CmdResult<()> {
+    ensure_lens(&window)?;
+    prefs::open_window(&app).map_err(|e| e.to_string())
+}
+
+/// What the Settings window shows.
+#[tauri::command]
+pub fn settings_state(window: WebviewWindow, app: AppHandle) -> CmdResult<SettingsView> {
+    ensure_window(&window, prefs::WINDOW)?;
+    Ok(prefs::view(&app))
+}
+
+/// Change the lens's look (LENS-07). Values out of range are rejected; the lens redraws at once.
+#[tauri::command]
+pub fn set_appearance(
+    window: WebviewWindow,
+    app: AppHandle,
+    appearance: Appearance,
+) -> CmdResult<Appearance> {
+    ensure_window(&window, prefs::WINDOW)?;
+    prefs::set_appearance(&app, appearance)
 }
 
 /// The catalog, what is installed, disk usage and any running download (MDL-01, MDL-05).

@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Polyglass – Settings</title>
+    <link rel="stylesheet" href="./src/settings.css" />
+    <script type="module" src="./src/settings.ts"></script>
+  </head>
+  <body>
+    <main id="app" aria-busy="true">
+      <header class="head">
+        <h1>Settings</h1>
+        <p class="lead">Changes apply to the lens at once and are saved.</p>
+      </header>
+
+      <section class="card" aria-labelledby="appearance-title">
+        <div class="card-head">
+          <h2 id="appearance-title">Appearance</h2>
+          <button id="appearance-reset" type="button">Reset appearance</button>
+        </div>
+        <div class="form">
+          <label for="frame-color">Frame colour</label>
+          <div class="field">
+            <input id="frame-color" type="color" aria-describedby="frame-color-hint" />
+            <span id="frame-color-hint" class="hint-inline">The toolbar text turns light or dark to stay readable.</span>
+          </div>
+
+          <label for="opacity">Translation background</label>
+          <div class="field">
+            <input id="opacity" type="range" min="20" max="100" step="5" aria-describedby="opacity-hint" />
+            <output id="opacity-value" for="opacity"></output>
+            <span id="opacity-hint" class="hint-inline">Opacity of the boxes drawn over the original text; the text stays solid.</span>
+          </div>
+
+          <label for="font">Translation font</label>
+          <div class="field">
+            <select id="font"></select>
+          </div>
+
+          <label for="font-scale">Translation text size</label>
+          <div class="field">
+            <input id="font-scale" type="range" min="75" max="200" step="5" aria-describedby="font-scale-hint" />
+            <output id="font-scale-value" for="font-scale"></output>
+            <span id="font-scale-hint" class="hint-inline">Translations start at this share of the original's size and never get smaller than 9 px at 100 %.</span>
+          </div>
+        </div>
+
+        <div class="preview" aria-hidden="true">
+          <div id="preview-bar" class="preview-bar">⋮⋮ Swedish/English → English <span class="preview-lock">🔒</span></div>
+          <div class="preview-body">
+            <span id="preview-block" class="preview-block" lang="en">Do you want to save the changes?</span>
+          </div>
+        </div>
+
+        <p id="motion" class="hint"></p>
+      </section>
+
+      <section class="card" aria-labelledby="models-title">
+        <div class="card-head">
+          <h2 id="models-title">Translation models</h2>
+          <button id="open-models" type="button">Translation models…</button>
+        </div>
+        <p class="hint">Download, delete and import models, and see their licenses.</p>
+      </section>
+    </main>
+  </body>
+</html>

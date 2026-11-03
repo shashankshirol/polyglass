@@ -1,0 +1,115 @@
+/* Settings window. */
+@import "./base.css";
+
+.card {
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--card);
+}
+
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.card .hint {
+  margin: 10px 0 0;
+}
+
+.form {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  align-items: center;
+  gap: 12px 16px;
+}
+
+.form > label {
+  align-self: start;
+  padding-top: 4px;
+  font-weight: 600;
+}
+
+.field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  min-width: 0;
+}
+
+.hint-inline {
+  flex: 1 1 100%;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+input[type="color"] {
+  width: 44px;
+  height: 28px;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--card);
+  cursor: pointer;
+}
+
+input[type="range"] {
+  flex: 1 1 160px;
+  accent-color: var(--accent);
+}
+
+output {
+  min-width: 4.5em;
+  font-variant-numeric: tabular-nums;
+}
+
+select {
+  font: inherit;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--card);
+  color: var(--fg);
+}
+
+/* A small lens: the toolbar in the frame colour and one translated block. */
+.preview {
+  margin-top: 14px;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+}
+
+.preview-bar {
+  padding: 4px 8px;
+  font-size: 13px;
+}
+
+.preview-lock {
+  float: right;
+}
+
+.preview-body {
+  padding: 12px;
+  /* Stands in for a window under the lens, so the opacity shows. */
+  background: repeating-linear-gradient(45deg, #c9d3dd 0 6px, #e7ecf1 6px 12px);
+}
+
+.preview-block {
+  display: inline-block;
+  padding: 0 2px;
+  border-radius: 2px;
+  color: #1a1a1a;
+  line-height: 1.2;
+}
+
+@media (max-width: 480px) {
+  .form {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+}

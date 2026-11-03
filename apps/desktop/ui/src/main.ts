@@ -5,8 +5,9 @@ import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Announcer, type Spoken } from "./announce";
+import { DEFAULT_APPEARANCE, blockBackground, cssVariables, type Appearance } from "./appearance";
 import { MODEL_MESSAGES, formatBytes, percent } from "./catalog";
-import { fitFontSize, maxHeight, startSize } from "./fit";
+import { fitFontSize, maxHeight, minSize, startSize } from "./fit";
 import {
   langName,
   modelMessage,
@@ -89,6 +90,8 @@ let modelsDownloadable = true;
 let modelsUnreachable = false;
 /** The last model download or delete outcome already shown. */
 let modelsMessage: string | null = null;
+/** Frame colour, opacity, font and font scale (LENS-07). */
+let appearance: Appearance = DEFAULT_APPEARANCE;
 /** `--trace-timings`: tell Rust when each update has been painted. */
 let traceTimings = false;
 /** The language pair and what the pickers offer (MDL-07). */
@@ -160,7 +163,9 @@ function renderBlock(b: RenderedBlock): HTMLElement {
   el.style.top = `${b.rect.y}px`;
   el.style.width = `${b.rect.w}px`;
   el.style.minHeight = `${b.rect.h}px`;
-  if (HEX.test(b.bg)) el.style.backgroundColor = b.bg;
+  // LENS-07: the overlay opacity applies to the background; the text stays opaque.
+  const bg = HEX.test(b.bg) ? blockBackground(b.bg, appearance.opacity) : null;
+  if (bg) el.style.backgroundColor = bg;
   if (HEX.test(b.fg)) el.style.color = b.fg;
   return el;
 }
@@ -172,10 +177,15 @@ function renderBlock(b: RenderedBlock): HTMLElement {
  */
 function fit(el: HTMLElement, b: RenderedBlock): void {
   const { rect } = b;
-  const { size, overflow } = fitFontSize((px) => {
-    el.style.fontSize = `${px}px`;
-    return el.scrollHeight <= rect.h + 1 && el.scrollWidth <= rect.w + 1;
-  }, startSize(b.line_height));
+  const scale = appearance.font_scale / 100;
+  const { size, overflow } = fitFontSize(
+    (px) => {
+      el.style.fontSize = `${px}px`;
+      return el.scrollHeight <= rect.h + 1 && el.scrollWidth <= rect.w + 1;
+    },
+    startSize(b.line_height, scale),
+    minSize(scale),
+  );
   el.style.fontSize = `${size}px`;
   el.classList.toggle("overflow", overflow);
   if (overflow) {
@@ -331,6 +341,14 @@ function setDebugFlags(trace: boolean, dumpFrames: string | null): void {
   debugBanner.title = debugBanner.textContent;
 }
 
+/** LENS-07: redraw with a new frame colour, opacity, font or font scale. */
+function setAppearance(a: Appearance): void {
+  appearance = a;
+  const root = document.documentElement.style;
+  for (const [name, value] of Object.entries(cssVariables(a))) root.setProperty(name, value);
+  if (current && !paused) drawBlocks(current);
+}
+
 function applyConfig(cfg: LensConfig): void {
   const root = document.documentElement.style;
   root.setProperty("--frame", `${cfg.layout.frame}px`);
@@ -345,6 +363,7 @@ function applyConfig(cfg: LensConfig): void {
   setClickThroughUi(cfg.clickThrough);
   setStrip(cfg.strip);
   setDebugFlags(cfg.traceTimings, cfg.dumpFrames);
+  setAppearance(cfg.appearance);
   if (cfg.pipelineError) {
     showMessage(message(cfg.pipelineError));
   } else if (!cfg.pipeline) {
@@ -562,9 +581,9 @@ function flashCopy(mark: string, label: string): void {
   }, 1200);
 }
 ocrLangBtn.addEventListener("click", () => call("open_ocr_language_settings"));
-// MDL-01/03/05: the model manager does the downloading; ⬇ and ⚙ open it.
+// MDL-01/03/05: the model manager does the downloading; ⬇ opens it (and Settings links to it).
 modelsBtn.addEventListener("click", () => call("open_model_manager"));
-settingsBtn.addEventListener("click", () => call("open_model_manager"));
+settingsBtn.addEventListener("click", () => call("open_settings"));
 
 async function start(): Promise<void> {
   if (!isTauri()) {
@@ -594,6 +613,12 @@ async function start(): Promise<void> {
       traceTimings: false,
       // Preview the PRIV-02 banner with ?dump in the URL.
       dumpFrames: location.search.includes("dump") ? "C:\\frames" : null,
+      // Preview LENS-07 with ?light (a light frame) or ?big (Georgia at 150 %, 60 % opacity).
+      appearance: location.search.includes("light")
+        ? { ...DEFAULT_APPEARANCE, frame_color: "#e8eef4" }
+        : location.search.includes("big")
+          ? { frame_color: "#3a1f5c", opacity: 60, font: "georgia", font_scale: 150 }
+          : DEFAULT_APPEARANCE,
     });
     render(sampleUpdate());
     return;
@@ -606,6 +631,7 @@ async function start(): Promise<void> {
   await listen<boolean>("lens-click-through", (e) => setClickThroughUi(e.payload));
   await listen<Strip>("lens-strip", (e) => setStrip(e.payload));
   await listen<boolean>("lens-frozen", (e) => setFrozen(e.payload));
+  await listen<Appearance>("lens-appearance", (e) => setAppearance(e.payload));
   applyConfig(await invoke<LensConfig>("lens_config"));
 }
 

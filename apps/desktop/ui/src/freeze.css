@@ -14,3 +14,11 @@ body {
   width: 100vw;
   height: 100vh;
 }
+
+/* LENS-07: no animated transitions while the OS asks for reduced motion. */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}

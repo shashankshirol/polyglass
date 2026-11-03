@@ -11,6 +11,7 @@ fn main() {
             "hide_lens",
             "open_ocr_language_settings",
             "open_model_manager",
+            "open_settings",
             "copy_translation",
             "swap_languages",
             "set_languages",
@@ -20,6 +21,9 @@ fn main() {
             "set_frozen",
             "freeze_snapshot",
             "freeze_ready",
+            // The Settings window (capabilities/settings.json).
+            "settings_state",
+            "set_appearance",
             // The model manager window (capabilities/models.json).
             "models_state",
             "download_models",
