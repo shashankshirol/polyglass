@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex, RwLock};
 use std::time::Instant;
 
 use pg_capture::ScreenCapturer;
-use pg_core::{Error, Frame, LangPair, LangTag, SourceLang};
+use pg_core::{Error, Frame, LangPair, LangTag, PhysRect, SourceLang};
 use pg_ocr::OcrEngine;
 use pg_translate::{Translator, langid};
 
@@ -130,6 +130,12 @@ impl Pipeline {
     /// for a capture in progress to finish.
     pub fn release_capture(&self) {
         self.capturer.lock().expect("capturer lock").release();
+    }
+
+    /// Capture `region` outside a cycle, e.g. Freeze mode's snapshot of a monitor (MODE-03).
+    /// Waits for a capture in progress to finish.
+    pub fn capture(&self, region: PhysRect) -> pg_core::Result<Frame> {
+        self.capturer.lock().expect("capturer lock").capture(region)
     }
 
     pub fn clear_cache(&self) {
