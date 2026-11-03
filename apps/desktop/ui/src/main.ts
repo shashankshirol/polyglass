@@ -7,7 +7,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Announcer, type Spoken } from "./announce";
 import { DEFAULT_APPEARANCE, blockBackground, cssVariables, type Appearance } from "./appearance";
 import { MODEL_MESSAGES, formatBytes, percent } from "./catalog";
-import { fitFontSize, maxHeight, minSize, startSize } from "./fit";
+import { fitBlock, maxHeight, minSize, startSize } from "./fit";
 import { DEFAULT_HOTKEYS, activeKeys, hint, type HotkeysView } from "./hotkeys";
 import {
   langName,
@@ -177,19 +177,22 @@ function renderBlock(b: RenderedBlock): HTMLElement {
  * REN-02: start at the source text's size and shrink to fit the source box, down to 9 px. Text
  * that still doesn't fit grows the box downward to the interior's bottom edge, and the block's
  * tooltip holds the full text (seen with click-through off), and Panel mode lists it in full.
+ * SV-06: words break at the box edge only when no size fits with whole (or hyphenated) words.
  */
 function fit(el: HTMLElement, b: RenderedBlock): void {
   const { rect } = b;
   const scale = appearance.font_scale / 100;
-  const { size, overflow } = fitFontSize(
-    (px) => {
+  const { size, overflow, breakWords } = fitBlock(
+    (px, breaking) => {
       el.style.fontSize = `${px}px`;
+      el.classList.toggle("break-words", breaking);
       return el.scrollHeight <= rect.h + 1 && el.scrollWidth <= rect.w + 1;
     },
     startSize(b.line_height, scale),
     minSize(scale),
   );
   el.style.fontSize = `${size}px`;
+  el.classList.toggle("break-words", breakWords);
   el.classList.toggle("overflow", overflow);
   if (overflow) {
     el.style.maxHeight = `${maxHeight(rect.y, blocksEl.clientHeight)}px`;

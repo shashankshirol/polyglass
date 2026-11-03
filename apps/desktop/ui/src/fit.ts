@@ -48,3 +48,24 @@ export function fitFontSize(fits: (size: number) => boolean, start: number, min 
 export function maxHeight(top: number, limit: number): number {
   return Math.max(0, limit - top);
 }
+
+export interface BlockFit extends Fit {
+  /** Words may break at the box edge (SV-06): set only when no size fits without it. */
+  breakWords: boolean;
+}
+
+/**
+ * SV-06 on top of REN-02: shrink first with whole words (the webview may still hyphenate them,
+ * the blocks carry `lang`), so a long Swedish compound gets a smaller font rather than a break in
+ * the middle. Only when no size down to `min` fits are words broken at the box edge, which keeps
+ * them inside the box's width; text that still doesn't fit grows the box downward.
+ */
+export function fitBlock(
+  fits: (size: number, breakWords: boolean) => boolean,
+  start: number,
+  min = MIN_FONT_PX,
+): BlockFit {
+  const whole = fitFontSize((px) => fits(px, false), start, min);
+  if (!whole.overflow) return { ...whole, breakWords: false };
+  return { ...fitFontSize((px) => fits(px, true), start, min), breakWords: true };
+}
