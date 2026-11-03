@@ -7,6 +7,7 @@ fn main() {
             "nudge_lens",
             "set_click_through",
             "set_paused",
+            "set_mode",
             "hide_lens",
             "open_ocr_language_settings",
             "open_model_manager",
@@ -15,6 +16,10 @@ fn main() {
             "set_languages",
             // `--trace-timings` only; ignored without it.
             "lens_drawn",
+            // Freeze mode (MODE-03): the lens and the snapshot window (capabilities/freeze.json).
+            "set_frozen",
+            "freeze_snapshot",
+            "freeze_ready",
             // The model manager window (capabilities/models.json).
             "models_state",
             "download_models",

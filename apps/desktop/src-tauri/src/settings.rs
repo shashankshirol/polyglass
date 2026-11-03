@@ -47,6 +47,8 @@ pub struct LensSettings {
     pub height: f64,
     /// Whether the interior lets clicks through (LENS-04).
     pub click_through: bool,
+    /// `overlay` or `panel` (MODE-01, MODE-02; LENS-01 restores it).
+    pub mode: crate::lens::DisplayMode,
 }
 
 impl Default for LensSettings {
@@ -57,6 +59,7 @@ impl Default for LensSettings {
             width: crate::lens::DEFAULT_SIZE.0,
             height: crate::lens::DEFAULT_SIZE.1,
             click_through: true,
+            mode: crate::lens::DisplayMode::Overlay,
         }
     }
 }
@@ -180,6 +183,7 @@ mod tests {
         s.lens.y = Some(300);
         s.lens.width = 600.0;
         s.lens.click_through = false;
+        s.lens.mode = crate::lens::DisplayMode::Panel;
         s.translation.source = "de".into();
         s.translation.auto = false;
         s.models.first_run_done = true;
@@ -190,6 +194,7 @@ mod tests {
             text.contains("[lens]") && text.contains("x = -1200"),
             "{text}"
         );
+        assert!(text.contains("mode = \"panel\""), "{text}");
         assert!(
             text.contains("[translation]") && text.contains("source = \"de\""),
             "{text}"
@@ -215,6 +220,7 @@ mod tests {
         assert_eq!(s.lens.width, 300.0);
         assert_eq!(s.lens.height, crate::lens::DEFAULT_SIZE.1);
         assert!(s.lens.click_through);
+        assert_eq!(s.lens.mode, crate::lens::DisplayMode::Overlay);
         assert_eq!(s.translation, TranslationSettings::default());
         assert!(!s.models.first_run_done, "the wizard is offered");
     }

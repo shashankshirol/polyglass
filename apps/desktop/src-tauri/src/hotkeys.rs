@@ -1,11 +1,10 @@
 //! Default global hotkeys (HK-01) and the actions behind them and the matching toolbar buttons.
 //!
 //! Registered from Rust through `tauri-plugin-global-shortcut`; the webview gets no permission
-//! for the plugin. Ctrl+Alt with L, C, S and T produce no character with AltGr on
+//! for the plugin. Ctrl+Alt with L, F, C, S and T produce no character with AltGr on
 //! the Swedish layout, where AltGr arrives as Ctrl+Alt, so registering them takes nothing away
 //! from typing (SV-09, `sv09_hotkeys_type_nothing_with_altgr_on_the_swedish_layout`). A hotkey
 //! another app already holds is logged and skipped; reporting it in the UI is HK-02 (M4-2).
-//! Freeze mode (Ctrl+Alt+F) comes with M2-3.
 
 use tauri::{AppHandle, Emitter, Manager, Wry, plugin::TauriPlugin};
 use tauri_plugin_global_shortcut::{
@@ -14,21 +13,23 @@ use tauri_plugin_global_shortcut::{
 
 use crate::settings;
 use crate::state::Lens;
-use crate::{clipboard, langs, lens};
+use crate::{clipboard, freeze, langs, lens};
 /// Event carrying the click-through state after the hotkey toggled it.
 pub const CLICK_THROUGH_EVENT: &str = "lens-click-through";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Action {
     ShowHide,
+    Freeze,
     Copy,
     Swap,
     ClickThrough,
 }
 
 /// HK-01 keys, each with the platform's modifiers (`modifiers`).
-pub const DEFAULTS: [(Action, Code); 4] = [
+pub const DEFAULTS: [(Action, Code); 5] = [
     (Action::ShowHide, Code::KeyL),
+    (Action::Freeze, Code::KeyF),
     (Action::Copy, Code::KeyC),
     (Action::Swap, Code::KeyS),
     (Action::ClickThrough, Code::KeyT),
@@ -73,6 +74,7 @@ pub fn register(app: &AppHandle) {
 fn run(app: &AppHandle, action: Action) {
     match action {
         Action::ShowHide => crate::toggle_lens(app),
+        Action::Freeze => freeze::toggle(app),
         Action::Copy => {
             let text = app.state::<Lens>().copy_text();
             if !text.is_empty()
@@ -155,6 +157,7 @@ mod tests {
         for (action, code) in DEFAULTS {
             let letter = match code {
                 Code::KeyL => b'L',
+                Code::KeyF => b'F',
                 Code::KeyC => b'C',
                 Code::KeyS => b'S',
                 Code::KeyT => b'T',

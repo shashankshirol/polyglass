@@ -80,7 +80,8 @@ build, in both `tauri dev` and embedded-asset (`custom-protocol`) modes:
   judged by a person using it yet (only measured). A native Windows hook (option B) is possible later behind the same
   `ClickThrough` API if users report it.
 - Other chrome (Panel mode strip, tooltips) must be reflected in `Layout::interior`, or it
-  will be click-through.
+  will be click-through. Since M2-2 the Panel mode strip is part of the lens window, below or
+  above the lens (`lens::Strip`), and `interior_region` leaves it out.
 - With click-through off (toolbar toggle), the interior gets a near-invisible 1% fill so the
   webview receives clicks there.
 - Follow-ups recorded in CHECKLIST.md: macOS/Linux measurements (M0-SPK-1), the click-through

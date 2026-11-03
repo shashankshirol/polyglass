@@ -13,7 +13,9 @@ use serde::Serialize;
 
 use crate::clickthrough::ClickThrough;
 use crate::devflags::Trace;
+use crate::freeze::Freeze;
 use crate::hold::Hold;
+use crate::lens::Strip;
 
 /// What runs behind the lens.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -32,6 +34,8 @@ pub struct Lens {
     pub click: Arc<ClickThrough>,
     /// Hold left Alt for the original (REN-04).
     pub hold: Arc<Hold>,
+    /// Freeze mode's snapshot, shared with the pipeline's capturer (MODE-03).
+    pub freeze: Arc<Freeze>,
     pub mode: Mode,
     driver: OnceLock<DriverHandle>,
     pipeline: OnceLock<Arc<Pipeline>>,
@@ -40,6 +44,8 @@ pub struct Lens {
     visible: AtomicBool,
     paused: AtomicBool,
     region: Mutex<Option<PhysRect>>,
+    /// The Panel mode strip, if any (MODE-02).
+    strip: Mutex<Strip>,
     /// What the copy action copies: the text of the last update drawn (REN-05).
     copy_text: Mutex<String>,
     /// `--trace-timings`: told when the lens moves or is shown.
@@ -51,6 +57,7 @@ impl Lens {
         Self {
             click: ClickThrough::new(true),
             hold: Hold::new(),
+            freeze: Freeze::new(),
             mode,
             driver: OnceLock::new(),
             pipeline: OnceLock::new(),
@@ -58,6 +65,7 @@ impl Lens {
             visible: AtomicBool::new(false),
             paused: AtomicBool::new(false),
             region: Mutex::new(None),
+            strip: Mutex::new(Strip::None),
             copy_text: Mutex::new(String::new()),
             trace: None,
         }
@@ -89,6 +97,20 @@ impl Lens {
     /// The text the lens shows right now, in reading order (empty when it shows none).
     pub fn copy_text(&self) -> String {
         self.copy_text.lock().expect("copy lock").clone()
+    }
+
+    pub fn strip(&self) -> Strip {
+        *self.strip.lock().expect("strip lock")
+    }
+
+    /// Only `lens::apply_mode` changes it, together with the window's geometry.
+    pub fn set_strip(&self, strip: Strip) {
+        *self.strip.lock().expect("strip lock") = strip;
+    }
+
+    /// The running pipeline, once it has started.
+    pub fn pipeline(&self) -> Option<Arc<Pipeline>> {
+        self.pipeline.get().cloned()
     }
 
     /// Whether a pipeline is running behind the lens.

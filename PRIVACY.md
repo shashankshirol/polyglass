@@ -5,7 +5,9 @@ with 1.0, SV-08.)
 
 ## On-device mode (the default)
 
-- Polyglass captures **only the area under the lens**, in memory.
+- Polyglass captures **only the area under the lens**, in memory. Freeze mode (❄,
+  Ctrl+Alt+F) takes one picture of the monitor under the lens instead; it is kept in memory
+  only and thrown away when you leave Freeze mode.
 - Text is recognized and translated **on your computer**. Nothing is sent anywhere.
 - Screen images are **never saved to disk**. The only exception is a developer option
   (`--debug-dump-frames`) that shows a red banner the whole time it is on.

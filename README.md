@@ -172,6 +172,13 @@ up yourself. It uses the same pinned, hash-checked steps as the Swedish models.
   focused, the arrow keys move it by 1 px, and Shift+arrow moves it by 10 px.
 - Put the lens over Swedish text. The translation is drawn in place once the lens stops
   moving.
+- The mode button in the toolbar switches between **Overlay** (each translation drawn over its
+  text) and **Panel** (the lens stays clear and the translations are listed in a strip under
+  it, or above it near the bottom of the screen; the text there can be selected). The mode is
+  saved in `settings.toml` (`[lens] mode`).
+- ❄ (Ctrl+Alt+F) freezes the monitor under the lens: it shows a still picture of it, and the
+  lens can be moved over the picture to translate it, e.g. text that scrolls or disappears.
+  Esc, ❄ or Ctrl+Alt+F goes back to the live screen. The picture is kept in memory only.
 - The two pickers at the left of the toolbar choose the language pair: every pair in the model
   catalog, installed or not (⬇ marks a missing model; ⬇ or ⚙ in the toolbar downloads it). The
   source picker offers each language as "Swedish/English" (each block is detected; text already

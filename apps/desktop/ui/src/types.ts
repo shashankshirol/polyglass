@@ -54,10 +54,12 @@ export interface Timings {
 
 /** `commands::LensConfig`. */
 export interface LensConfig {
-  layout: { frame: number; toolbar: number };
+  layout: { frame: number; toolbar: number; panel: number };
   /** demo: all mocks; live: real capture, OCR and on-device translation. */
   mode: "demo" | "live" | "none";
   clickThrough: boolean;
+  /** Where the Panel mode strip is; "none" in Overlay mode (MODE-02). */
+  strip: "none" | "below" | "above";
   pipeline: boolean;
   /** Fluent message ID if the pipeline failed to start. */
   pipelineError: string | null;

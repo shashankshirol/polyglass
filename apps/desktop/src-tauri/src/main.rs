@@ -11,6 +11,7 @@ mod commands;
 mod crash;
 mod demo;
 mod devflags;
+mod freeze;
 mod hold;
 mod hotkeys;
 mod langs;
@@ -75,6 +76,7 @@ fn main() {
             commands::nudge_lens,
             commands::set_click_through,
             commands::set_paused,
+            commands::set_mode,
             commands::hide_lens,
             commands::open_ocr_language_settings,
             commands::open_model_manager,
@@ -87,6 +89,9 @@ fn main() {
             commands::delete_model,
             commands::finish_first_run,
             commands::lens_drawn,
+            commands::set_frozen,
+            commands::freeze_snapshot,
+            commands::freeze_ready,
         ])
         .setup(move |app| {
             let handle = app.handle().clone();
@@ -135,12 +140,13 @@ fn main() {
                 models.set_first_run(true);
                 models::open_window(&handle)?;
             }
+            let freeze = handle.state::<Lens>().freeze.clone();
             match mode {
                 Mode::Demo => {
                     tracing::warn!("demo mode: mock capture, OCR and translation");
                     let scale = window.scale_factor().unwrap_or(1.0);
                     let bounds = desktop_bounds(&handle).unwrap_or(PhysRect::new(0, 0, 1920, 1080));
-                    start_pipeline(handle, move || demo::pipeline(bounds, scale, dump));
+                    start_pipeline(handle, move || demo::pipeline(bounds, scale, dump, freeze));
                 }
                 // Without exclusion the lens would OCR its own translations (CAP-02).
                 Mode::Live if !self_excluded => {
@@ -148,7 +154,7 @@ fn main() {
                 }
                 Mode::Live => {
                     tracing::info!("live capture, OCR and on-device translation");
-                    start_pipeline(handle, move || live::pipeline(&store, dump));
+                    start_pipeline(handle, move || live::pipeline(&store, dump, freeze));
                 }
                 Mode::None => tracing::warn!("no capture backend on this platform yet"),
             }
@@ -178,6 +184,7 @@ fn main() {
 fn watch_window(window: &WebviewWindow) {
     let w = window.clone();
     let cap = std::sync::Mutex::new(None);
+    let flip_waiting = Arc::new(std::sync::atomic::AtomicBool::new(false));
     window.on_window_event(move |event| {
         let state = w.state::<Lens>();
         match event {
@@ -185,11 +192,13 @@ fn watch_window(window: &WebviewWindow) {
             | WindowEvent::Resized(_)
             | WindowEvent::ScaleFactorChanged { .. } => {
                 lens::follow_monitor_cap(&w, &cap);
+                lens::follow_panel(&w, &flip_waiting);
                 state.set_region(lens::interior_region(&w));
             }
             WindowEvent::CloseRequested { api, .. } => {
                 // Alt+F4 hides to the tray; Quit lives in the tray menu.
                 api.prevent_close();
+                freeze::exit(w.app_handle());
                 settings::remember_lens(w.app_handle(), &w);
                 if w.hide().is_ok() {
                     state.set_visible(false);
@@ -205,6 +214,7 @@ pub fn toggle_lens(app: &AppHandle) {
     let Some(window) = lens::get(app) else { return };
     let state = app.state::<Lens>();
     if state.is_visible() {
+        freeze::exit(app);
         settings::remember_lens(app, &window);
         if window.hide().is_ok() {
             state.set_visible(false);

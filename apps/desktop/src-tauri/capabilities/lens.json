@@ -12,6 +12,8 @@
     "allow-nudge-lens",
     "allow-set-click-through",
     "allow-set-paused",
+    "allow-set-mode",
+    "allow-set-frozen",
     "allow-hide-lens",
     "allow-open-ocr-language-settings",
     "allow-open-model-manager",

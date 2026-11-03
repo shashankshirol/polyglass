@@ -34,11 +34,12 @@ const PHRASES: &[(&str, Option<&str>)] = &[
 ];
 
 /// Build a pipeline over a synthetic desktop covering `bounds` (all monitors, physical px).
-/// `dump`: the `--debug-dump-frames` folder, if set.
+/// `dump`: the `--debug-dump-frames` folder, if set. `freeze`: Freeze mode's snapshot (MODE-03).
 pub fn pipeline(
     bounds: PhysRect,
     scale: f64,
     dump: Option<std::path::PathBuf>,
+    freeze: Arc<crate::freeze::Freeze>,
 ) -> pg_core::Result<Pipeline> {
     let translator = PHRASES
         .iter()
@@ -48,7 +49,10 @@ pub fn pipeline(
         });
     let ocr = MockOcr::with_fn(read_phrases).with_delay(Duration::from_millis(80));
     Ok(Pipeline::new(
-        crate::devflags::capturer(StaticCapturer::new(desktop(bounds, scale)), dump)?,
+        crate::devflags::capturer(
+            crate::freeze::Freezable::new(StaticCapturer::new(desktop(bounds, scale)), freeze),
+            dump,
+        )?,
         Arc::new(ocr),
         Arc::new(translator),
         PipelineConfig::new(SourceLang::Auto(LangTag::sv()), LangTag::en()),
@@ -102,7 +106,13 @@ mod tests {
 
     #[tokio::test]
     async fn demo_pipeline_translates_swedish_and_passes_english_through() {
-        let p = pipeline(PhysRect::new(-200, 0, 1200, 600), 1.25, None).unwrap();
+        let p = pipeline(
+            PhysRect::new(-200, 0, 1200, 600),
+            1.25,
+            None,
+            crate::freeze::Freeze::new(),
+        )
+        .unwrap();
         let tick = Tick {
             generation: 1,
             region: PhysRect::new(0, 0, 500, 200),

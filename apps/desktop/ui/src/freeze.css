@@ -1,0 +1,16 @@
+/* Freeze mode (MODE-03): the snapshot fills the monitor, one canvas pixel per screen pixel. */
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #000;
+  cursor: default;
+}
+
+#snapshot {
+  display: block;
+  width: 100vw;
+  height: 100vh;
+}

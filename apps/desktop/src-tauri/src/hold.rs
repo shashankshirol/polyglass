@@ -115,6 +115,21 @@ fn keys() -> Keys {
     }
 }
 
+/// Whether any mouse button is down (the physical buttons, so left-handed setups count too).
+/// The Panel mode strip waits for this before it flips (MODE-02, `lens::follow_panel`).
+#[cfg(windows)]
+pub fn mouse_button_down() -> bool {
+    use windows::Win32::UI::Input::KeyboardAndMouse::{
+        GetAsyncKeyState, VK_LBUTTON, VK_MBUTTON, VK_RBUTTON,
+    };
+    [VK_LBUTTON, VK_RBUTTON, VK_MBUTTON].into_iter().any(|vk| {
+        // SAFETY: as in `keys`: a read of the global key state.
+        #[allow(unsafe_code)]
+        let state = unsafe { GetAsyncKeyState(i32::from(vk.0)) };
+        state < 0
+    })
+}
+
 #[cfg(not(windows))]
 fn keys() -> Keys {
     Keys::default()

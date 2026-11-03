@@ -15,7 +15,9 @@
         <span class="arrow" data-tauri-drag-region aria-hidden="true">→</span>
         <select id="target-lang" class="lang" aria-label="Target language"></select>
         <button id="swap" type="button" aria-label="Swap languages" title="Swap languages (Ctrl+Alt+S)">⇄</button>
-        <button id="mode" type="button" aria-disabled="true" aria-label="Mode: Overlay" title="Mode: Overlay">Overlay</button>
+        <button id="mode" type="button" aria-label="Mode: Overlay" title="Mode: Overlay">Overlay</button>
+        <button id="freeze" type="button" aria-pressed="false" aria-label="Freeze the screen"
+          title="Freeze the screen: translate a still snapshot (Ctrl+Alt+F; Esc goes back)">❄</button>
         <span class="spacer" data-tauri-drag-region></span>
         <button id="ocr-lang" type="button" class="warn" hidden>⚠</button>
         <button id="models" type="button" class="warn" hidden>⬇</button>
@@ -54,5 +56,9 @@
       <div class="rz se" data-dir="SouthEast"></div>
       <div class="rz sw" data-dir="SouthWest"></div>
     </div>
+    <!-- MODE-02: Panel mode lists the translations here; Rust puts it below or above the lens. -->
+    <section id="panel" aria-label="Translations" tabindex="0" hidden>
+      <ol id="panel-list"></ol>
+    </section>
   </body>
 </html>

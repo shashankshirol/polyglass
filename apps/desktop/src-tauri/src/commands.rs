@@ -1,13 +1,15 @@
 //! The only commands the webviews can call (SEC-01). Each is also listed in `build.rs` and
-//! allowed per window in `capabilities/lens.json` or `capabilities/models.json`, and checks the
+//! allowed per window in `capabilities/lens.json`, `models.json` or `freeze.json`, and checks the
 //! calling window itself. All input is validated here, in Rust.
 
 use serde::Serialize;
+use tauri::ipc::Response;
 use tauri::{AppHandle, Manager, State, WebviewWindow};
 
 use crate::clipboard;
+use crate::freeze;
 use crate::langs::{self, LanguagesView};
-use crate::lens::{self, LAYOUT, Layout};
+use crate::lens::{self, DisplayMode, LAYOUT, Layout, Strip};
 use crate::models::{self, Models};
 use crate::settings;
 use crate::state::{Lens, Mode};
@@ -22,6 +24,8 @@ const NUDGE_STEPS: [i32; 5] = [-10, -1, 0, 1, 10];
 pub struct LensConfig {
     layout: Layout,
     mode: Mode,
+    /// The Panel mode strip, if any (MODE-02); `lens-strip` events carry later changes.
+    strip: Strip,
     click_through: bool,
     /// Whether a pipeline runs (or is starting) behind the lens.
     pipeline: bool,
@@ -52,6 +56,7 @@ pub fn lens_config(
     Ok(LensConfig {
         layout: LAYOUT,
         mode: state.mode,
+        strip: state.strip(),
         click_through: state.click.is_enabled(),
         pipeline: state.has_pipeline() || state.mode != Mode::None,
         pipeline_error: state.pipeline_error(),
@@ -205,6 +210,24 @@ pub fn set_click_through(
     Ok(())
 }
 
+/// Switch between Overlay and Panel mode (the toolbar's mode button, MODE-01/02) and save it
+/// (LENS-01). The lens learns the new layout from a `lens-strip` event.
+#[tauri::command]
+pub fn set_mode(window: WebviewWindow, app: AppHandle, mode: DisplayMode) -> CmdResult<()> {
+    ensure_lens(&window)?;
+    let w = window.clone();
+    // `apply_mode` needs the main thread (see there).
+    app.run_on_main_thread(move || {
+        if let Err(e) = lens::apply_mode(&w, mode) {
+            tracing::warn!(error = %e, ?mode, "could not change the lens mode");
+        }
+    })
+    .map_err(|e| e.to_string())?;
+    app.state::<settings::Store>()
+        .update(|s| s.lens.mode = mode);
+    Ok(())
+}
+
 #[tauri::command]
 pub fn set_paused(window: WebviewWindow, state: State<'_, Lens>, paused: bool) -> CmdResult<()> {
     ensure_lens(&window)?;
@@ -212,10 +235,42 @@ pub fn set_paused(window: WebviewWindow, state: State<'_, Lens>, paused: bool) -
     Ok(())
 }
 
+/// Enter or leave Freeze mode (MODE-03): the lens's ❄ and Esc, and Esc in the snapshot window.
+/// `async`, so leaving doesn't destroy the calling window from inside its own request.
+#[tauri::command]
+pub async fn set_frozen(window: WebviewWindow, app: AppHandle, frozen: bool) -> CmdResult<()> {
+    if window.label() != freeze::WINDOW {
+        ensure_lens(&window)?;
+    }
+    if frozen {
+        freeze::enter(&app);
+    } else {
+        freeze::exit(&app);
+    }
+    Ok(())
+}
+
+/// The snapshot for the freeze window's canvas (`freeze::rgba`), as raw bytes. Memory only:
+/// the reply goes straight to that window (PRIV-02).
+#[tauri::command]
+pub fn freeze_snapshot(window: WebviewWindow, state: State<'_, Lens>) -> CmdResult<Response> {
+    ensure_window(&window, freeze::WINDOW)?;
+    let snapshot = state.freeze.snapshot().ok_or("not frozen")?;
+    Ok(Response::new(freeze::rgba(&snapshot)))
+}
+
+/// The freeze window has drawn the snapshot: show it under the lens.
+#[tauri::command]
+pub fn freeze_ready(window: WebviewWindow, app: AppHandle) -> CmdResult<()> {
+    ensure_window(&window, freeze::WINDOW)?;
+    freeze::shown(&app, &window).map_err(|e| e.to_string())
+}
+
 /// Hide to the tray (the toolbar's close button; quitting is in the tray menu).
 #[tauri::command]
 pub fn hide_lens(window: WebviewWindow, state: State<'_, Lens>) -> CmdResult<()> {
     ensure_lens(&window)?;
+    freeze::exit(window.app_handle());
     settings::remember_lens(window.app_handle(), &window);
     window.hide().map_err(|e| e.to_string())?;
     state.set_visible(false);

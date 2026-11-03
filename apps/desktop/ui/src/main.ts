@@ -19,6 +19,7 @@ import {
   targetOptions,
   type PickerOption,
 } from "./langs";
+import { modeButton, panelItems, type Strip } from "./panel";
 import type { LanguagesView, LensConfig, LensUpdate, ModelsView, RenderedBlock } from "./types";
 
 type ResizeDirection =
@@ -38,7 +39,12 @@ const $ = <T extends HTMLElement>(id: string): T => {
 };
 
 const lensEl = $("lens");
+const interiorEl = $("interior");
 const blocksEl = $("blocks");
+const panelEl = $("panel");
+const panelList = $("panel-list");
+const modeBtn = $<HTMLButtonElement>("mode");
+const freezeBtn = $<HTMLButtonElement>("freeze");
 const messageEl = $("message");
 const noticeEl = $("notice");
 const privacyEl = $("privacy");
@@ -66,6 +72,10 @@ let current: LensUpdate | null = null;
 /** True while left Alt is held: show the source text instead of the translation (REN-04). */
 let showOriginal = false;
 let mode: LensConfig["mode"] = "none";
+/** Where the Panel mode strip is; "none" in Overlay mode (MODE-02). */
+let strip: Strip = "none";
+/** Freeze mode is on (MODE-03): the lens reads a snapshot of the monitor. */
+let frozen = false;
 /** Progress text while the model manager downloads. */
 let downloadProgress: string | null = null;
 /** Whether the missing models can be downloaded (false: import-only, see README). */
@@ -153,7 +163,7 @@ function renderBlock(b: RenderedBlock): HTMLElement {
 /**
  * REN-02: start at the source text's size and shrink to fit the source box, down to 9 px. Text
  * that still doesn't fit grows the box downward to the interior's bottom edge, and the block's
- * tooltip holds the full text (seen with click-through off; Panel view is M2-2).
+ * tooltip holds the full text (seen with click-through off), and Panel mode lists it in full.
  */
 function fit(el: HTMLElement, b: RenderedBlock): void {
   const { rect } = b;
@@ -170,9 +180,47 @@ function fit(el: HTMLElement, b: RenderedBlock): void {
 }
 
 function drawBlocks(u: LensUpdate): void {
+  if (strip !== "none") {
+    // MODE-02: the interior stays transparent; the strip lists the blocks in reading order.
+    blocksEl.replaceChildren();
+    drawPanel(u.blocks);
+    return;
+  }
+  panelList.replaceChildren();
   const els = u.blocks.map(renderBlock);
   blocksEl.replaceChildren(...els);
   els.forEach((el, i) => fit(el, u.blocks[i]!));
+}
+
+function drawPanel(blocks: readonly RenderedBlock[]): void {
+  panelList.replaceChildren(
+    ...panelItems(blocks, showOriginal).map((item) => {
+      const li = document.createElement("li");
+      // textContent only: recognized text is never parsed as HTML.
+      li.textContent = item.text;
+      li.lang = item.lang;
+      li.classList.toggle("dim", item.dim);
+      li.classList.toggle("untranslated", item.untranslated);
+      return li;
+    }),
+  );
+}
+
+/** MODE-02: Rust laid the window out with the strip below or above the lens, or without it. */
+function setStrip(s: Strip): void {
+  strip = s;
+  document.body.classList.toggle("strip-below", s === "below");
+  document.body.classList.toggle("strip-above", s === "above");
+  panelEl.hidden = s === "none";
+  // Messages and notices go where the translations are, so the interior stays clear.
+  if (s === "none") interiorEl.append(messageEl, noticeEl);
+  else panelEl.append(messageEl, noticeEl);
+  const button = modeButton(s);
+  modeBtn.textContent = button.text;
+  modeBtn.title = button.label;
+  modeBtn.setAttribute("aria-label", button.label);
+  if (current && !paused) drawBlocks(current);
+  else if (paused) panelList.replaceChildren();
 }
 
 /** REN-04: the Rust side reports left Alt (alone) being held or released. */
@@ -256,6 +304,7 @@ function applyConfig(cfg: LensConfig): void {
   const root = document.documentElement.style;
   root.setProperty("--frame", `${cfg.layout.frame}px`);
   root.setProperty("--toolbar", `${cfg.layout.toolbar}px`);
+  root.setProperty("--panel", `${cfg.layout.panel}px`);
   mode = cfg.mode;
   setBadge(cfg.mode === "demo" ? "demo" : null);
   modelsDownloadable = cfg.modelsDownloadable;
@@ -263,6 +312,7 @@ function applyConfig(cfg: LensConfig): void {
   setLanguages(cfg.languages);
   setModelsButton(cfg.modelsMissingBytes);
   setClickThroughUi(cfg.clickThrough);
+  setStrip(cfg.strip);
   setDebugFlags(cfg.traceTimings, cfg.dumpFrames);
   if (cfg.pipelineError) {
     showMessage(message(cfg.pipelineError));
@@ -377,8 +427,16 @@ const ARROWS: Record<string, [number, number]> = {
   ArrowDown: [0, 1],
 };
 window.addEventListener("keydown", (e) => {
+  // MODE-03: Esc goes back to the live screen.
+  if (e.key === "Escape" && frozen) {
+    e.preventDefault();
+    call("set_frozen", { frozen: false });
+    return;
+  }
   const d = ARROWS[e.key];
   if (!d || e.altKey || e.ctrlKey || e.metaKey) return;
+  // In the panel the arrow keys scroll it.
+  if (panelEl.contains(document.activeElement)) return;
   e.preventDefault();
   const step = e.shiftKey ? 10 : 1;
   call("nudge_lens", { dx: d[0] * step, dy: d[1] * step });
@@ -402,10 +460,28 @@ pauseBtn.addEventListener("click", () => {
   lensEl.classList.toggle("paused", paused);
   if (paused) {
     blocksEl.replaceChildren();
+    panelList.replaceChildren();
     current = null;
   }
   call("set_paused", { paused });
 });
+
+// MODE-03: ❄ freezes the monitor under the lens, or goes back to the live screen.
+freezeBtn.addEventListener("click", () => call("set_frozen", { frozen: !frozen }));
+
+function setFrozen(on: boolean): void {
+  frozen = on;
+  freezeBtn.setAttribute("aria-pressed", String(on));
+  const label = on ? "Unfreeze: back to the live screen (Esc)" : "Freeze the screen";
+  freezeBtn.setAttribute("aria-label", label);
+  freezeBtn.title = on
+    ? `${label}, Ctrl+Alt+F`
+    : "Freeze the screen: translate a still snapshot (Ctrl+Alt+F; Esc goes back)";
+  lensEl.classList.toggle("frozen", on);
+}
+
+// MODE-01/02: switch between Overlay and Panel; Rust moves the window and answers `lens-strip`.
+modeBtn.addEventListener("click", () => call("set_mode", { mode: modeButton(strip).next }));
 
 clickBtn.addEventListener("click", () => {
   const on = clickBtn.getAttribute("aria-pressed") !== "true";
@@ -460,9 +536,11 @@ async function start(): Promise<void> {
   if (!isTauri()) {
     // Plain browser (layout preview): show a sample update instead of live data.
     applyConfig({
-      layout: { frame: 6, toolbar: 30 },
+      layout: { frame: 6, toolbar: 30, panel: 120 },
       mode: "demo",
       clickThrough: true,
+      // Preview Panel mode with ?panel or ?above in the URL.
+      strip: location.search.includes("above") ? "above" : location.search.includes("panel") ? "below" : "none",
       pipeline: true,
       pipelineError: null,
       modelsMissingBytes: 0,
@@ -492,6 +570,8 @@ async function start(): Promise<void> {
   await listen<boolean>("lens-original", (e) => setShowOriginal(e.payload));
   await listen<LanguagesView>("lens-languages", (e) => setLanguages(e.payload));
   await listen<boolean>("lens-click-through", (e) => setClickThroughUi(e.payload));
+  await listen<Strip>("lens-strip", (e) => setStrip(e.payload));
+  await listen<boolean>("lens-frozen", (e) => setFrozen(e.payload));
   applyConfig(await invoke<LensConfig>("lens_config"));
 }
 

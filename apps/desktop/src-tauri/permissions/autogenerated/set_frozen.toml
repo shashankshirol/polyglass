@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-set-frozen"
+description = "Enables the set_frozen command without any pre-configured scope."
+commands.allow = ["set_frozen"]
+
+[[permission]]
+identifier = "deny-set-frozen"
+description = "Denies the set_frozen command without any pre-configured scope."
+commands.deny = ["set_frozen"]
