@@ -398,7 +398,7 @@ Newest first. Keep each entry short: what changed, what's verified, what's next,
   - A test window opened from these shells lands behind the foreground app (Steam was full screen here), so `lens-read.ps1` read "No text found"; a `TopMost` copy of it worked. Consider a `-TopMost` switch for the script.
   - A toggle button (`aria-pressed`) has UI Automation's TogglePattern, not InvokePattern.
   - Moving a hidden window onto a monitor with another scale and reading its geometry right away gives pre-DPI-change numbers; `place_and_show` now computes Panel mode's layout from the target monitor instead.
-- Left on this machine: `settings.toml` that the checks created in the (virtualized) Roaming folder (`C:\Users\Shash\AppData\Local\Packages\Claude_pzs8sxrjxfjjc\LocalCache\Roaming\org.polyglass.desktop\settings.toml`; there was none before; it has `mode = "overlay"` and the lens at 1040,596 on the primary monitor, close to the defaults). Not deleted: deleting files outside the repo needs the owner's OK. Scratch scripts in the session scratchpad.
+- The checks created a `settings.toml` in the (virtualized) Roaming folder (`C:\Users\Shash\AppData\Local\Packages\Claude_pzs8sxrjxfjjc\LocalCache\Roaming\org.polyglass.desktop\settings.toml`; there was none before). The session left it (deleting files outside the repo needed the owner's OK); it has since been deleted with the owner's OK. Scratch scripts in the session scratchpad.
 - Also M4-3 `[~]` (REN-06 live region, rate-limited; checked through UI Automation, not heard through a screen reader).
 - Next: "Next up" item 2 (REF-A measurements) needs a REF-A machine; M4 polish on Windows otherwise (M4-3's screen-reader check, M4-1, M4-2, M4-5).
 
