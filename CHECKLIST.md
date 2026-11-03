@@ -369,7 +369,7 @@ These are verified with mocks. Each requirement is fully met only once real engi
 ## M4 — Polish
 - [ ] M4-1 Appearance settings + reduced motion (LENS-07).
 - [ ] M4-2 Rebindable hotkeys with conflict/AltGr reporting (HK-02).
-- [ ] M4-3 Screen-reader live region with `lang` (REN-06).
+- [~] M4-3 Screen-reader live region with `lang` (REN-06). *Session 15, Windows: the lens has a visually hidden `aria-live="polite"` region (`#announce`); after each update the shown blocks (translations, passthrough text) go into it as one `<p lang>` per block, in reading order. `ui/src/announce.ts` (`Announcer`) allows one announcement every 2 s: an update inside the gap waits for its end, only the newest waiting update is said, the same texts aren't repeated, and pause resets it. Tests (`npm test`): `ren06 announces new text at most once every 2 s`, `ren06 does not repeat what was announced, and repeats after a reset`. Release app, UI Automation (region found by its id): Swedish dialog text under the lens → the region held "Do you want to save the changes before closing?" / "Your changes have been saved."; new text 0.7 s later → "Cancel" / "Synchronising folder" (`Öppna mapp`, a known OPUS-MT slip). Not done: heard through a screen reader (Narrator/NVDA not run, so whether the voice follows `lang` is unverified); once, right after a start, the region wasn't in the UI Automation tree yet at 3 s (it was on the next run).*
 - [ ] M4-4 `lang="sv"` hyphenation / break-at-edge (SV-06).
 - [ ] M4-5 Fluent string externalization; Swedish UI + Swedish PRIVACY.md (I18N-01, SV-08).
 - [ ] M4-6 A11Y pass (A11Y-01/02).
@@ -399,7 +399,8 @@ Newest first. Keep each entry short: what changed, what's verified, what's next,
   - A toggle button (`aria-pressed`) has UI Automation's TogglePattern, not InvokePattern.
   - Moving a hidden window onto a monitor with another scale and reading its geometry right away gives pre-DPI-change numbers; `place_and_show` now computes Panel mode's layout from the target monitor instead.
 - Left on this machine: `settings.toml` that the checks created in the (virtualized) Roaming folder (`C:\Users\Shash\AppData\Local\Packages\Claude_pzs8sxrjxfjjc\LocalCache\Roaming\org.polyglass.desktop\settings.toml`; there was none before; it has `mode = "panel"` and a lens position near the bottom of the primary monitor). Not deleted: deleting files outside the repo needs the owner's OK. Scratch scripts in the session scratchpad.
-- Next: "Next up" item 2 (REF-A measurements) needs a REF-A machine; M4 polish on Windows otherwise.
+- Also M4-3 `[~]` (REN-06 live region, rate-limited; checked through UI Automation, not heard through a screen reader).
+- Next: "Next up" item 2 (REF-A measurements) needs a REF-A machine; M4 polish on Windows otherwise (M4-3's screen-reader check, M4-1, M4-2, M4-5).
 
 ### 2026-11-03 — Coordinator (D-15: v1 is Windows only; macOS/Linux setup removed)
 - The owner decided D-15 (quote in the decision). SPEC v0.6 (§4 Windows only, macOS/Linux kept as post-v1 targets; German → English a COULD), PLAN v0.3, CHECKLIST (macOS/Linux tasks `[-]`, Next up is Windows polish, new section "Post-v1 platforms" with what was removed and how to pick it up), README/CONTRIBUTING (Windows only), ARCHITECTURE ("Adding a platform"), ADR-0005 note.
