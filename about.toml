@@ -1,0 +1,28 @@
+# cargo-about configuration (OSS-01): the Rust part of THIRD_PARTY_NOTICES for the app.
+# `python scripts/notices.py` runs it and adds what cargo-about can't see (the C++ code ct2rs and
+# sentencepiece-sys compile in, the npm package bundled into the UI). Run it for every release
+# (M5-2). Translation models aren't bundled: their licenses and attribution are in
+# models/manifest.toml and the model manager.
+
+# The same list as deny.toml's [licenses] allow: a new license needs the owner first.
+accepted = [
+  "MIT",
+  "Apache-2.0",
+  "BSD-3-Clause",
+  "ISC",
+  "Zlib",
+  "Unicode-3.0",
+  "MPL-2.0",
+  "BSL-1.0",
+]
+
+# v1 ships on Windows only (D-15), like deny.toml's [graph] targets.
+targets = ["x86_64-pc-windows-msvc"]
+
+# What ships: no build scripts' or tests' dependencies, and not our own (`publish = false`) crates.
+ignore-build-dependencies = true
+ignore-dev-dependencies = true
+private = { ignore = true }
+
+# `--frozen` keeps it offline and on Cargo.lock: license texts come from the crates and
+# cargo-about's SPDX data. `--fail` stops on a crate whose license can't be read.

@@ -30,6 +30,11 @@ All three must pass. v1 is Windows only, so build and test on Windows. CI checks
 - **Headless core.** `crates/pg-*` must not depend on Tauri (PLAN principle 4).
 - **Models** are only added via `models/manifest.toml` with URL, SHA-256 and license.
 - **Fixtures** must be created by you and released as CC0-1.0.
+- **Dependencies** must have a license on `deny.toml`'s allow list (`about.toml` has the same
+  list); a new license needs the maintainers first. `python scripts/notices.py` writes
+  `THIRD_PARTY_NOTICES.md` for a release (OSS-01): `cargo about` for the Rust crates, plus the
+  C++ code that `ct2rs` and `sentencepiece-sys` compile in and the npm package in the UI, which
+  the script lists by hand; check that list when those are upgraded.
 
 ## Sign-off
 
