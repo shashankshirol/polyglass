@@ -128,6 +128,15 @@ store, and `--no-install` to only convert. The OPUS-MT models are CC-BY-4.0: the
 in `models/manifest.toml` and the release notes, and the license text is installed next to each
 model.
 
+**Import from a folder (offline):** the model manager's "Import from a folder" installs model
+files you already have, without a restart: the models release's files downloaded into one
+folder (as they are named there, e.g. `opus-mt-sv-en.model.bin`), the folders
+`opus_mt.py --no-install` writes (`target/opus-mt/out`, one folder per model), or one model's own
+folder. Type the folder's path and press Import (or Enter), or drop the folder on the window.
+Every file is checked against its SHA-256 in `models/manifest.toml`, like a download; a model
+with a file that doesn't match isn't installed. `cargo run -p pg-models --bin import-models --
+--from <folder>` does the same from a terminal.
+
 **Publishing a new models release (maintainers):** point the manifest URLs at a new tag
 `models-opus-mt-YYYY-MM-DD` first (`releases/download/<tag>/<model id>.<file name>`), check
 locally with `python scripts/models/opus_mt.py --no-install` and

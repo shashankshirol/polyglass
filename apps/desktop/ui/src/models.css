@@ -122,6 +122,43 @@ progress::-webkit-progress-value {
   border-left: 4px solid var(--ok);
 }
 
+/* Import from a folder (MDL-04). */
+.import {
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--card);
+}
+
+.import h2 {
+  margin-bottom: 6px;
+}
+
+.import-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.import-row label {
+  font-weight: 600;
+}
+
+.import-row input {
+  flex: 1 1 auto;
+  min-width: 0;
+  font: inherit;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+.import .message {
+  margin-top: 10px;
+}
+
 /* Manager rows (MDL-01). */
 .rows {
   list-style: none;

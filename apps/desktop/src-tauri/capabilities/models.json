@@ -10,6 +10,7 @@
     "allow-download-models",
     "allow-cancel-download",
     "allow-delete-model",
+    "allow-import-models",
     "allow-finish-first-run"
   ]
 }

@@ -203,6 +203,19 @@ pub fn delete_model(window: WebviewWindow, app: AppHandle, id: String) -> CmdRes
     models::delete(&app, &id)
 }
 
+/// "Import from folder" (MDL-04): install the models found in `path` (an absolute folder, or a
+/// file in one), verified against the manifest like a download, and load them. `async`: copying
+/// and hashing runs off the main thread.
+#[tauri::command]
+pub async fn import_models(
+    window: WebviewWindow,
+    app: AppHandle,
+    path: String,
+) -> CmdResult<models::ImportOutcome> {
+    ensure_window(&window, models::WINDOW)?;
+    models::import(&app, &path).await
+}
+
 /// The wizard's "Not now" and "Done": don't offer it again, and close the window (SV-01).
 #[tauri::command]
 pub fn finish_first_run(window: WebviewWindow, app: AppHandle) -> CmdResult<()> {

@@ -68,6 +68,21 @@
         <ul id="rows" class="rows" aria-label="Available language pairs"></ul>
         <footer id="usage" class="usage"></footer>
       </section>
+
+      <section id="import" class="import" aria-labelledby="import-title" hidden>
+        <h2 id="import-title">Import from a folder</h2>
+        <p>
+          Have the model files already, e.g. downloaded from the Polyglass models release on another
+          computer, or written by the install script? Enter their folder, or drop it on this window.
+          Every file is checked against the catalog first.
+        </p>
+        <div class="import-row">
+          <label for="import-path">Folder</label>
+          <input id="import-path" type="text" spellcheck="false" autocomplete="off" />
+          <button id="import-go" type="button">Import</button>
+        </div>
+        <p id="import-message" class="message" role="status" hidden></p>
+      </section>
     </main>
   </body>
 </html>

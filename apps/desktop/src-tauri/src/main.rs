@@ -94,6 +94,7 @@ fn main() {
             commands::download_models,
             commands::cancel_download,
             commands::delete_model,
+            commands::import_models,
             commands::finish_first_run,
             commands::lens_drawn,
             commands::set_frozen,

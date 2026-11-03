@@ -4,6 +4,7 @@ import { test } from "node:test";
 
 import {
   formatBytes,
+  importText,
   pairName,
   percent,
   rowActions,
@@ -105,4 +106,17 @@ test("wizard stages", () => {
   assert.equal(wizardStage(view({ job: { ids: ["a"], downloaded: 0, total: 1 } })), "downloading");
   assert.equal(wizardStage(view({ wanted_missing_bytes: 0 })), "ready");
   assert.equal(wizardStage(view({ wanted_downloadable: false })), "install-command");
+});
+
+test("mdl04 import outcome names the pairs and says why one failed", () => {
+  const rows = [row("opus-mt-sv-en"), row("opus-mt-en-sv", { source: "en", target: "sv" })];
+  assert.equal(
+    importText({ imported: ["opus-mt-sv-en", "opus-mt-en-sv"], failed: [], message_id: null }, rows),
+    "Imported Swedish → English and English → Swedish, checked against the catalog and ready to use.",
+  );
+  const mixed = importText({ imported: ["opus-mt-sv-en"], failed: ["opus-mt-en-sv"], message_id: "mdl-error-verify" }, rows);
+  assert.match(mixed, /^Imported Swedish → English.* English → Swedish wasn't imported: a file didn't match its checksum/);
+  assert.match(importText({ imported: [], failed: [], message_id: "mdl-import-none" }, rows), /No model files from the catalog/);
+  // An id the rows don't know is named as it is.
+  assert.match(importText({ imported: ["x-y"], failed: [], message_id: null }, rows), /^Imported x-y,/);
 });

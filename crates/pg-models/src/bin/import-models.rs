@@ -5,15 +5,17 @@
 //! ```
 //!
 //! `<dir>` holds one sub-directory per model, named by its manifest id (`opus-mt-sv-en/`), as
-//! `scripts/models/opus_mt.py` writes them. Every file is checked against the SHA-256 in the
-//! bundled `models/manifest.toml`, exactly like a download. Without `--store` the models go to
+//! `scripts/models/opus_mt.py` writes them, or the models release's assets downloaded into it
+//! (`opus-mt-sv-en.model.bin` …), or it is one model's own folder (`ModelStore::import_found`).
+//! Every file is checked against the SHA-256 in the bundled `models/manifest.toml`, exactly like
+//! a download. Without `--store` the models go to
 //! the desktop app's store (see [`app_store`]). Without ids, every manifest model found in `<dir>`
 //! is imported.
 
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use pg_models::{Manifest, ModelStore};
+use pg_models::{Manifest, ModelStore, importable};
 
 /// The desktop app's model store: Tauri's `app_local_data_dir()` for the bundle identifier
 /// `org.polyglass.desktop`, plus `models` (see `apps/desktop/src-tauri/src/main.rs`).
@@ -51,11 +53,7 @@ fn run() -> Result<(), String> {
     let store = ModelStore::new(store);
 
     let models: Vec<_> = if ids.is_empty() {
-        manifest
-            .models
-            .iter()
-            .filter(|m| from.join(&m.id).is_dir())
-            .collect()
+        importable(&manifest, &from)
     } else {
         ids.iter()
             .map(|id| manifest.get(id).ok_or(format!("{id}: not in the manifest")))
@@ -69,7 +67,7 @@ fn run() -> Result<(), String> {
     }
     for m in models {
         store
-            .import_from_dir(m, &from.join(&m.id))
+            .import_from_dir(m, &from)
             .map_err(|e| format!("{}: {e}", m.id))?;
         eprintln!(
             "installed {} ({}, {:.1} MB, {}) in {}",

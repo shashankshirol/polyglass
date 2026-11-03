@@ -14,7 +14,35 @@ export const MODEL_MESSAGES: Record<string, string> = {
   "mdl-error-delete": "The model couldn't be deleted. Close other programs using its files and try again.",
   "mdl-error-unreachable":
     "The translation models can't be downloaded: their release isn't reachable (the Polyglass repository may be private).",
+  "mdl-import-none":
+    "No model files from the catalog in that folder. It needs the models release's files (named like opus-mt-sv-en.model.bin), or the folders the install script writes.",
 };
+
+/** `models::ImportOutcome`. */
+export interface ImportOutcome {
+  imported: string[];
+  failed: string[];
+  message_id: string | null;
+}
+
+/** What "Import from a folder" says afterwards (MDL-04), naming the pairs by their rows. */
+export function importText(out: ImportOutcome, rows: ModelRow[]): string {
+  const names = (ids: string[]): string =>
+    ids.map((id) => rows.find((r) => r.id === id)).map((r, i) => (r ? pairName(r) : ids[i])).join(" and ");
+  const parts: string[] = [];
+  if (out.imported.length > 0) {
+    parts.push(`Imported ${names(out.imported)}, checked against the catalog and ready to use.`);
+  }
+  if (out.failed.length > 0) {
+    const why =
+      out.message_id === "mdl-error-verify"
+        ? "a file didn't match its checksum, so it was not kept"
+        : "its files couldn't be copied; check that there is free disk space";
+    parts.push(`${names(out.failed)} wasn't imported: ${why}.`);
+  }
+  if (parts.length === 0) parts.push(MODEL_MESSAGES[out.message_id ?? "mdl-import-none"] ?? "");
+  return parts.join(" ");
+}
 
 export function formatBytes(bytes: number): string {
   if (bytes >= 1e9) return `${(bytes / 1e9).toFixed(2)} GB`;

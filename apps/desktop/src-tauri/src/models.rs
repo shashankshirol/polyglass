@@ -16,11 +16,14 @@
 //!
 //! The OPUS-MT files are assets of a GitHub release of this repository (D-9, M1-TR-7). A model
 //! without download URLs (import-only) can't be downloaded: the window shows the
-//! `scripts/models/opus_mt.py` install command (MDL-04) instead. The same happens when the release
+//! `scripts/models/opus_mt.py` install command instead. "Import from folder" (MDL-04) installs
+//! models from local files (the release's assets downloaded by hand, or what the script wrote),
+//! verified against the manifest like a download, and loads them without a restart. The same happens when the release
 //! answers HTTP 401/403/404/410 (e.g. while the repository is private): download buttons go away
 //! for this run (`mdl-error-unreachable`). Other failures keep them for a retry.
 
 use std::collections::HashSet;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -51,6 +54,20 @@ const MAX_ID_LEN: usize = 128;
 
 /// Message shown when the release isn't there for us (see the module docs).
 const UNREACHABLE: &str = "mdl-error-unreachable";
+/// Longest folder path the import takes from the webview (SEC-01 input bound).
+const MAX_PATH_LEN: usize = 1024;
+
+/// What "Import from folder" did (MDL-04).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ImportOutcome {
+    /// Installed and verified.
+    pub imported: Vec<String>,
+    /// Found, but a file didn't match its SHA-256 (deleted) or couldn't be copied.
+    pub failed: Vec<String>,
+    /// Fluent ID when not everything went in: `mdl-import-none` (no model files there),
+    /// `mdl-error-verify`, `mdl-error-disk`.
+    pub message_id: Option<&'static str>,
+}
 
 /// Everything the model manager and the lens show about models. Carries no screen text.
 #[derive(Debug, Clone, Serialize)]
@@ -126,6 +143,8 @@ pub struct Models {
     message_id: Mutex<Option<&'static str>>,
     unreachable: AtomicBool,
     first_run: AtomicBool,
+    /// An import runs (one at a time, and not during a download).
+    importing: AtomicBool,
 }
 
 impl Models {
@@ -149,6 +168,7 @@ impl Models {
             message_id: Mutex::new(None),
             unreachable: AtomicBool::new(false),
             first_run: AtomicBool::new(false),
+            importing: AtomicBool::new(false),
         }
     }
 
@@ -308,8 +328,8 @@ impl Models {
             .cloned()
             .collect();
         let mut job = self.lock_job();
-        if job.is_some() {
-            return Err("a download is already running".into());
+        if job.is_some() || self.importing.load(Ordering::SeqCst) {
+            return Err("a download or import is already running".into());
         }
         if entries.is_empty() {
             return Ok(None);
@@ -417,12 +437,76 @@ impl Models {
         }
     }
 
+    /// Install every manifest model found in `dir` (MDL-04): release assets, the script's
+    /// folders or a model's own folder (`ModelStore::import_found`), each file verified like a
+    /// download. Refused while a download or another import runs.
+    pub fn import(&self, dir: &Path) -> Result<ImportOutcome, String> {
+        {
+            let job = self.lock_job();
+            if job.is_some() || self.importing.swap(true, Ordering::SeqCst) {
+                return Err("a download or import is already running".into());
+            }
+        }
+        let results = self.store.import_found(&self.manifest, dir);
+        self.importing.store(false, Ordering::SeqCst);
+        let mut out = ImportOutcome {
+            imported: Vec::new(),
+            failed: Vec::new(),
+            message_id: results.is_empty().then_some("mdl-import-none"),
+        };
+        for (model, result) in results {
+            match result {
+                Ok(()) => {
+                    tracing::info!(model = %model.id, "model imported");
+                    out.imported.push(model.id.clone());
+                }
+                Err(error) => {
+                    // Technical context only (PRIV-07); the path is the user's own folder.
+                    tracing::warn!(model = %model.id, %error, "model import failed");
+                    out.failed.push(model.id.clone());
+                    out.message_id.get_or_insert(match error {
+                        ModelError::HashMismatch { .. } => "mdl-error-verify",
+                        _ => "mdl-error-disk",
+                    });
+                }
+            }
+        }
+        self.set_message(None);
+        Ok(out)
+    }
+
     pub fn set_first_run(&self, on: bool) {
         self.first_run.store(on, Ordering::SeqCst);
     }
 
     fn take_first_run(&self) -> bool {
         self.first_run.swap(false, Ordering::SeqCst)
+    }
+}
+
+/// The folder to import from, given by the webview (SEC-01): an absolute path of at most 1024
+/// characters to an existing folder, or to a file in one (a dropped model file). Device paths
+/// (`\\.\…`) are refused.
+pub fn import_dir(path: &str) -> Result<PathBuf, String> {
+    let path = path.trim();
+    if path.is_empty() || path.chars().count() > MAX_PATH_LEN || path.contains('\0') {
+        return Err("expected a folder path".into());
+    }
+    if path.starts_with(r"\\.\") {
+        return Err("device paths can't be imported from".into());
+    }
+    let p = PathBuf::from(path);
+    if !p.is_absolute() {
+        return Err("the folder path must be absolute, e.g. C:\\Users\\me\\Downloads".into());
+    }
+    if p.is_dir() {
+        Ok(p)
+    } else if p.is_file()
+        && let Some(parent) = p.parent()
+    {
+        Ok(parent.to_path_buf())
+    } else {
+        Err("no such folder".into())
     }
 }
 
@@ -519,6 +603,20 @@ pub fn start_download(app: &AppHandle, ids: &[String]) -> Result<(), String> {
         }
     });
     Ok(())
+}
+
+/// "Import from folder" (MDL-04): install what `path` holds and load it, without a restart.
+pub async fn import(app: &AppHandle, path: &str) -> Result<ImportOutcome, String> {
+    let dir = import_dir(path)?;
+    let handle = app.clone();
+    let out = tokio::task::spawn_blocking(move || handle.state::<Models>().import(&dir))
+        .await
+        .map_err(|_| "the import stopped unexpectedly".to_string())??;
+    emit(app);
+    if !out.imported.is_empty() {
+        reload_translator(app).await;
+    }
+    Ok(out)
 }
 
 /// Delete a model and reload the translator without it.
@@ -696,6 +794,69 @@ files = [{}]
             m.install_command(),
             format!("{INSTALL_COMMAND} t-de-en t-sv-en t-en-sv")
         );
+    }
+
+    #[test]
+    fn mdl04_import_folder_path_is_checked() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("t-sv-en.model.bin");
+        std::fs::write(&file, b"test").unwrap();
+        assert_eq!(
+            import_dir(dir.path().to_str().unwrap()).unwrap(),
+            dir.path()
+        );
+        // A dropped file stands for its folder.
+        assert_eq!(import_dir(file.to_str().unwrap()).unwrap(), dir.path());
+        let long = format!("C:/{}", "a".repeat(MAX_PATH_LEN));
+        for bad in [
+            "",
+            "   ",
+            "models",
+            "..",
+            long.as_str(),
+            "C:/no/such/folder/polyglass",
+            r"\\.\PhysicalDrive0",
+            "C:/a\0b",
+        ] {
+            assert!(import_dir(bad).is_err(), "{bad:?}");
+        }
+    }
+
+    #[test]
+    fn mdl04_import_from_a_folder_installs_verifies_and_reports() {
+        let root = tempfile::tempdir().unwrap();
+        let m = models(root.path(), "https://example.org", &[("model.bin", b"abc")]);
+        let src = tempfile::tempdir().unwrap();
+        // Nothing from the manifest there.
+        std::fs::write(src.path().join("notes.txt"), b"test").unwrap();
+        let out = m.import(src.path()).unwrap();
+        assert_eq!(
+            (out.imported.len(), out.failed.len(), out.message_id),
+            (0, 0, Some("mdl-import-none"))
+        );
+        // A release asset whose bytes are wrong: deleted, reported, nothing installed.
+        std::fs::write(src.path().join("t-sv-en.model.bin"), b"evil").unwrap();
+        let out = m.import(src.path()).unwrap();
+        assert_eq!(out.failed, ["t-sv-en"]);
+        assert_eq!(out.message_id, Some("mdl-error-verify"));
+        assert!(!m.view().rows.iter().any(|r| r.installed));
+        // The right bytes: installed, the import-only model needs no download any more.
+        std::fs::write(src.path().join("t-sv-en.model.bin"), b"test").unwrap();
+        let out = m.import(src.path()).unwrap();
+        assert_eq!(
+            (out.imported, out.message_id),
+            (vec!["t-sv-en".to_string()], None)
+        );
+        let row = m
+            .view()
+            .rows
+            .into_iter()
+            .find(|r| r.id == "t-sv-en")
+            .unwrap();
+        assert!(row.installed);
+        // Not while a download runs.
+        let _job = m.begin(&ids(&["t-en-sv"])).unwrap().unwrap();
+        assert!(m.import(src.path()).is_err());
     }
 
     #[test]

@@ -31,6 +31,7 @@ fn main() {
             "download_models",
             "cancel_download",
             "delete_model",
+            "import_models",
             "finish_first_run",
         ]),
     ))

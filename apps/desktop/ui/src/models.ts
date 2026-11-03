@@ -3,15 +3,18 @@
 
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
 import {
   MODEL_MESSAGES,
   formatBytes,
+  importText,
   pairName,
   percent,
   rowActions,
   rowState,
   selectedBytes,
   wizardStage,
+  type ImportOutcome,
 } from "./catalog";
 import { langName } from "./langs";
 import type { ModelRow, ModelsView } from "./types";
@@ -37,6 +40,9 @@ const rowsEl = $("rows");
 const wizardIntro = $("wizard-intro");
 const wizardReady = $("wizard-ready-text");
 const usageEl = $("usage");
+const importPath = $<HTMLInputElement>("import-path");
+const importGo = $<HTMLButtonElement>("import-go");
+const importMessage = $("import-message");
 
 let view: ModelsView | null = null;
 /** Wizard checkboxes; starts with the suggested models (SV-01) and keeps the user's choice. */
@@ -81,6 +87,9 @@ function render(v: ModelsView): void {
 
   if (wizard) renderWizard(v);
   else renderManager(v);
+  // MDL-04: in the manager, and in the wizard when the models can't be downloaded.
+  show("import", !wizard || wizardStage(v) === "install-command");
+  importGo.disabled = v.job !== null;
 }
 
 function renderJob(v: ModelsView): void {
@@ -266,6 +275,33 @@ function onRemove(id: string): void {
   rowsEl.querySelector<HTMLButtonElement>(`[aria-label^="Confirm: "]`)?.focus();
 }
 
+/** MDL-04: import what a folder holds; Rust checks the path and every file. */
+async function importFrom(path: string): Promise<void> {
+  if (!path.trim()) {
+    importPath.focus();
+    return;
+  }
+  if (!isTauri()) return;
+  importGo.disabled = true;
+  importMessage.hidden = false;
+  importMessage.classList.remove("error");
+  importMessage.textContent = "Importing and checking the files…";
+  const out = await invoke<ImportOutcome>("import_models", { path }).catch((e: unknown) => {
+    importMessage.textContent = `Can't import from there: ${String(e)}.`;
+    importMessage.classList.add("error");
+    return null;
+  });
+  importGo.disabled = view?.job != null;
+  if (!out) return;
+  importMessage.textContent = importText(out, view?.rows ?? []);
+  importMessage.classList.toggle("error", out.imported.length === 0 || out.failed.length > 0);
+}
+
+importGo.addEventListener("click", () => void importFrom(importPath.value));
+importPath.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") void importFrom(importPath.value);
+});
+
 cancelBtn.addEventListener("click", () => void call("cancel_download"));
 wizardDownload.addEventListener("click", () => {
   const ids = [...(selected ?? [])];
@@ -281,6 +317,13 @@ async function start(): Promise<void> {
     return;
   }
   await listen<ModelsView>("models-changed", (e) => render(e.payload));
+  // MDL-04: a folder (or a file in it) dropped on the window is imported.
+  await getCurrentWebview().onDragDropEvent((e) => {
+    if (e.payload.type === "drop" && e.payload.paths[0]) {
+      importPath.value = e.payload.paths[0];
+      void importFrom(importPath.value);
+    }
+  });
   // Redraw from disk when the window comes back to the front (the install script may have run).
   window.addEventListener("focus", () => void refresh());
   await refresh();

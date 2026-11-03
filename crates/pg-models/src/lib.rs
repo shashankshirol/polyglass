@@ -12,5 +12,5 @@ mod verify;
 pub use download::{Downloader, Progress};
 pub use error::{ModelError, Result};
 pub use manifest::{CatalogEntry, Manifest, ModelEntry, ModelFile};
-pub use store::ModelStore;
+pub use store::{ModelStore, importable};
 pub use verify::{sha256_file, verify_file};
