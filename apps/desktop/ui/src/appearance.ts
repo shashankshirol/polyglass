@@ -49,8 +49,8 @@ const FRAME_ALPHA = 0.92;
  * stylesheet's own first, then plain white or black when those don't reach WCAG AA on the frame.
  * Icons and states (accent, on-device green, warning yellow) need 3:1.
  */
-const ON_DARK = { text: ["#f2f6fa", "#ffffff"], accent: "#7fd3ff", ok: "#8be08b", warn: "#ffd166" };
-const ON_LIGHT = { text: ["#111820", "#000000"], accent: "#0b5a8a", ok: "#1e6b34", warn: "#7a4f00" };
+const ON_DARK = { text: ["#f2f6fa", "#ffffff"], accent: "#7fd3ff", ok: "#8be08b", warn: "#ffd166", focus: "#ffd34d" };
+const ON_LIGHT = { text: ["#111820", "#000000"], accent: "#0b5a8a", ok: "#1e6b34", warn: "#7a4f00", focus: "#8a5a00" };
 
 function rgb(hex: string): [number, number, number] | null {
   const m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex);
@@ -79,10 +79,11 @@ export interface ChromeColors {
   chrome: string;
   /** Toolbar text, ≥ 4.5:1 on the frame colour. */
   text: string;
-  /** Pressed buttons, the on-device lock and warnings, ≥ 3:1 on the frame colour. */
+  /** Pressed buttons, the on-device lock, warnings and the focus ring, ≥ 3:1 on the frame colour. */
   accent: string;
   ok: string;
   warn: string;
+  focus: string;
 }
 
 /**
@@ -102,6 +103,7 @@ export function chromeColors(frame: string): ChromeColors {
     accent: icon(side.accent),
     ok: icon(side.ok),
     warn: icon(side.warn),
+    focus: icon(side.focus),
   };
 }
 
@@ -122,6 +124,7 @@ export function cssVariables(a: Appearance): Record<string, string> {
     "--accent": c.accent,
     "--chrome-ok": c.ok,
     "--chrome-warn": c.warn,
+    "--focus": c.focus,
     "--text-font": (FONTS[a.font] ?? FONTS.system).stack,
     "--font-scale": String(a.font_scale / 100),
   };

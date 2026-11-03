@@ -213,6 +213,8 @@ function renderRow(r: ModelRow, v: ModelsView): HTMLElement {
     const details = document.createElement("details");
     const summary = document.createElement("summary");
     summary.textContent = "Attribution";
+    // A11Y-02: each row has one; the name says whose it is.
+    summary.setAttribute("aria-label", `Attribution for ${name}`);
     const p = document.createElement("p");
     p.textContent = r.attribution;
     details.append(summary, p);

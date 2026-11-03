@@ -149,7 +149,7 @@ progress::-webkit-progress-value {
   min-width: 0;
   font: inherit;
   padding: 6px 8px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--control-line);
   border-radius: 6px;
   background: var(--bg);
   color: var(--fg);

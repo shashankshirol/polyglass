@@ -7,6 +7,8 @@
   --fg: #16202b;
   --muted: #5a6876;
   --line: #d9e0e7;
+  /* A11Y-01 / WCAG 1.4.11: borders that show where a text field or list is, >= 3:1. */
+  --control-line: #7a8794;
   --accent: #1d6fa5;
   --accent-fg: #ffffff;
   --accent-soft: #e3f1fa;
@@ -14,7 +16,8 @@
   --warn: #8a5a00;
   --warn-bg: #fff4dc;
   --danger: #b3261e;
-  --focus: #e0a800;
+  /* >= 3:1 on the page, the cards and the soft accent (WCAG 1.4.11). */
+  --focus: #b07600;
   color-scheme: light dark;
   font-family: "Segoe UI", system-ui, -apple-system, "Noto Sans", sans-serif;
   font-size: 14px;
@@ -28,6 +31,7 @@
     --fg: #eef3f8;
     --muted: #9fb0c0;
     --line: #2a3f55;
+    --control-line: #6b8199;
     --accent: #7fd3ff;
     --accent-fg: #0d1a26;
     --accent-soft: #1d3a52;

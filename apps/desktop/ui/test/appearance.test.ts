@@ -24,7 +24,7 @@ test("lens07 toolbar text stays readable on any frame colour", () => {
         const frame = hex(r, g, b);
         const c = chromeColors(frame);
         assert.ok(contrast(frame, c.text) >= 4.5, `${frame}: text ${c.text}`);
-        for (const icon of [c.accent, c.ok, c.warn]) {
+        for (const icon of [c.accent, c.ok, c.warn, c.focus]) {
           assert.ok(contrast(frame, icon) >= 3, `${frame}: icon ${icon}`);
         }
       }
