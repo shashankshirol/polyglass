@@ -9,6 +9,7 @@ use tauri::{AppHandle, Manager, State, WebviewWindow};
 use crate::appearance::Appearance;
 use crate::clipboard;
 use crate::freeze;
+use crate::hotkeys::{self, Action, Binding, HotkeysView, Problem};
 use crate::langs::{self, LanguagesView};
 use crate::lens::{self, DisplayMode, LAYOUT, Layout, Strip};
 use crate::models::{self, Models};
@@ -47,6 +48,8 @@ pub struct LensConfig {
     dump_frames: Option<String>,
     /// Frame colour, opacity, font (LENS-07); `lens-appearance` events carry later changes.
     appearance: Appearance,
+    /// The hotkeys for the toolbar's tooltips (HK-02); `hotkeys-changed` events carry changes.
+    hotkeys: HotkeysView,
 }
 
 #[tauri::command]
@@ -75,6 +78,7 @@ pub fn lens_config(
             .as_ref()
             .map(|d| d.display().to_string()),
         appearance: app.state::<settings::Store>().get().appearance,
+        hotkeys: app.state::<hotkeys::Hotkeys>().view(),
     })
 }
 
@@ -121,6 +125,48 @@ pub fn set_appearance(
 ) -> CmdResult<Appearance> {
     ensure_window(&window, prefs::WINDOW)?;
     prefs::set_appearance(&app, appearance)
+}
+
+#[derive(Debug, Serialize)]
+pub struct HotkeyOutcome {
+    hotkeys: HotkeysView,
+    /// Why the binding was refused; the old one stays.
+    problem: Option<Problem>,
+}
+
+/// Rebind one hotkey (HK-02): keys the recorder saw, the default, or off. Refused with the
+/// reason when the keys are another action's, type an AltGr character, or are held elsewhere.
+/// `async`: registering runs on the main thread and waits for it.
+#[tauri::command]
+pub async fn set_hotkey(
+    window: WebviewWindow,
+    app: AppHandle,
+    action: Action,
+    binding: Binding,
+) -> CmdResult<HotkeyOutcome> {
+    ensure_window(&window, prefs::WINDOW)?;
+    Ok(match hotkeys::set(&app, action, &binding) {
+        Ok(view) => HotkeyOutcome {
+            hotkeys: view,
+            problem: None,
+        },
+        Err(problem) => HotkeyOutcome {
+            hotkeys: app.state::<hotkeys::Hotkeys>().view(),
+            problem: Some(problem),
+        },
+    })
+}
+
+/// The Settings window records keys: unregister the hotkeys so they reach it, or register them
+/// again. `async` like `set_hotkey`.
+#[tauri::command]
+pub async fn record_hotkeys(
+    window: WebviewWindow,
+    app: AppHandle,
+    on: bool,
+) -> CmdResult<HotkeysView> {
+    ensure_window(&window, prefs::WINDOW)?;
+    Ok(hotkeys::set_recording(&app, on))
 }
 
 /// The catalog, what is installed, disk usage and any running download (MDL-01, MDL-05).

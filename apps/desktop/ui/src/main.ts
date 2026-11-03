@@ -8,6 +8,7 @@ import { Announcer, type Spoken } from "./announce";
 import { DEFAULT_APPEARANCE, blockBackground, cssVariables, type Appearance } from "./appearance";
 import { MODEL_MESSAGES, formatBytes, percent } from "./catalog";
 import { fitFontSize, maxHeight, minSize, startSize } from "./fit";
+import { DEFAULT_HOTKEYS, activeKeys, hint, type HotkeysView } from "./hotkeys";
 import {
   langName,
   modelMessage,
@@ -92,6 +93,8 @@ let modelsUnreachable = false;
 let modelsMessage: string | null = null;
 /** Frame colour, opacity, font and font scale (LENS-07). */
 let appearance: Appearance = DEFAULT_APPEARANCE;
+/** The hotkeys named in the tooltips (HK-02: they can be rebound or turned off). */
+let hotkeys: HotkeysView = DEFAULT_HOTKEYS;
 /** `--trace-timings`: tell Rust when each update has been painted. */
 let traceTimings = false;
 /** The language pair and what the pickers offer (MDL-07). */
@@ -364,6 +367,7 @@ function applyConfig(cfg: LensConfig): void {
   setStrip(cfg.strip);
   setDebugFlags(cfg.traceTimings, cfg.dumpFrames);
   setAppearance(cfg.appearance);
+  setHotkeys(cfg.hotkeys);
   if (cfg.pipelineError) {
     showMessage(message(cfg.pipelineError));
   } else if (!cfg.pipeline) {
@@ -397,7 +401,7 @@ function setLanguages(v: LanguagesView): void {
   targetEl.title = target;
   swapBtn.disabled = !v.canSwap;
   swapBtn.title = v.canSwap
-    ? "Swap languages (Ctrl+Alt+S)"
+    ? `Swap languages${hint(hotkeys, "swap")}`
     : `No model for ${langName(v.target)} → ${langName(v.source)}`;
   swapBtn.setAttribute("aria-label", v.canSwap ? "Swap languages" : swapBtn.title);
 }
@@ -527,10 +531,22 @@ function setFrozen(on: boolean): void {
   freezeBtn.setAttribute("aria-pressed", String(on));
   const label = on ? "Unfreeze: back to the live screen (Esc)" : "Freeze the screen";
   freezeBtn.setAttribute("aria-label", label);
+  const keys = activeKeys(hotkeys, "freeze");
   freezeBtn.title = on
-    ? `${label}, Ctrl+Alt+F`
-    : "Freeze the screen: translate a still snapshot (Ctrl+Alt+F; Esc goes back)";
+    ? `${label}${keys ? `, ${keys}` : ""}`
+    : `Freeze the screen: translate a still snapshot (${keys ? `${keys}; ` : ""}Esc goes back)`;
   lensEl.classList.toggle("frozen", on);
+}
+
+/** HK-02: name the current hotkeys in the tooltips. */
+function setHotkeys(v: HotkeysView): void {
+  hotkeys = v;
+  copyBtn.title = `Copy translation${hint(v, "copy")}`;
+  clickBtn.title = `Click-through interior${hint(v, "click_through")}`;
+  const show = activeKeys(v, "show_hide");
+  $("close").title = `Hide lens (${show ? `${show} or ` : ""}the tray brings it back)`;
+  setLanguages(languages);
+  setFrozen(frozen);
 }
 
 // MODE-01/02: switch between Overlay and Panel; Rust moves the window and answers `lens-strip`.
@@ -577,7 +593,7 @@ function flashCopy(mark: string, label: string): void {
   copyBtn.title = label;
   setTimeout(() => {
     copyBtn.textContent = "⧉";
-    copyBtn.title = "Copy translation";
+    copyBtn.title = `Copy translation${hint(hotkeys, "copy")}`;
   }, 1200);
 }
 ocrLangBtn.addEventListener("click", () => call("open_ocr_language_settings"));
@@ -619,6 +635,7 @@ async function start(): Promise<void> {
         : location.search.includes("big")
           ? { frame_color: "#3a1f5c", opacity: 60, font: "georgia", font_scale: 150 }
           : DEFAULT_APPEARANCE,
+      hotkeys: DEFAULT_HOTKEYS,
     });
     render(sampleUpdate());
     return;
@@ -632,6 +649,7 @@ async function start(): Promise<void> {
   await listen<Strip>("lens-strip", (e) => setStrip(e.payload));
   await listen<boolean>("lens-frozen", (e) => setFrozen(e.payload));
   await listen<Appearance>("lens-appearance", (e) => setAppearance(e.payload));
+  await listen<HotkeysView>("hotkeys-changed", (e) => setHotkeys(e.payload));
   applyConfig(await invoke<LensConfig>("lens_config"));
 }
 

@@ -28,6 +28,62 @@ pub struct Settings {
     pub models: ModelSettings,
     /// LENS-07; values out of range are brought into range when the file is read.
     pub appearance: crate::appearance::Appearance,
+    /// HK-01 defaults, rebound in Settings (HK-02).
+    pub hotkeys: HotkeySettings,
+}
+
+/// One hotkey per action, written like `Ctrl+Alt+L`; "" turns it off. A value that doesn't
+/// parse uses the default (`hotkeys::Hotkeys::from_settings`).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct HotkeySettings {
+    pub show_hide: String,
+    pub freeze: String,
+    pub copy: String,
+    pub swap: String,
+    pub click_through: String,
+}
+
+impl Default for HotkeySettings {
+    fn default() -> Self {
+        let d = |a| crate::hotkeys::default_keys(a).to_string();
+        use crate::hotkeys::Action::*;
+        Self {
+            show_hide: d(ShowHide),
+            freeze: d(Freeze),
+            copy: d(Copy),
+            swap: d(Swap),
+            click_through: d(ClickThrough),
+        }
+    }
+}
+
+impl HotkeySettings {
+    fn slot(&mut self, action: crate::hotkeys::Action) -> &mut String {
+        use crate::hotkeys::Action::*;
+        match action {
+            ShowHide => &mut self.show_hide,
+            Freeze => &mut self.freeze,
+            Copy => &mut self.copy,
+            Swap => &mut self.swap,
+            ClickThrough => &mut self.click_through,
+        }
+    }
+
+    pub fn get(&self, action: crate::hotkeys::Action) -> &str {
+        use crate::hotkeys::Action::*;
+        match action {
+            ShowHide => &self.show_hide,
+            Freeze => &self.freeze,
+            Copy => &self.copy,
+            Swap => &self.swap,
+            ClickThrough => &self.click_through,
+        }
+    }
+
+    pub fn set(&mut self, action: crate::hotkeys::Action, keys: String) {
+        *self.slot(action) = keys;
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -196,6 +252,8 @@ mod tests {
         s.appearance.opacity = 70;
         s.appearance.font = crate::appearance::Font::Georgia;
         s.appearance.font_scale = 150;
+        s.hotkeys.swap = "Ctrl+Shift+F9".into();
+        s.hotkeys.copy = String::new();
         s.save(&path).unwrap();
         let text = fs::read_to_string(&path).unwrap();
         assert!(text.starts_with("# Polyglass settings"), "{text}");
@@ -217,6 +275,13 @@ mod tests {
                 && text.contains("frame_color = \"#3a1f5c\"")
                 && text.contains("font = \"georgia\"")
                 && text.contains("font_scale = 150"),
+            "{text}"
+        );
+        assert!(
+            text.contains("[hotkeys]")
+                && text.contains("show_hide = \"Ctrl+Alt+L\"")
+                && text.contains("swap = \"Ctrl+Shift+F9\"")
+                && text.contains("copy = \"\""),
             "{text}"
         );
         assert_eq!(Settings::load(&path), s);

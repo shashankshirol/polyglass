@@ -1,6 +1,7 @@
 // Mirrors `pg_pipeline::update` (serde output). The UI only draws these (PLAN §3.3).
 
 import type { Appearance } from "./appearance";
+import type { HotkeysView } from "./hotkeys";
 
 export interface LensUpdate {
   generation: number;
@@ -79,6 +80,8 @@ export interface LensConfig {
   dumpFrames: string | null;
   /** LENS-07; `lens-appearance` events carry later changes. */
   appearance: Appearance;
+  /** HK-02, for the tooltips; `hotkeys-changed` events carry later changes. */
+  hotkeys: HotkeysView;
 }
 
 /** `langs::LanguagesView`: the pair in use and every pair the model catalog lists. */

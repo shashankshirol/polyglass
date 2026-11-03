@@ -24,6 +24,8 @@ fn main() {
             // The Settings window (capabilities/settings.json).
             "settings_state",
             "set_appearance",
+            "set_hotkey",
+            "record_hotkeys",
             // The model manager window (capabilities/models.json).
             "models_state",
             "download_models",

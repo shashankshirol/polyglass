@@ -8,6 +8,8 @@
     "core:event:allow-unlisten",
     "allow-settings-state",
     "allow-set-appearance",
+    "allow-set-hotkey",
+    "allow-record-hotkeys",
     "allow-open-model-manager"
   ]
 }

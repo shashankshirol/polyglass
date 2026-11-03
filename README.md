@@ -194,6 +194,13 @@ up yourself. It uses the same pinned, hash-checked steps as the Swedish models.
     (`[appearance]`), and the way to the model manager. With Windows' Animation effects off
     (Settings → Accessibility → Visual effects), Polyglass draws no animations;
   - ✕ hides the lens.
+- Hotkeys (they work in every app): Ctrl+Alt+L shows or hides the lens, Ctrl+Alt+F freezes,
+  Ctrl+Alt+C copies the translation, Ctrl+Alt+S swaps the languages and Ctrl+Alt+T turns
+  click-through on or off. On the Swedish keyboard these Ctrl+Alt (AltGr) keys type nothing, so
+  @, £, $, €, {, [, ], }, \ and | keep working. Settings (⚙) → Hotkeys changes or turns off
+  each one (`[hotkeys]` in `settings.toml`). It refuses keys that another hotkey has, that type
+  a character with AltGr on an installed keyboard layout, or that another app already uses,
+  and says why; a saved hotkey that another app took meanwhile is marked "Not working".
 - The tray icon menu has **Show/hide lens**, **Settings…**, **Translation models…** and **Quit Polyglass**;
   a left click on the icon shows or hides the lens. While the lens is hidden, nothing is
   captured.

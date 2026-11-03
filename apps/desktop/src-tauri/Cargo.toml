@@ -43,6 +43,8 @@ tempfile.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 windows = { workspace = true, features = [
+    # HK-02: the AltGr check names the keyboard layout's language.
+    "Win32_Globalization",
     "Win32_UI_Input_KeyboardAndMouse",
     "Win32_UI_WindowsAndMessaging",
 ] }

@@ -85,6 +85,8 @@ fn main() {
             commands::open_settings,
             commands::settings_state,
             commands::set_appearance,
+            commands::set_hotkey,
+            commands::record_hotkeys,
             commands::copy_translation,
             commands::swap_languages,
             commands::set_languages,
@@ -120,6 +122,7 @@ fn main() {
                 settings::Store::open(handle.path().app_config_dir()?.join(settings::FILE));
             let saved = settings.get();
             handle.manage(settings);
+            handle.manage(hotkeys::Hotkeys::from_settings(&saved.hotkeys));
             // MDL-07: the lens and the wizard offer the models of the saved pair.
             {
                 let models = handle.state::<Models>();

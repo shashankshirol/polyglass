@@ -76,6 +76,66 @@ select {
   color: var(--fg);
 }
 
+/* Hotkeys (HK-02). */
+.card .hint.first {
+  margin: 0 0 10px;
+}
+
+.hotkeys {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.hotkeys th {
+  text-align: left;
+  font-weight: 600;
+  padding: 6px 8px 6px 0;
+}
+
+.hotkeys td {
+  padding: 4px 0 4px 6px;
+  white-space: nowrap;
+}
+
+.hotkeys tr + tr > * {
+  border-top: 1px solid var(--line);
+}
+
+.hotkeys .status {
+  display: block;
+  font-weight: 400;
+  font-size: 12.5px;
+  color: var(--warn);
+  white-space: normal;
+}
+
+button.keys {
+  min-width: 9.5em;
+  font-family: "Cascadia Mono", Consolas, ui-monospace, monospace;
+  font-size: 13px;
+}
+
+button.keys.recording {
+  border-color: var(--focus);
+  background: var(--accent-soft);
+}
+
+button.keys.off {
+  color: var(--muted);
+}
+
+.message {
+  margin: 12px 0 0;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--danger);
+  background: var(--card);
+}
+
+.message.ok {
+  border-color: var(--ok);
+}
+
 /* A small lens: the toolbar in the frame colour and one translated block. */
 .preview {
   margin-top: 14px;
