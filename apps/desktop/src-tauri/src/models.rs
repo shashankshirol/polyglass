@@ -64,7 +64,7 @@ pub struct ImportOutcome {
     pub imported: Vec<String>,
     /// Found, but a file didn't match its SHA-256 (deleted) or couldn't be copied.
     pub failed: Vec<String>,
-    /// Fluent ID when not everything went in: `mdl-import-none` (no model files there),
+    /// Message ID when not everything went in: `mdl-import-none` (no model files there),
     /// `mdl-error-verify`, `mdl-error-disk`.
     pub message_id: Option<&'static str>,
 }
@@ -80,7 +80,7 @@ pub struct ModelsView {
     pub store_path: String,
     /// The running download, if any.
     pub job: Option<JobView>,
-    /// Fluent ID of the last download or delete outcome worth telling (an error, or a stop).
+    /// Message ID of the last download or delete outcome worth telling (an error, or a stop).
     pub message_id: Option<&'static str>,
     /// The release answered that the files aren't there for us; downloads are off for this run.
     pub unreachable: bool,

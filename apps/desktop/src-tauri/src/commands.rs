@@ -32,7 +32,7 @@ pub struct LensConfig {
     click_through: bool,
     /// Whether a pipeline runs (or is starting) behind the lens.
     pipeline: bool,
-    /// Fluent message ID if the pipeline failed to start.
+    /// Message ID if the pipeline failed to start.
     pipeline_error: Option<&'static str>,
     /// Bytes of the selected pair's models still to download (0 = installed).
     models_missing_bytes: u64,

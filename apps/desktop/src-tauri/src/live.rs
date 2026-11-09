@@ -15,7 +15,7 @@ use pg_models::{Manifest, ModelStore};
 use pg_pipeline::Pipeline;
 use pg_translate::{TokenGuard, Translator};
 
-/// Fluent message ID shown when the lens can't keep itself out of captures.
+/// Message ID shown when the lens can't keep itself out of captures.
 pub const SELF_EXCLUSION_ERROR: &str = "cap-error-self-exclusion";
 
 /// The on-device translator with every installed model loaded. Never fails: a model that

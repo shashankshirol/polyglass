@@ -64,7 +64,7 @@ export interface LensConfig {
   /** Where the Panel mode strip is; "none" in Overlay mode (MODE-02). */
   strip: "none" | "below" | "above";
   pipeline: boolean;
-  /** Fluent message ID if the pipeline failed to start. */
+  /** Message ID if the pipeline failed to start. */
   pipelineError: string | null;
   /** Bytes of the selected pair's models still to download (0 = installed). */
   modelsMissingBytes: number;
@@ -103,7 +103,7 @@ export interface ModelsView {
   disk_usage: number;
   store_path: string;
   job: JobView | null;
-  /** Fluent ID of the last download or delete outcome worth telling. */
+  /** Message ID of the last download or delete outcome worth telling. */
   message_id: string | null;
   /** The release isn't reachable; downloads are off for this run. */
   unreachable: boolean;

@@ -4,7 +4,7 @@
 import { langName } from "./langs.ts";
 import type { JobView, ModelRow, ModelsView } from "./types";
 
-// Fluent IDs from `models.rs`; real localized strings arrive with M4-5.
+// Message IDs from `models.rs` and their text. The UI is in English in v1 (D-17).
 export const MODEL_MESSAGES: Record<string, string> = {
   "mdl-cancelled": "Download stopped. It continues where it stopped when you download again.",
   "mdl-error-download": "Downloading the translation models failed. Check the connection and try again.",

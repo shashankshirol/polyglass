@@ -165,7 +165,7 @@ M0's macOS, Linux and Wayland spikes were dropped with D-15 (macOS and Linux tra
 
 **M3 — Online backends (≈ 3 weeks).** LibreTranslate, DeepL, Google; consent dialogs; keychain storage; network activity log; persistent on-device/cloud indicator.
 
-**M4 — Polish (≈ 3 weeks).** Configurable hotkeys, accessibility pass, Swedish UI translation, multi-monitor/mixed-DPI hardening, UI string externalization. Beta.
+**M4 — Polish (≈ 3 weeks).** Configurable hotkeys, accessibility pass, multi-monitor/mixed-DPI hardening. Beta. (A Swedish UI and UI string externalization are post-v1, owner decision D-17; the v1 UI is in English.)
 
 **M5 — 1.0 hardening (≈ 3 weeks).** Code signing and notarization, opt-in signed updater, performance gate in CI, docs site, packaging (MSI/NSIS, winget; DMG, .deb, .rpm, AppImage, Flatpak and a Homebrew cask once macOS and Linux are back).
 

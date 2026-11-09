@@ -39,7 +39,7 @@ pub enum TranslateError {
 }
 
 impl TranslateError {
-    /// Fluent message ID for the lens (I18N-01). Distinct per kind (TR-06).
+    /// Message ID for the lens. Distinct per kind (TR-06).
     pub fn message_id(&self) -> &'static str {
         match self {
             TranslateError::Network(_) => "tr-error-network",

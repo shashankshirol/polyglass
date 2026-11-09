@@ -38,7 +38,7 @@ pub enum LensStatus {
     Ok,
     /// Region is blank/uniform, or OCR found nothing (CAP-06).
     NoTextFound,
-    /// Fluent message ID of a distinct, human-readable error (TR-06, CAP-05, OCR-03).
+    /// Message ID of a distinct, human-readable error (TR-06, CAP-05, OCR-03).
     Error {
         message_id: &'static str,
         #[serde(skip_serializing_if = "Option::is_none")]

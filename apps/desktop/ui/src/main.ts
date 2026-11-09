@@ -104,7 +104,7 @@ let languages: LanguagesView = {
 let missingBytes = 0;
 let installCommand = "python scripts/models/opus_mt.py";
 
-// Fluent IDs from the pipeline; real localized strings arrive with M4-5.
+// Message IDs from the pipeline and their text. The UI is in English in v1 (D-17).
 const MESSAGES: Record<string, string> = {
   "no-text": "No text found",
   "cap-error": "Screen capture failed",

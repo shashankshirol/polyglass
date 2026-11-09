@@ -39,7 +39,7 @@ pub struct Lens {
     pub mode: Mode,
     driver: OnceLock<DriverHandle>,
     pipeline: OnceLock<Arc<Pipeline>>,
-    /// Fluent message ID if the pipeline couldn't start.
+    /// Message ID if the pipeline couldn't start.
     pipeline_error: OnceLock<&'static str>,
     visible: AtomicBool,
     paused: AtomicBool,

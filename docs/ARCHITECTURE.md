@@ -22,7 +22,7 @@ pg-testkit (dev-only: fixture images and OCR scoring for tests and pg-bench)
 | `pg-core` | Types shared by everything | `PhysRect`, `LogicalRect::to_physical` (CAP-04), `Frame` (redacted `Debug`), `Line`, `Block::text` (de-hyphenation), `LangTag`, `LangPair`, `SourceLang`, `Error` |
 | `pg-capture` | Getting pixels | `ScreenCapturer` (incl. `release` while hidden), `StaticCapturer`, `FixtureCapturer` (PNG file or bytes), `WgcCapturer` + `monitors()` (Windows Graphics Capture, Windows only; ADR-0003) |
 | `pg-ocr` | Pixels → lines | `OcrEngine`, `resolve_language` (OCR-06/SV-02), `MockOcr`, `WindowsOcr` (WinRT `Windows.Media.Ocr`, Windows only) |
-| `pg-translate` | Text → text | `Translator`, `TranslateError` (TR-06 kinds + Fluent IDs), `langid` (SV-04/TR-07; Swedish, English and German profiles, any two of them as a pair), `tokens` (SV-05 check), `TokenGuard` (SV-05: masked retry, else source), `PivotTranslator`/`plan_route` (TR-03), `MockTranslator` |
+| `pg-translate` | Text → text | `Translator`, `TranslateError` (TR-06 kinds + message IDs), `langid` (SV-04/TR-07; Swedish, English and German profiles, any two of them as a pair), `tokens` (SV-05 check), `TokenGuard` (SV-05: masked retry, else source), `PivotTranslator`/`plan_route` (TR-03), `MockTranslator` |
 | `pg-ct2` | On-device translation (ADR-0005) | `Ct2Translator` (id `ctranslate2`, local): CTranslate2 through `ct2rs` running OPUS-MT models converted to int8; `load_installed` loads every installed `ctranslate2` model, any pair; `Options` (threads, beam); `split_sentences` |
 | `pg-pipeline` | Orchestration | `Scheduler` (CAP-03, LENS-06), `change` (CAP-03/06), `grouping` (OCR-02), `cache` (TR-04), `color` (REN-01), `Pipeline::run_cycle`, `driver::spawn`, `LensUpdate` |
 | `pg-models` | Model files | `Manifest` (MDL-01/02; entries without URLs are import-only), `ModelStore` (MDL-04/05), `Downloader` (MDL-03: Range resume, cancel; follows redirects to https URLs only); `import-models` binary (MDL-04) |
@@ -88,7 +88,7 @@ colours only as `#rrggbb`.
 
 Events: the driver's `LensUpdate`s are emitted to the lens window as `lens-update` (JSON as in
 `pg_pipeline::update`) and drawn as absolutely positioned DOM blocks in the interior. If the
-pipeline can't start, `lens-error` carries a Fluent message ID (also in `lens_config`).
+pipeline can't start, `lens-error` carries a message ID (also in `lens_config`).
 `models-changed` carries a `ModelsView` (catalog rows with install state, disk usage, the running
 job's progress, the last outcome's message ID) to both windows whenever it changes.
 

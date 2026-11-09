@@ -1,7 +1,6 @@
 # Privacy
 
-Plain-language description of what Polyglass does with your data. (A Swedish version will ship
-with 1.0, SV-08.)
+Plain-language description of what Polyglass does with your data.
 
 ## On-device mode (the default)
 

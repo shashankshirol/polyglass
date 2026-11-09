@@ -206,7 +206,7 @@ pub enum Binding {
     Off,
 }
 
-/// Why a binding was refused; the UI words it (M4-5 localizes it).
+/// Why a binding was refused; the UI words it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Problem {

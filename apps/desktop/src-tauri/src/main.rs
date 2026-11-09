@@ -39,7 +39,7 @@ use crate::state::{Lens, Mode};
 
 /// Event the lens UI listens to for pipeline results.
 const UPDATE_EVENT: &str = "lens-update";
-/// Event carrying a Fluent message ID when the pipeline can't start.
+/// Event carrying a message ID when the pipeline can't start.
 const ERROR_EVENT: &str = "lens-error";
 
 /// Where `--debug-dump-frames` saves frames, resolved once the app's folders are known.
