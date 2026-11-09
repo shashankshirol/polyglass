@@ -1,8 +1,10 @@
 # Polyglass — Product Specification
 
-> **Version:** 0.6 (draft) · **Date:** 2026-11-03 · **Companion:** [`PLAN.md`](./PLAN.md)
+> **Version:** 0.7 (draft) · **Date:** 2026-11-10 · **Companion:** [`PLAN.md`](./PLAN.md)
 > Priorities use MoSCoW: **MUST** (blocks 1.0), **SHOULD** (expected in 1.0), **COULD** (nice to have).
 > Each requirement has an ID; acceptance criteria (AC) are written so they can be checked by a test or a reviewer.
+
+**Changes in v0.7:** Screen-reader read-out of translations (REN-06) and verified screen-reader support (the NVDA/Narrator half of A11Y-02) are out of scope for v1 (§8, decision D-16). Accessible names, keyboard operation and contrast stay in v1 (LENS-02, A11Y-01, A11Y-02).
 
 **Changes in v0.6:** v1 ships on Windows only (decision D-15). macOS and Linux are post-v1 platforms: any requirement, clause, table row or target that names macOS, Linux, X11, Wayland, REF-B, Tesseract or Apple Vision applies only once that platform is back in scope, and is kept here as its target (§4). German → English is a COULD that users set up themselves (§3, D-13/D-14).
 
@@ -245,8 +247,8 @@ Intel Macs are not supported in v1 (D-11): the on-device translation engine runs
 **REN-05 Copy — MUST**
 - [ ] A hotkey and toolbar action copy all translated blocks in reading order to the clipboard, with å ä ö preserved (UTF-8 round-trip test).
 
-**REN-06 Screen readers — SHOULD**
-- [ ] New translations are announced to the OS screen reader via a polite live region, rate-limited to one announcement per 2 s, with the block's `lang` attribute set so the screen reader uses a Swedish or English voice as appropriate.
+**REN-06 Screen readers — out of scope for v1 (D-16)**
+- Post-v1 target, kept for when it comes back (§8): new translations are announced to the OS screen reader via a polite live region, rate-limited to one announcement per 2 s, with the block's `lang` attribute set so the screen reader uses a Swedish or English voice as appropriate.
 
 ### 6.7 Model management (MDL)
 
@@ -427,7 +429,7 @@ Online backend round trips are excluded from PERF-01 and PERF-06.
 ### 7.5 Accessibility and localization (A11Y, I18N)
 
 - **A11Y-01 — MUST:** Settings and model manager meet WCAG 2.1 AA contrast and are fully keyboard-operable.
-- **A11Y-02 — SHOULD:** Toolbar and settings work with NVDA (Windows), VoiceOver (macOS) and Orca (Linux), in both English and Swedish UI.
+- **A11Y-02 — SHOULD:** Toolbar and settings controls have accessible names and roles and stay keyboard-operable in both English and Swedish UI. Verified screen-reader support is out of scope for v1 (D-16, §8); its post-v1 target: toolbar and settings work with NVDA and Narrator (Windows), VoiceOver (macOS) and Orca (Linux).
 - **I18N-01 — MUST:** All UI strings are externalized (Fluent). English and Swedish ship at 1.0 (SV-08); other UI languages are accepted from the community via PR.
 
 ### 7.6 Open source and quality (OSS, QUAL)
@@ -446,6 +448,7 @@ Online backend round trips are excluded from PERF-01 and PERF-06.
 - Handwriting and vertical CJK text recognition.
 - Swedish-specific testing of pairs other than sv↔en.
 - Text-to-speech, mobile apps, browser extension.
+- Screen-reader read-out of translations (REN-06) and verified screen-reader support with NVDA or Narrator (the screen-reader half of A11Y-02) (D-16). Controls keep their accessible names and keyboard operation (LENS-02, A11Y-01, A11Y-02).
 - Replacing text inside other applications.
 - Required GPU acceleration.
 - macOS and Linux (D-15; post-v1 targets in §4).
@@ -460,9 +463,10 @@ Online backend round trips are excluded from PERF-01 and PERF-06.
 | M0 Spikes | ADRs for capture, click-through, on-device backend; Swedish fixtures created; `pg-bench` running; QUAL-01 skeleton |
 | M1 MVP (Windows) | LENS-01–06, MODE-01, CAP-01–05, OCR-01–04, OCR-06, TR-01 (on-device), TR-02, TR-04, TR-06, TR-07, REN-01, REN-02, REN-04, REN-05, MDL-01–03, MDL-05, MDL-06, SET-01, PRIV-01, PRIV-02, PRIV-05–07, SV-01–05, SV-09, PERF-01, PERF-02, PERF-05, PERF-06 |
 | M2 Modes | MODE-02, MODE-03, CAP-06, OCR-05 |
+| Post-v1 (D-16) | REN-06, A11Y-02 (screen-reader support) |
 | Post-v1 platforms | macOS: CAP-02/05 (mac), SV-02 (mac), SIZE-02, REF-B targets. Linux: CAP-02 (X11), CAP-05 (Wayland), HK-03, SV-02 (Linux), SIZE-03, SIZE-04 |
 | M3 Online backends | TR-01 (all), TR-03, TR-05, SET-02, PRIV-03, PRIV-04, PRIV-08, SEC-03, SV-10 |
-| M4 Polish | LENS-07, HK-01, HK-02, REN-06, SV-06, SV-08, A11Y-01, A11Y-02, I18N-01, MDL-04 |
+| M4 Polish | LENS-07, HK-01, HK-02, SV-06, SV-08, A11Y-01, A11Y-02, I18N-01, MDL-04 |
 | M5 1.0 | All MUSTs; SV-07; PERF-*, RES-*, SIZE-*, SEC-*, OSS-*, QUAL-* |
 
 ## 10. Open questions
