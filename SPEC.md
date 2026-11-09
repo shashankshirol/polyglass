@@ -1,8 +1,10 @@
 # Polyglass — Product Specification
 
-> **Version:** 0.7 (draft) · **Date:** 2026-11-10 · **Companion:** [`PLAN.md`](./PLAN.md)
+> **Version:** 0.8 (draft) · **Date:** 2026-11-10 · **Companion:** [`PLAN.md`](./PLAN.md)
 > Priorities use MoSCoW: **MUST** (blocks 1.0), **SHOULD** (expected in 1.0), **COULD** (nice to have).
 > Each requirement has an ID; acceptance criteria (AC) are written so they can be checked by a test or a reviewer.
+
+**Changes in v0.8:** The app's own UI ships in English only in v1. UI string externalization (I18N-01), the Swedish UI and a Swedish PRIVACY.md (SV-08, and that clause of OSS-03) are out of scope for v1 (§8, decision D-17). Translating the text under the lens between Swedish and English is unchanged.
 
 **Changes in v0.7:** Screen-reader read-out of translations (REN-06) and verified screen-reader support (the NVDA/Narrator half of A11Y-02) are out of scope for v1 (§8, decision D-16). Accessible names, keyboard operation and contrast stay in v1 (LENS-02, A11Y-01, A11Y-02).
 
@@ -370,9 +372,8 @@ These keys were chosen because they produce no characters with AltGr on the Swed
 - [ ] Each release reports a chrF score per backend on both sets in the release notes (tracked, not release-gating).
 - [ ] Before 1.0, two native Swedish speakers rate 50 random on-device outputs per direction; mean adequacy is ≥ 4 out of 5.
 
-**SV-08 Swedish user interface — MUST**
-- [ ] The app's own UI (lens, settings, model manager, dialogs, tray menu, PRIVACY.md) ships in English and Swedish at 1.0.
-- [ ] The UI follows the OS display language and can be overridden in Settings.
+**SV-08 Swedish user interface — out of scope for v1 (D-17)**
+- Post-v1 target, kept for when it comes back (§8): the app's own UI (lens, settings, model manager, dialogs, tray menu, PRIVACY.md) ships in English and Swedish; the UI follows the OS display language and can be overridden in Settings. In v1 the UI is in English.
 
 **SV-09 Swedish keyboard layout — MUST**
 - [ ] With the Swedish layout active on Windows and Linux, all AltGr characters (@ £ $ € { [ ] } \ | ~ µ) still type correctly in other apps while Polyglass runs.
@@ -429,14 +430,14 @@ Online backend round trips are excluded from PERF-01 and PERF-06.
 ### 7.5 Accessibility and localization (A11Y, I18N)
 
 - **A11Y-01 — MUST:** Settings and model manager meet WCAG 2.1 AA contrast and are fully keyboard-operable.
-- **A11Y-02 — SHOULD:** Toolbar and settings controls have accessible names and roles and stay keyboard-operable in both English and Swedish UI. Verified screen-reader support is out of scope for v1 (D-16, §8); its post-v1 target: toolbar and settings work with NVDA and Narrator (Windows), VoiceOver (macOS) and Orca (Linux).
-- **I18N-01 — MUST:** All UI strings are externalized (Fluent). English and Swedish ship at 1.0 (SV-08); other UI languages are accepted from the community via PR.
+- **A11Y-02 — SHOULD:** Toolbar and settings controls have accessible names and roles and stay keyboard-operable. Verified screen-reader support (D-16) and the Swedish UI (D-17) are out of scope for v1 (§8); the post-v1 target: toolbar and settings work with NVDA and Narrator (Windows), VoiceOver (macOS) and Orca (Linux), in both English and Swedish UI.
+- **I18N-01 — out of scope for v1 (D-17):** Post-v1 target (§8): all UI strings are externalized (Fluent); English and Swedish ship (SV-08); other UI languages are accepted from the community via PR. In v1 the UI is in English and its strings live in the UI sources.
 
 ### 7.6 Open source and quality (OSS, QUAL)
 
 - **OSS-01 — MUST:** Source under an OSI-approved license; `THIRD_PARTY_NOTICES` generated from dependencies on every release (including bundled Tesseract and its data on macOS).
 - **OSS-02 — MUST:** Releases are built only in CI from signed tags, with `SHA256SUMS`, CycloneDX SBOM and build-provenance attestations attached.
-- **OSS-03 — MUST:** README, CONTRIBUTING, CODE_OF_CONDUCT, SECURITY, PRIVACY docs present; PRIVACY.md is linked from Settings and available in Swedish.
+- **OSS-03 — MUST:** README, CONTRIBUTING, CODE_OF_CONDUCT, SECURITY, PRIVACY docs present; PRIVACY.md is linked from Settings. (A Swedish PRIVACY.md is post-v1, D-17.)
 - **OSS-04 — SHOULD:** Release binaries for Windows and macOS are code-signed (and notarized on macOS) from the first public beta.
 - **QUAL-01 — MUST:** CI passes `fmt`, `clippy -D warnings`, unit, fixture and pipeline tests on every supported OS (Windows in v1), including the Swedish fixtures.
 - **QUAL-02 — MUST:** CI fails on > 20% regression in `pg-bench` p50 latency versus `main`.
@@ -448,6 +449,7 @@ Online backend round trips are excluded from PERF-01 and PERF-06.
 - Handwriting and vertical CJK text recognition.
 - Swedish-specific testing of pairs other than sv↔en.
 - Text-to-speech, mobile apps, browser extension.
+- A translated user interface: UI string externalization (I18N-01), the Swedish UI and a Swedish PRIVACY.md (SV-08, OSS-03) (D-17). The v1 UI is in English.
 - Screen-reader read-out of translations (REN-06) and verified screen-reader support with NVDA or Narrator (the screen-reader half of A11Y-02) (D-16). Controls keep their accessible names and keyboard operation (LENS-02, A11Y-01, A11Y-02).
 - Replacing text inside other applications.
 - Required GPU acceleration.
@@ -464,9 +466,10 @@ Online backend round trips are excluded from PERF-01 and PERF-06.
 | M1 MVP (Windows) | LENS-01–06, MODE-01, CAP-01–05, OCR-01–04, OCR-06, TR-01 (on-device), TR-02, TR-04, TR-06, TR-07, REN-01, REN-02, REN-04, REN-05, MDL-01–03, MDL-05, MDL-06, SET-01, PRIV-01, PRIV-02, PRIV-05–07, SV-01–05, SV-09, PERF-01, PERF-02, PERF-05, PERF-06 |
 | M2 Modes | MODE-02, MODE-03, CAP-06, OCR-05 |
 | Post-v1 (D-16) | REN-06, A11Y-02 (screen-reader support) |
+| Post-v1 (D-17) | I18N-01, SV-08, OSS-03 (Swedish PRIVACY.md), A11Y-02 (Swedish UI) |
 | Post-v1 platforms | macOS: CAP-02/05 (mac), SV-02 (mac), SIZE-02, REF-B targets. Linux: CAP-02 (X11), CAP-05 (Wayland), HK-03, SV-02 (Linux), SIZE-03, SIZE-04 |
 | M3 Online backends | TR-01 (all), TR-03, TR-05, SET-02, PRIV-03, PRIV-04, PRIV-08, SEC-03, SV-10 |
-| M4 Polish | LENS-07, HK-01, HK-02, SV-06, SV-08, A11Y-01, A11Y-02, I18N-01, MDL-04 |
+| M4 Polish | LENS-07, HK-01, HK-02, SV-06, A11Y-01, A11Y-02, MDL-04 |
 | M5 1.0 | All MUSTs; SV-07; PERF-*, RES-*, SIZE-*, SEC-*, OSS-*, QUAL-* |
 
 ## 10. Open questions
