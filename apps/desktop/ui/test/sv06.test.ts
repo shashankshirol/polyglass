@@ -92,7 +92,7 @@ test("sv06 long-compounds-en: no Swedish block overflows its box beyond what REN
 });
 
 test("sv06 rendered translations carry their language for hyphenation", () => {
-  // The lens tags each block and panel item with `lang` (REN-06 and SV-06); the stylesheet asks
+  // The lens tags each block and panel item with `lang` (SV-06); the stylesheet asks
   // for hyphenation there and breaks words only on the fallback class.
   const css = readFileSync(new URL("../src/style.css", import.meta.url), "utf8");
   const block = /\n\.block \{[^}]*\}/.exec(css)![0];

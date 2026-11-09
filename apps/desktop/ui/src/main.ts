@@ -4,7 +4,6 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { Announcer, type Spoken } from "./announce";
 import { DEFAULT_APPEARANCE, blockBackground, cssVariables, type Appearance } from "./appearance";
 import { MODEL_MESSAGES, formatBytes, percent } from "./catalog";
 import { fitBlock, maxHeight, minSize, startSize } from "./fit";
@@ -47,7 +46,6 @@ const blocksEl = $("blocks");
 const panelEl = $("panel");
 const panelList = $("panel-list");
 const modeBtn = $<HTMLButtonElement>("mode");
-const announceEl = $("announce");
 const freezeBtn = $<HTMLButtonElement>("freeze");
 const messageEl = $("message");
 const noticeEl = $("notice");
@@ -78,9 +76,6 @@ let showOriginal = false;
 let mode: LensConfig["mode"] = "none";
 /** Where the Panel mode strip is; "none" in Overlay mode (MODE-02). */
 let strip: Strip = "none";
-/** REN-06: what the screen reader is told, rate-limited. */
-const announcer = new Announcer();
-let announceTimer: ReturnType<typeof setTimeout> | undefined;
 /** Freeze mode is on (MODE-03): the lens reads a snapshot of the monitor. */
 let frozen = false;
 /** Progress text while the model manager downloads. */
@@ -260,7 +255,6 @@ function render(u: LensUpdate): void {
   current = u;
   drawBlocks(u);
   if (traceTimings) reportDrawn(u.generation);
-  announce(u);
 
   switch (u.status.kind) {
     case "ok":
@@ -301,31 +295,6 @@ function render(u: LensUpdate): void {
     ocrLangBtn.title = label;
     ocrLangBtn.setAttribute("aria-label", label);
   }
-}
-
-/** REN-06: tell the screen reader what the lens shows now, each block in its own language. */
-function announce(u: LensUpdate): void {
-  const items =
-    u.status.kind === "ok" ? panelItems(u.blocks, false).map(({ text, lang }) => ({ text, lang })) : [];
-  const r = announcer.offer(items, performance.now());
-  speak(r.announce);
-  clearTimeout(announceTimer);
-  if (r.waitMs !== null) {
-    announceTimer = setTimeout(() => speak(announcer.flush(performance.now())), r.waitMs);
-  }
-}
-
-function speak(items: Spoken[] | null): void {
-  if (!items) return;
-  announceEl.replaceChildren(
-    ...items.map((i) => {
-      const p = document.createElement("p");
-      // textContent only: recognized text is never parsed as HTML.
-      p.textContent = i.text;
-      p.lang = i.lang;
-      return p;
-    }),
-  );
 }
 
 /**
@@ -519,9 +488,6 @@ pauseBtn.addEventListener("click", () => {
     blocksEl.replaceChildren();
     panelList.replaceChildren();
     current = null;
-    // REN-06: say the text again after resuming.
-    clearTimeout(announceTimer);
-    announcer.reset();
   }
   call("set_paused", { paused });
 });

@@ -284,16 +284,6 @@ select.lang option {
   color: #fff;
 }
 
-/* REN-06: read by screen readers, not drawn. */
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-}
-
 /* MODE-02: the panel strip, --panel tall, attached below the lens or above it. */
 #panel {
   flex: 0 0 var(--panel);
