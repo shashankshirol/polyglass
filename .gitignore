@@ -11,3 +11,6 @@ Thumbs.db
 
 # Python bytecode (scripts/models)
 __pycache__/
+
+# IDE folders
+.idea/
