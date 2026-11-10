@@ -8,7 +8,7 @@ edition = "2024"
 rust-version = "1.90"
 # Tentative pending owner decision D-2 (see CHECKLIST.md).
 license = "Apache-2.0"
-repository = "https://github.com/polyglass/polyglass"
+repository = "https://github.com/shashankshirol/polyglass"
 publish = false
 
 [workspace.dependencies]

@@ -413,9 +413,9 @@ These are verified with mocks. Each requirement is fully met only once real engi
 
 ## M5 — 1.0 hardening
 - [ ] M5-1 Windows code signing (OSS-04; macOS notarization post-v1), signed opt-in updater (SEC-04).
-- [ ] M5-2 Release pipeline: signed tags, SHA256SUMS, CycloneDX SBOM, provenance (OSS-02).
-- [ ] M5-3 `pg-bench` regression gate (>20% p50) in CI (QUAL-02); coverage ≥70% (QUAL-03).
-- [ ] M5-4 Packaging: MSI/NSIS, winget; size gate SIZE-01 (DMG, .deb, .rpm, AppImage, Homebrew and SIZE-02..04 post-v1, D-15).
+- [~] M5-2 Release pipeline: signed tags, SHA256SUMS, CycloneDX SBOM, provenance (OSS-02).
+- [~] M5-3 `pg-bench` regression gate (>20% p50) in CI (QUAL-02); coverage ≥70% (QUAL-03).
+- [~] M5-4 Packaging: MSI/NSIS, winget; size gate SIZE-01 (DMG, .deb, .rpm, AppImage, Homebrew and SIZE-02..04 post-v1, D-15).
 - [ ] M5-5 RES-01..05 measurements.
 - [ ] M5-6 SV-07 chrF report + native-speaker rating.
 
@@ -424,6 +424,16 @@ These are verified with mocks. Each requirement is fully met only once real engi
 ## Session log
 
 Newest first. Keep each entry short: what changed, what's verified, what's next, gotchas.
+
+### 2026-11-10 — Session 18 (M5 started; cut short by a usage limit)
+- Housekeeping: Current state has D-18, D-19 and the README; Next up no longer lists the REF-A checks; `.idea/` ignored.
+- **OSS-03 PRIVACY link:** Settings → Privacy → "Privacy policy…" (`privacy.rs`, command `open_privacy_policy`, Settings window only, no input from the webview): the built-in `PRIVACY.md` is saved as `<app local data>/PRIVACY.txt` and opened with the default text editor. Tests `oss03_*` (Rust, 2) and `ui/test/privacy.test.ts` (2). **Not checked in the release app yet.**
+- **M5-4 `[~]`:** `npm run tauri build` with bundling ran for the first time (WiX 3.14 and NSIS 3.13 downloaded by the Tauri CLI, owner-approved). **SIZE-01: MSI 6,533,120 bytes, NSIS 4,650,098 bytes** (limit 15 MB; unsigned local build, static CRT). Bundle metadata added (publisher "Polyglass contributors", homepage, license); `Cargo.toml`'s repository URL corrected. The MSI is per-machine (needs admin: not installed); the NSIS installer is per-user and a silent uninstall keeps app data (read from the generated script). `scripts/release_assets.py` writes the winget manifest files (8 unit tests). **Not done:** NSIS install/start/uninstall test, `winget validate` on the manifests, `release_assets.py stage` run end to end.
+- **M5-2 `[~]`:** `.github/workflows/release.yml` (tag `v*`: signed-tag and version check, cargo-deny, npm audit; Windows build; notices; SBOMs with cargo-cyclonedx 0.5.10 and `@cyclonedx/cyclonedx-npm`; SHA256SUMS; `actions/attest@v4` provenance and SBOM attestations; draft release; SignPath steps skipped until its variables exist, D-4). **Never run; the SBOM commands were not tried locally** (cargo-cyclonedx is installed in `~/.cargo/bin` for that).
+- **M5-3 `[~]`:** `pg-bench --baseline base.json` (`gate.rs`, 5 `qual02_*` tests) fails on a total p50 more than 20% (and `--min-regression-ms`) slower; `scripts/bench-gate.sh` and a manual `bench` job in `ci.yml` build main's and the new pg-bench on one runner. **Not run, locally or in CI.** QUAL-03: no coverage tool installed, not reported.
+- **M5-5 not started.** RES-05 (unload after 10 min idle) isn't implemented; RES-03 needs a run without models (rename the virtualized `models` folder and put it back, or `--demo`).
+- Verified: fmt; clippy and tests for `pg-bench` and `polyglass-desktop` (6 + 63 green); `npm test` 40; script tests 8. **Not re-run this session:** the full workspace clippy/test, MSRV, `cargo deny`.
+- Owner decisions: publisher name ("Polyglass contributors" chosen here); whether releases must fail on an unsigned tag (they do, unless the repo variable `ALLOW_UNSIGNED_TAG` is `true`); D-4 signing.
 
 ### 2026-11-10 — Coordinator (README streamlined, logo; D-19)
 - README rewritten as a short front page (logo `docs/assets/logo.svg`, badges, features, quick start, hotkeys, document table). Its detailed sections (prerequisites, models, German → English, lens details, release build, tests, developer flags, troubleshooting, repository layout) moved unchanged to `docs/DEVELOPMENT.md`. The README keeps a "First run" heading because the app's messages point at "README → First run". The shields.io badges only render once the repository is public.
