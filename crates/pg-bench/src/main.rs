@@ -11,6 +11,8 @@
 //! the result in the webview is not part of it).
 //!
 //! `--eval tests/eval/sv-en` translates an evaluation set instead and reports chrF (SV-07).
+//! `--baseline base.json` compares the run with an earlier `--json` report and fails on a
+//! regression of the total p50 (QUAL-02, `gate.rs`).
 
 #![allow(clippy::print_stdout)]
 
@@ -31,6 +33,7 @@ use serde::Serialize;
 
 mod backend;
 mod eval;
+mod gate;
 
 use backend::Backend;
 
@@ -118,6 +121,16 @@ struct Args {
     /// Print JSON instead of a table.
     #[arg(long)]
     json: bool,
+    /// QUAL-02 gate: a `--json` report of the same setup from an earlier build on this machine.
+    /// Exits with an error when this run's total p50 is slower than allowed.
+    #[arg(long, conflicts_with = "eval")]
+    baseline: Option<PathBuf>,
+    /// With `--baseline`: the slowdown of the total p50 that fails, in percent.
+    #[arg(long, default_value_t = 20.0, requires = "baseline")]
+    max_regression: f64,
+    /// With `--baseline`: a slowdown below this many ms never fails (timer noise).
+    #[arg(long, default_value_t = 1.0, requires = "baseline")]
+    min_regression_ms: f64,
 }
 
 #[derive(Debug, Serialize)]
@@ -353,7 +366,48 @@ fn run(args: &Args) -> Result<(), String> {
             print_guard(g);
         }
     }
-    Ok(())
+    match &args.baseline {
+        Some(path) => gate(args, path, &report),
+        None => Ok(()),
+    }
+}
+
+/// QUAL-02: compare `report` with the baseline at `path` (`gate.rs`).
+fn gate(args: &Args, path: &std::path::Path, report: &Report) -> Result<(), String> {
+    let limits = gate::Limits {
+        max_percent: args.max_regression,
+        min_ms: args.min_regression_ms,
+    };
+    let head = gate::Baseline {
+        image: report.image.clone(),
+        pair: report.pair.clone(),
+        ocr: report.ocr.clone(),
+        translator: gate::Translator {
+            id: report.translator.id.clone(),
+        },
+        cache: report.cache.clone(),
+        stages: report
+            .stages
+            .iter()
+            .map(|s| gate::Stage {
+                stage: s.stage.to_owned(),
+                p50_ms: s.p50_ms,
+            })
+            .collect(),
+    };
+    let rows = gate::compare(&gate::Baseline::load(path)?, &head, limits)?;
+    eprint!("{}", gate::table(&rows, limits));
+    match rows.iter().find(|r| r.regressed) {
+        Some(r) => Err(format!(
+            "{} p50 regressed by {:.1}% ({:.3} ms, was {:.3} ms): over the {:.0}% limit (QUAL-02)",
+            r.stage,
+            r.percent(),
+            r.head_ms,
+            r.base_ms,
+            limits.max_percent
+        )),
+        None => Ok(()),
+    }
 }
 
 fn print_guard(g: &backend::GuardCounts) {
