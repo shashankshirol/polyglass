@@ -26,6 +26,7 @@ fn main() {
             "set_appearance",
             "set_hotkey",
             "record_hotkeys",
+            "open_privacy_policy",
             // The model manager window (capabilities/models.json).
             "models_state",
             "download_models",

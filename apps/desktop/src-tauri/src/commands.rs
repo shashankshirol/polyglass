@@ -1,5 +1,5 @@
 //! The only commands the webviews can call (SEC-01). Each is also listed in `build.rs` and
-//! allowed per window in `capabilities/lens.json`, `models.json` or `freeze.json`, and checks the
+//! allowed per window in `capabilities/lens.json`, `settings.json`, `models.json` or `freeze.json`, and checks the
 //! calling window itself. All input is validated here, in Rust.
 
 use serde::Serialize;
@@ -14,6 +14,7 @@ use crate::langs::{self, LanguagesView};
 use crate::lens::{self, DisplayMode, LAYOUT, Layout, Strip};
 use crate::models::{self, Models};
 use crate::prefs::{self, SettingsView};
+use crate::privacy;
 use crate::settings;
 use crate::state::{Lens, Mode};
 
@@ -167,6 +168,16 @@ pub async fn record_hotkeys(
 ) -> CmdResult<HotkeysView> {
     ensure_window(&window, prefs::WINDOW)?;
     Ok(hotkeys::set_recording(&app, on))
+}
+
+/// Open the privacy policy this version shipped with (OSS-03: PRIVACY.md is linked from
+/// Settings). Takes no input from the webview: the text is built in and the file's place is
+/// fixed (`privacy.rs`).
+#[tauri::command]
+pub fn open_privacy_policy(window: WebviewWindow, app: AppHandle) -> CmdResult<()> {
+    ensure_window(&window, prefs::WINDOW)?;
+    let dir = app.path().app_local_data_dir().map_err(|e| e.to_string())?;
+    privacy::open(&dir).map_err(|e| e.to_string())
 }
 
 /// The catalog, what is installed, disk usage and any running download (MDL-01, MDL-05).

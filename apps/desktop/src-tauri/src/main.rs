@@ -20,6 +20,7 @@ mod lens;
 mod live;
 mod models;
 mod prefs;
+mod privacy;
 mod settings;
 mod state;
 mod tray;
@@ -87,6 +88,7 @@ fn main() {
             commands::set_appearance,
             commands::set_hotkey,
             commands::record_hotkeys,
+            commands::open_privacy_policy,
             commands::copy_translation,
             commands::swap_languages,
             commands::set_languages,

@@ -241,6 +241,7 @@ fontEl.addEventListener("change", () => changeAppearance({ font: fontEl.value as
 fontScale.addEventListener("input", () => changeAppearance({ font_scale: Number(fontScale.value) }));
 $("appearance-reset").addEventListener("click", () => changeAppearance(defaults));
 $("open-models").addEventListener("click", () => void call("open_model_manager"));
+$("open-privacy").addEventListener("click", () => void call("open_privacy_policy"));
 matchMedia("(prefers-reduced-motion: reduce)").addEventListener("change", drawMotion);
 
 async function start(): Promise<void> {
