@@ -5,7 +5,7 @@
 
 ## 1. Summary
 
-Polyglass is a lightweight, open-source desktop app. When launched, it shows a movable, always-on-top **lens**. Text visible beneath the lens is recognized (OCR) and translated in near real time, and the translation is drawn inside the lens. Translation runs **on-device by default**; online backends (LibreTranslate, DeepL, Google) are opt-in.
+Polyglass is a lightweight, open-source desktop app. When launched, it shows a movable, always-on-top **lens**. Text visible beneath the lens is recognized (OCR) and translated in near real time, and the translation is drawn inside the lens. Translation runs **on-device**. **v1 has no online backends** (owner decision D-18, 2026-11-10; SPEC v0.9 §8): what this plan says about LibreTranslate, DeepL, Google, consent dialogs, the keychain and milestone M3 is post-v1. The `Translator` trait (`is_local`, `display_name`) is where an online backend would plug in.
 
 Built with **Rust + Tauri 2**. **v1 targets Windows only** (owner decision D-15, 2026-11-03; SPEC v0.6 §4). macOS and Linux are post-v1: the design notes for them below are kept for when they come back, and the code keeps every OS-specific part behind a trait (`ScreenCapturer`, `OcrEngine`) and a `#[cfg]` module, so adding a platform means adding modules, not restructuring (`docs/ARCHITECTURE.md`, "Adding a platform").
 

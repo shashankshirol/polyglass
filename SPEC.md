@@ -1,8 +1,10 @@
 # Polyglass — Product Specification
 
-> **Version:** 0.8 (draft) · **Date:** 2026-11-10 · **Companion:** [`PLAN.md`](./PLAN.md)
+> **Version:** 0.9 (draft) · **Date:** 2026-11-10 · **Companion:** [`PLAN.md`](./PLAN.md)
 > Priorities use MoSCoW: **MUST** (blocks 1.0), **SHOULD** (expected in 1.0), **COULD** (nice to have).
 > Each requirement has an ID; acceptance criteria (AC) are written so they can be checked by a test or a reviewer.
+
+**Changes in v0.9:** v1 translates on-device only (decision D-18). Online translation backends are out of scope for v1 (§8): the LibreTranslate, DeepL and Google clauses of TR-01, TR-05, the online-failure clause of TR-06, SET-02, PRIV-03, PRIV-04, PRIV-08, SV-10 and the "online" half of PRIV-05 apply only once online backends are back in scope. The IDs and texts are kept as that target.
 
 **Changes in v0.8:** The app's own UI ships in English only in v1. UI string externalization (I18N-01), the Swedish UI and a Swedish PRIVACY.md (SV-08, and that clause of OSS-03) are out of scope for v1 (§8, decision D-17). Translating the text under the lens between Swedish and English is unchanged.
 
@@ -41,8 +43,8 @@ Swedish is the primary language for v1.
 
 | Priority | Direction | Notes |
 |---|---|---|
-| MUST | Swedish → English | On-device and online |
-| MUST | English → Swedish | On-device and online |
+| MUST | Swedish → English | On-device (online: post-v1, D-18) |
+| MUST | English → Swedish | On-device (online: post-v1, D-18) |
 | COULD | German → English | Next pair after sv↔en (D-5): most users are English speakers. On-device model in the catalog; users install it themselves (D-14), and German OCR isn't gated (D-13) |
 | SHOULD | Swedish ↔ other languages that have on-device models | Pivot through English (TR-03) |
 | COULD | Any other pair a backend offers | No Swedish-specific testing |
@@ -451,6 +453,7 @@ Online backend round trips are excluded from PERF-01 and PERF-06.
 - Text-to-speech, mobile apps, browser extension.
 - A translated user interface: UI string externalization (I18N-01), the Swedish UI and a Swedish PRIVACY.md (SV-08, OSS-03) (D-17). The v1 UI is in English.
 - Screen-reader read-out of translations (REN-06) and verified screen-reader support with NVDA or Narrator (the screen-reader half of A11Y-02) (D-16). Controls keep their accessible names and keyboard operation (LENS-02, A11Y-01, A11Y-02).
+- Online translation backends (LibreTranslate, DeepL, Google) and what exists only for them: API-key storage (SET-02), consent dialogs (PRIV-04), text-only payloads (PRIV-03), the network activity log (PRIV-08), batching (TR-05), the online-to-on-device fallback (TR-06) and SV-10 (D-18). v1 translates on-device only.
 - Replacing text inside other applications.
 - Required GPU acceleration.
 - macOS and Linux (D-15; post-v1 targets in §4).
@@ -468,9 +471,9 @@ Online backend round trips are excluded from PERF-01 and PERF-06.
 | Post-v1 (D-16) | REN-06, A11Y-02 (screen-reader support) |
 | Post-v1 (D-17) | I18N-01, SV-08, OSS-03 (Swedish PRIVACY.md), A11Y-02 (Swedish UI) |
 | Post-v1 platforms | macOS: CAP-02/05 (mac), SV-02 (mac), SIZE-02, REF-B targets. Linux: CAP-02 (X11), CAP-05 (Wayland), HK-03, SV-02 (Linux), SIZE-03, SIZE-04 |
-| M3 Online backends | TR-01 (all), TR-03, TR-05, SET-02, PRIV-03, PRIV-04, PRIV-08, SEC-03, SV-10 |
+| Post-v1 (D-18) online backends | TR-01 (online), TR-05, TR-06 (online failure), SET-02, PRIV-03, PRIV-04, PRIV-08, SV-10 |
 | M4 Polish | LENS-07, HK-01, HK-02, SV-06, A11Y-01, A11Y-02, MDL-04 |
-| M5 1.0 | All MUSTs; SV-07; PERF-*, RES-*, SIZE-*, SEC-*, OSS-*, QUAL-* |
+| M5 1.0 | All MUSTs; SV-07; TR-03; PERF-*, RES-*, SIZE-*, SEC-*, OSS-*, QUAL-* |
 
 ## 10. Open questions
 

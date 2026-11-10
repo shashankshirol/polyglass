@@ -2,7 +2,9 @@
 
 Plain-language description of what Polyglass does with your data.
 
-## On-device mode (the default)
+## Everything runs on your device
+
+Polyglass has no online translation services: version 1 translates only on your computer.
 
 - Polyglass captures **only the area under the lens**, in memory. Freeze mode (❄,
   Ctrl+Alt+F) takes one picture of the monitor under the lens instead; it is kept in memory
@@ -26,17 +28,6 @@ Plain-language description of what Polyglass does with your data.
   and the library that signs in with your Windows account). In testing, neither Polyglass nor
   WebView2 then opened any network connection. A WebView2 update could add new services, so
   this is re-checked when the runtime changes.
-
-## Online translation (opt-in)
-
-If you choose an online service (LibreTranslate, DeepL or Google):
-
-- Polyglass shows a consent dialog first, naming the provider and linking its privacy policy.
-- Only the **recognized text and the language pair** are sent — never screen images.
-- The lens always shows a cloud icon and the provider name while an online service is active.
-- API keys are stored in your operating system's keychain, never in plain files.
-- Settings lists every network request made in the current session (time, host, size — no
-  content).
 
 ## What Polyglass never does
 

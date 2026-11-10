@@ -1,8 +1,8 @@
 # Polyglass
 
 Polyglass shows a movable lens over your desktop. Text under the lens is recognized and
-translated in near real time, and the translation is drawn inside the lens. Everything can run
-**on your device**; online translation backends are opt-in. v1 is built and tested for
+translated in near real time, and the translation is drawn inside the lens. Everything runs
+**on your device**; v1 has no online translation services. v1 is built and tested for
 Swedish ↔ English. German → English is also in the catalog, and you can
 [set it up yourself](#optional-german--english). Language pairs come from the model catalog
 (`models/manifest.toml`), so a new pair is a catalog entry, not a code change.
