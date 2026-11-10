@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img" aria-labelledby="t">
+  <title id="t">Polyglass</title>
+  <defs>
+    <linearGradient id="frame" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4f8cff"/>
+      <stop offset="1" stop-color="#7a5cff"/>
+    </linearGradient>
+    <linearGradient id="glass" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#e8f0ff" stop-opacity="0.9"/>
+    </linearGradient>
+  </defs>
+  <!-- Text on the "desktop", behind and beside the lens -->
+  <g stroke="#9aa7bd" stroke-width="6" stroke-linecap="round">
+    <path d="M10 26h34M10 104h50M92 104h26"/>
+  </g>
+  <!-- The lens: a frame with a toolbar strip -->
+  <rect x="18" y="34" width="92" height="62" rx="12" fill="url(#frame)"/>
+  <rect x="24" y="48" width="80" height="42" rx="7" fill="url(#glass)"/>
+  <g fill="#ffffff">
+    <circle cx="29" cy="41" r="2.5"/>
+    <circle cx="38" cy="41" r="2.5"/>
+    <circle cx="47" cy="41" r="2.5"/>
+  </g>
+  <!-- Source letter, arrow, translated letter -->
+  <g font-family="'Segoe UI', system-ui, -apple-system, Arial, sans-serif" font-weight="700" font-size="26" text-anchor="middle">
+    <text x="42" y="79" fill="#8a94a6">Å</text>
+    <text x="86" y="79" fill="#3558d6">A</text>
+  </g>
+  <path d="M56 70h14m-5-5 5 5-5 5" fill="none" stroke="#3558d6" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
