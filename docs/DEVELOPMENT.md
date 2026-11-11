@@ -198,10 +198,10 @@ npm run tauri build -- --no-bundle
 
 This builds the UI and an optimized app binary, `target\release\polyglass.exe` at the
 repository root, which runs on its own: double-click it, or run it from a terminal. Add `--demo`
-for demo mode. Running `npm run tauri build` without `--no-bundle` also creates the MSI and NSIS
-installers under `target\release\bundle\` (about 6.5 MB and 4.7 MB). The Tauri CLI downloads
-WiX and NSIS for that step. The NSIS installer (`Polyglass_<version>_x64-setup.exe`) installs for
-the current user without administrator rights; the MSI installs for all users. Uninstalling
+for demo mode. Running `npm run tauri build` without `--no-bundle` also creates the installer,
+`target\release\bundle\nsis\Polyglass_<version>_x64-setup.exe` (about 4.7 MB). The Tauri CLI
+downloads NSIS for that step. The installer installs for the current user without
+administrator rights; there is no MSI in v1. Uninstalling
 keeps your settings and models unless you tick the box to delete them. Releases themselves are
 built by GitHub Actions: see [RELEASING.md](./RELEASING.md).
 

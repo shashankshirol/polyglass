@@ -4,7 +4,7 @@
 > Priorities use MoSCoW: **MUST** (blocks 1.0), **SHOULD** (expected in 1.0), **COULD** (nice to have).
 > Each requirement has an ID; acceptance criteria (AC) are written so they can be checked by a test or a reviewer.
 
-**Changes in v0.10:** Three owner decisions of 2026-11-11. Unloading idle models (RES-05) is out of scope for v1 (D-20). v1 has no updater, so SEC-04 applies once one exists (v2, D-21). Memory for RES-03 and RES-04 is counted as private working set (D-23, §7.2). Releases are still built only in CI from signed tags (OSS-02); the build is started by hand (D-22).
+**Changes in v0.10:** Three owner decisions of 2026-11-11. Unloading idle models (RES-05) is out of scope for v1 (D-20). v1 has no updater, so SEC-04 applies once one exists (v2, D-21). Memory for RES-03 and RES-04 is counted as private working set (D-23, §7.2). Releases are still built only in CI from signed tags (OSS-02); the build is started by hand (D-22). v1 ships one installer, the per-user NSIS one; the MSI is dropped (D-24, SIZE-01).
 
 **Changes in v0.9:** v1 translates on-device only (decision D-18). Online translation backends are out of scope for v1 (§8): the LibreTranslate, DeepL and Google clauses of TR-01, TR-05, the online-failure clause of TR-06, SET-02, PRIV-03, PRIV-04, PRIV-08, SV-10 and the "online" half of PRIV-05 apply only once online backends are back in scope. The IDs and texts are kept as that target.
 
@@ -419,7 +419,7 @@ Memory (RES-03, RES-04) is the sum of the **private working set** of all app pro
 
 | ID | Requirement | Target | Priority |
 |---|---|---|---|
-| SIZE-01 | Installer, Windows (MSI/NSIS), no models | ≤ 15 MB | MUST |
+| SIZE-01 | Installer, Windows (NSIS; v1 ships no MSI, D-24), no models | ≤ 15 MB | MUST |
 | SIZE-02 | Installer, macOS (DMG), incl. bundled Tesseract + Swedish/English data | ≤ 20 MB | MUST |
 | SIZE-03 | Linux .deb/.rpm (system WebKitGTK + Tesseract as dependencies) | ≤ 15 MB | MUST |
 | SIZE-04 | Linux AppImage (self-contained) | ≤ 100 MB | SHOULD |

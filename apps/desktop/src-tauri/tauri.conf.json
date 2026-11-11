@@ -42,7 +42,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["msi", "nsis"],
+    "targets": ["nsis"],
     "publisher": "Polyglass contributors",
     "homepage": "https://github.com/shashankshirol/polyglass",
     "license": "Apache-2.0",

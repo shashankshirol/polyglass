@@ -1,6 +1,6 @@
 name: Release
 
-# Builds the Windows installers from a version tag and stages a draft GitHub release (OSS-02,
+# Builds the Windows installer from a version tag and stages a draft GitHub release (OSS-02,
 # M5-2). Releases are built here and nowhere else, and only when a maintainer starts this
 # workflow by hand: pushing a tag starts nothing (owner decision D-22). To release 0.1.0:
 #
@@ -12,16 +12,17 @@ name: Release
 #      (or `gh workflow run release.yml -f tag=v0.1.0`).
 #   4. Check the draft release this workflow creates, then publish it by hand.
 #
-# What is attached: the MSI and NSIS installers, THIRD_PARTY_NOTICES.md (OSS-01), two
+# What is attached: the NSIS installer (per user, no admin rights; v1 ships no MSI, D-24),
+# THIRD_PARTY_NOTICES.md (OSS-01), two
 # CycloneDX SBOMs (Rust crates, npm packages), the winget manifest files (not submitted
 # anywhere) and SHA256SUMS over all of them. Build-provenance and SBOM attestations for the
-# installers are stored by GitHub (`gh attestation verify <file> --repo <owner>/<repo>`).
+# installer are stored by GitHub (`gh attestation verify <file> --repo <owner>/<repo>`).
 #
 # Like models-release.yml: the build job runs project code with read access only; the publish
 # job, which can write, runs no project code and only attests and uploads what build staged.
 #
 # Code signing (OSS-04): SignPath Foundation (owner decision D-4, 2026-11-10). The "Sign" steps
-# of the build job are skipped, and the installers stay unsigned, until the SignPath secrets
+# of the build job are skipped, and the installer stays unsigned, until the SignPath secrets
 # exist. docs/RELEASING.md lists what the owner sets up.
 
 on:
@@ -127,33 +128,31 @@ jobs:
       - name: npm packages
         working-directory: apps/desktop
         run: npm ci
-      # The Tauri CLI downloads WiX 3 and NSIS from their GitHub releases and checks their hashes.
-      - name: Build the installers (MSI, NSIS)
+      # The Tauri CLI downloads NSIS from its GitHub release and checks the hash.
+      - name: Build the installer (NSIS)
         working-directory: apps/desktop
         run: npm run tauri build
 
       # --- Sign with SignPath Foundation (D-4, OSS-04) --------------------------------------
       # Off until the repository secrets SIGNPATH_API_TOKEN, SIGNPATH_ORGANIZATION_ID and
       # SIGNPATH_PROJECT_SLUG exist (docs/RELEASING.md says how to get them); without them the
-      # release is built unsigned. Never run so far. The unsigned installers go up as one
+      # release is built unsigned. Never run so far. The unsigned installer goes up as an
       # artifact, SignPath fetches it from GitHub, checks that it comes from this workflow run,
       # and signs it once an approver has approved the request in SignPath (every Foundation
-      # release needs that, hence the long wait). The signed files then replace the unsigned
-      # ones, before anything is hashed, attested or staged.
-      - name: "Sign: upload the unsigned installers"
+      # release needs that, hence the long wait). The signed file then replaces the unsigned
+      # one, before anything is hashed, attested or staged.
+      - name: "Sign: upload the unsigned installer"
         id: unsigned
         if: env.SIGNING == 'true'
         uses: actions/upload-artifact@v7
         with:
-          name: unsigned-installers
-          # Stored with their folders: msi/<name>.msi and nsis/<name>-setup.exe, which is what
-          # the SignPath artifact configuration names.
-          path: |
-            target/release/bundle/msi/*.msi
-            target/release/bundle/nsis/*-setup.exe
+          name: unsigned-installer
+          # A ZIP with <name>-setup.exe at its root, which is what the SignPath artifact
+          # configuration names.
+          path: target/release/bundle/nsis/*-setup.exe
           if-no-files-found: error
           retention-days: 1
-      - name: "Sign: submit the signing request and wait for the signed installers"
+      - name: "Sign: submit the signing request and wait for the signed installer"
         if: env.SIGNING == 'true'
         uses: signpath/github-action-submit-signing-request@v3
         with:
@@ -167,21 +166,16 @@ jobs:
           # Time for the approver to approve the request by hand.
           wait-for-completion-timeout-in-seconds: 14400
           output-artifact-directory: target/release/signed
-      - name: "Sign: check the signatures and use the signed installers"
+      - name: "Sign: check the signature and use the signed installer"
         if: env.SIGNING == 'true'
         shell: pwsh
         run: |
-          $pairs = @(
-            @{ signed = "target/release/signed/msi"; dest = "target/release/bundle/msi"; filter = "*.msi" },
-            @{ signed = "target/release/signed/nsis"; dest = "target/release/bundle/nsis"; filter = "*-setup.exe" })
-          foreach ($p in $pairs) {
-            $files = @(Get-ChildItem $p.signed -Filter $p.filter)
-            if ($files.Count -ne 1) { throw "expected one signed $($p.filter) in $($p.signed), found $($files.Count)" }
-            $sig = Get-AuthenticodeSignature $files[0].FullName
-            if ($sig.Status -ne "Valid") { throw "$($files[0].Name): signature is $($sig.Status)" }
-            "$($files[0].Name): signed by $($sig.SignerCertificate.Subject)"
-            Copy-Item $files[0].FullName $p.dest -Force
-          }
+          $files = @(Get-ChildItem target/release/signed -Filter "*-setup.exe")
+          if ($files.Count -ne 1) { throw "expected one signed installer, found $($files.Count)" }
+          $sig = Get-AuthenticodeSignature $files[0].FullName
+          if ($sig.Status -ne "Valid") { throw "$($files[0].Name): signature is $($sig.Status)" }
+          "$($files[0].Name): signed by $($sig.SignerCertificate.Subject)"
+          Copy-Item $files[0].FullName target/release/bundle/nsis -Force
       # --------------------------------------------------------------------------------------
 
       # OSS-01: generated from the dependencies on every release.
@@ -189,7 +183,7 @@ jobs:
         run: |
           mkdir -p release
           python scripts/notices.py --out release/THIRD_PARTY_NOTICES.md
-      # Installers, SBOMs, winget manifests and SHA256SUMS; fails if an installer is over
+      # Installer, SBOMs, winget manifests and SHA256SUMS; fails if the installer is over
       # SIZE-01 (15 MB).
       - name: Stage the release assets
         env:
@@ -217,26 +211,20 @@ jobs:
           path: release
       - name: Check the staged files
         run: cd release && sha256sum --check --strict SHA256SUMS
-      # OSS-02: build provenance for every installer, and the SBOMs attested to them.
+      # OSS-02: build provenance for the installer, and the SBOMs attested to it.
       - name: Build provenance
         uses: actions/attest@v4
         with:
-          subject-path: |
-            release/*.msi
-            release/*-setup.exe
+          subject-path: release/*-setup.exe
       - name: SBOM attestation (Rust crates)
         uses: actions/attest@v4
         with:
-          subject-path: |
-            release/*.msi
-            release/*-setup.exe
+          subject-path: release/*-setup.exe
           sbom-path: release/polyglass-rust.cdx.json
       - name: SBOM attestation (npm packages)
         uses: actions/attest@v4
         with:
-          subject-path: |
-            release/*.msi
-            release/*-setup.exe
+          subject-path: release/*-setup.exe
           sbom-path: release/polyglass-ui.cdx.json
       - name: Create the draft release
         env:

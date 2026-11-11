@@ -22,10 +22,10 @@ signing is set up.
 4. Start the build: GitHub → Actions → Release → Run workflow, and type the tag (`v0.1.0`) in
    the "tag" box. From a terminal: `gh workflow run release.yml -f tag=v0.1.0`.
 5. The workflow checks out that tag, checks its signature and the version, runs `cargo deny` and `npm audit`,
-   builds the MSI and NSIS installers on `windows-latest`, signs them if signing is set up
-   (below), and stages a **draft** release with the installers, `THIRD_PARTY_NOTICES.md`, two
+   builds the installer on `windows-latest`, signs it if signing is set up
+   (below), and stages a **draft** release with the installer, `THIRD_PARTY_NOTICES.md`, two
    CycloneDX SBOMs, the winget manifest files and `SHA256SUMS`. GitHub stores build-provenance
-   and SBOM attestations for the installers.
+   and SBOM attestations for the installer.
 6. If signing is on, approve the signing request in SignPath when it arrives (the build job
    waits up to four hours for it).
 7. Read the draft release, then publish it by hand.
@@ -75,30 +75,23 @@ exist, the workflow skips its "Sign" steps and releases are unsigned.
 3. **Apply** at <https://signpath.org/apply> with the repository URL. SignPath creates an
    organization and a project for Polyglass.
 4. **In SignPath:** link the predefined "GitHub.com" trusted build system to the project, and
-   give the project an artifact configuration for what the workflow uploads: one ZIP holding
-   `msi/Polyglass_<version>_x64_en-US.msi` and `nsis/Polyglass_<version>_x64-setup.exe`. A
-   starting point (check it against SignPath's artifact configuration reference):
+   give the project an artifact configuration for what the workflow uploads: a ZIP holding
+   `Polyglass_<version>_x64-setup.exe`. A starting point (check it against SignPath's artifact
+   configuration reference):
 
    ```xml
    <artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
      <zip-file>
-       <directory path="msi">
-         <msi-file path="Polyglass_*_x64_en-US.msi">
-           <authenticode-sign />
-         </msi-file>
-       </directory>
-       <directory path="nsis">
-         <pe-file path="Polyglass_*_x64-setup.exe">
-           <authenticode-sign />
-         </pe-file>
-       </directory>
+       <pe-file path="Polyglass_*_x64-setup.exe">
+         <authenticode-sign />
+       </pe-file>
      </zip-file>
    </artifact-configuration>
    ```
 
-   This signs the two installers. `polyglass.exe` inside them stays unsigned, which is enough
-   for SmartScreen and for the installer's publisher name; signing it too means either listing
-   it inside the `msi-file` element or signing while Tauri bundles (`bundle.windows.signCommand`).
+   This signs the installer. `polyglass.exe` inside it stays unsigned, which is enough for
+   SmartScreen and for the installer's publisher name; signing it too means signing while Tauri
+   bundles (`bundle.windows.signCommand`).
 5. **Create a CI user** in SignPath with submitter rights for the project's release signing
    policy, and an API token for it.
 6. **Add three repository secrets** (GitHub → Settings → Secrets and variables → Actions):
@@ -117,11 +110,11 @@ committed, pasted into an issue or given to a tool.
 
 ### What the workflow then does
 
-In the build job, after `tauri build`: the unsigned installers are uploaded as the artifact
-`unsigned-installers`, a signing request for it is submitted, the job waits for the approval and
-downloads the signed files, checks each one's Authenticode signature, and puts them in place of
-the unsigned ones. Hashes, SBOM subjects, the winget manifests and the attestations are all made
-from the signed files. The steps have not run yet: expect to adjust them on the first signed
+In the build job, after `tauri build`: the unsigned installer is uploaded as the artifact
+`unsigned-installer`, a signing request for it is submitted, the job waits for the approval and
+downloads the signed file, checks its Authenticode signature, and puts it in place of the
+unsigned one. Hashes, SBOM subjects, the winget manifest and the attestations are all made from
+the signed file. The steps have not run yet: expect to adjust them on the first signed
 release.
 
 ## Updater (planned for v2)
@@ -143,8 +136,8 @@ unsigned updates rejected):
    (`settings.rs`) and a switch in Settings; with it off, no request is made. The endpoint is
    `https://github.com/shashankshirol/polyglass/releases/latest/download/latest.json`.
 3. **Build.** Set `bundle.createUpdaterArtifacts: true`; `tauri build` then writes a `.sig` next
-   to each installer when the two secrets are in the build job's environment. If SignPath
-   signing is on, the `.sig` must be made **after** the signed installers come back
+   to the installer when the two secrets are in the build job's environment. If SignPath
+   signing is on, the `.sig` must be made **after** the signed installer comes back
    (`npm run tauri signer sign <file>`), or it won't match the published file.
 4. **Release.** `scripts/release_assets.py stage` adds the `.sig` files and writes `latest.json`
    (version, notes, date, and per platform the installer URL and signature); both go into
@@ -152,6 +145,14 @@ unsigned updates rejected):
 5. **Docs and tests.** PRIVACY.md gets the update check back (what is requested, from GitHub,
    only when switched on); a test that an update with a wrong signature is refused; a
    `lens-net.ps1` run with the switch off.
+
+## One installer
+
+v1 ships only the NSIS installer (`Polyglass_<version>_x64-setup.exe`): it installs for the
+current user and needs no administrator rights (owner decision D-24). There is no MSI. If an
+all-users or centrally deployed install is ever asked for, add `"msi"` to `bundle.targets` in
+`tauri.conf.json` and put it back into `scripts/release_assets.py`, the workflow's signing and
+attestation steps and the winget manifest (`git log -S"x64_en-US.msi"` finds the removal).
 
 ## winget
 

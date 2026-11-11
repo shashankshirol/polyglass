@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Stage an app release: installers, SBOMs, winget manifests, SHA256SUMS (OSS-02, M5-2, M5-4).
+"""Stage an app release: installer, SBOMs, winget manifests, SHA256SUMS (OSS-02, M5-2, M5-4).
 
     python scripts/release_assets.py check-version --tag v0.1.0
     python scripts/release_assets.py stage --tag v0.1.0
@@ -13,9 +13,9 @@ submitted from here.
 (`[workspace.package]`), `apps/desktop/src-tauri/tauri.conf.json` and `apps/desktop/package.json`.
 
 `stage` writes into `--dest` (default `target/release-assets/<tag>`), one flat folder:
-  Polyglass_<version>_x64_en-US.msi, Polyglass_<version>_x64-setup.exe
-                              the installers from `--bundle` (default `target/release/bundle`);
-                              each must be within SIZE-01 (15 MB)
+  Polyglass_<version>_x64-setup.exe
+                              the NSIS installer from `--bundle` (default `target/release/bundle`);
+                              it must be within SIZE-01 (15 MB). v1 ships no MSI (D-24).
   polyglass-rust.cdx.json     CycloneDX SBOM of the Rust crates in polyglass.exe (`cargo cyclonedx`)
   polyglass-ui.cdx.json       CycloneDX SBOM of the npm packages bundled into the UI
                               (`@cyclonedx/cyclonedx-npm`, runtime dependencies only)
@@ -51,7 +51,7 @@ APP = REPO / "apps" / "desktop"
 REPO_URL = "https://github.com/shashankshirol/polyglass"
 TAG = re.compile(r"v(\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?)")
 
-# SIZE-01: installer, Windows (MSI/NSIS), no models.
+# SIZE-01: installer, Windows, no models.
 SIZE_LIMIT = 15_000_000
 
 WINGET_ID = "ShashankShirol.Polyglass"
@@ -99,25 +99,20 @@ def version_of(tag: str, found: dict[str, str]) -> str:
     return version
 
 
-def installers(bundle: Path, version: str) -> dict[str, Path]:
-    """The MSI and the NSIS installer of `version` in a Tauri bundle folder."""
-    found = {
-        "msi": bundle / "msi" / f"Polyglass_{version}_x64_en-US.msi",
-        "nsis": bundle / "nsis" / f"Polyglass_{version}_x64-setup.exe",
-    }
-    for path in found.values():
-        if not path.is_file():
-            raise SystemExit(f"{path} is missing: run `npm run tauri build` in apps/desktop first")
-        size = path.stat().st_size
-        if size > SIZE_LIMIT:
-            raise SystemExit(f"{path.name} is {size:,} bytes, over SIZE-01's {SIZE_LIMIT:,}")
-    return found
+def installer(bundle: Path, version: str) -> Path:
+    """The NSIS installer of `version` in a Tauri bundle folder."""
+    path = bundle / "nsis" / f"Polyglass_{version}_x64-setup.exe"
+    if not path.is_file():
+        raise SystemExit(f"{path} is missing: run `npm run tauri build` in apps/desktop first")
+    size = path.stat().st_size
+    if size > SIZE_LIMIT:
+        raise SystemExit(f"{path.name} is {size:,} bytes, over SIZE-01's {SIZE_LIMIT:,}")
+    return path
 
 
-def winget_manifests(version: str, tag: str, hashes: dict[str, str]) -> dict[str, str]:
-    """The three winget manifest files (name → text) for the installers with `hashes`
-    (SHA-256, keyed like `installers`). The NSIS installer installs for the current user
-    without elevation; the MSI installs for the machine."""
+def winget_manifests(version: str, tag: str, sha: str) -> dict[str, str]:
+    """The three winget manifest files (name → text) for the installer with the SHA-256 `sha`.
+    It installs for the current user without elevation."""
     base = f"{REPO_URL}/releases/download/{tag}"
     head = f"PackageIdentifier: {WINGET_ID}\nPackageVersion: {version}\n"
     schema = "# yaml-language-server: $schema=https://aka.ms/winget-manifest.{}.{}.schema.json\n\n"
@@ -132,12 +127,7 @@ Installers:
   InstallerType: nullsoft
   Scope: user
   InstallerUrl: {base}/Polyglass_{version}_x64-setup.exe
-  InstallerSha256: {hashes["nsis"].upper()}
-- Architecture: x64
-  InstallerType: wix
-  Scope: machine
-  InstallerUrl: {base}/Polyglass_{version}_x64_en-US.msi
-  InstallerSha256: {hashes["msi"].upper()}
+  InstallerSha256: {sha.upper()}
 ManifestType: installer
 ManifestVersion: {WINGET_SCHEMA}
 """
@@ -183,12 +173,12 @@ def sums(files: list[Path]) -> str:
     return "".join(f"{sha256(p)} *{p.name}\n" for p in sorted(files, key=lambda p: p.name))
 
 
-def notes(version: str, tag: str, names: dict[str, str], signed: bool = False) -> str:
+def notes(version: str, tag: str, name: str, signed: bool = False) -> str:
     signing = (
-        "The installers are code-signed (free code signing provided by SignPath.io, certificate "
+        "The installer is code-signed (free code signing provided by SignPath.io, certificate "
         "by SignPath Foundation)."
         if signed else
-        "The installers are not code-signed yet, so Windows SmartScreen may warn about an unknown "
+        "The installer is not code-signed yet, so Windows SmartScreen may warn about an unknown "
         "publisher."
     )
     return f"""\
@@ -196,8 +186,7 @@ Polyglass {version} for Windows 10 (2004 or later) and Windows 11, x64.
 
 ## Install
 
-- `{names["nsis"]}` installs for the current user and needs no administrator rights.
-- `{names["msi"]}` installs for all users (asks for administrator rights).
+Run `{name}`. It installs for the current user and needs no administrator rights.
 
 {signing}
 
@@ -207,10 +196,10 @@ The translation models are not included: Polyglass offers to download them on fi
 ## Verify
 
     sha256sum --check SHA256SUMS
-    gh attestation verify {names["nsis"]} --repo shashankshirol/polyglass
+    gh attestation verify {name} --repo shashankshirol/polyglass
 
-`SHA256SUMS` covers every file of this release. The installers were built by this repository's
-release workflow from the signed tag `{tag}`; GitHub stores their build-provenance and SBOM
+`SHA256SUMS` covers every file of this release. The installer was built by this repository's
+release workflow from the signed tag `{tag}`; GitHub stores its build-provenance and SBOM
 attestations. `polyglass-rust.cdx.json` and `polyglass-ui.cdx.json` are CycloneDX SBOMs of the
 Rust crates and npm packages in the app; `THIRD_PARTY_NOTICES.md` has all license texts,
 including the C++ code compiled in (CTranslate2, SentencePiece).
@@ -251,28 +240,25 @@ def sboms(dest: Path) -> list[Path]:
 
 def stage(tag: str, bundle: Path, dest: Path, with_sbom: bool, signed: bool = False) -> None:
     version = version_of(tag, versions())
-    found = installers(bundle, version)
+    found = installer(bundle, version)
     dest.mkdir(parents=True, exist_ok=True)
     keep = dest / "THIRD_PARTY_NOTICES.md"
     for old in dest.iterdir():
         if old != keep:
             raise SystemExit(f"{dest} already holds {old.name}; stage into an empty folder")
     assets = [keep] if keep.is_file() else []
-    for path in found.values():
-        shutil.copy2(path, dest / path.name)
-        assets.append(dest / path.name)
-        log(f"{path.name}: {path.stat().st_size:,} bytes (SIZE-01 limit {SIZE_LIMIT:,})")
+    shutil.copy2(found, dest / found.name)
+    assets.append(dest / found.name)
+    log(f"{found.name}: {found.stat().st_size:,} bytes (SIZE-01 limit {SIZE_LIMIT:,})")
     if with_sbom:
         assets += sboms(dest)
-    hashes = {kind: sha256(path) for kind, path in found.items()}
-    for name, text in winget_manifests(version, tag, hashes).items():
+    for name, text in winget_manifests(version, tag, sha256(found)).items():
         path = dest / f"winget-{name}"
         path.write_text(text, encoding="utf-8", newline="\n")
         assets.append(path)
     (dest / "SHA256SUMS").write_text(sums(assets), encoding="utf-8", newline="\n")
     (dest / "RELEASE_NOTES.md").write_text(
-        notes(version, tag, {kind: path.name for kind, path in found.items()}, signed),
-        encoding="utf-8", newline="\n")
+        notes(version, tag, found.name, signed), encoding="utf-8", newline="\n")
     log(f"staged {len(assets)} assets + SHA256SUMS in {dest}")
 
 
@@ -287,7 +273,7 @@ def main() -> None:
     st.add_argument("--dest", type=Path)
     st.add_argument("--no-sbom", action="store_true", help="leave the SBOMs out (local check)")
     st.add_argument("--signed", action="store_true",
-                    help="the installers are code-signed (the release notes say so)")
+                    help="the installer is code-signed (the release notes say so)")
     args = ap.parse_args()
     if args.command == "check-version":
         log(f"{args.tag}: version {version_of(args.tag, versions())} in every file")
