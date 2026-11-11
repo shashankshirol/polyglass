@@ -235,6 +235,9 @@ def sboms(dest: Path) -> list[Path]:
          "--spec-version", CYCLONEDX_SPEC, "--target", "x86_64-pc-windows-msvc",
          "--override-filename", "polyglass-rust.cdx"], REPO)
     shutil.move(written, rust)
+    # It also writes one for every other workspace member; only the app's is a release asset.
+    for other in (REPO / "crates").glob("*/polyglass-rust.cdx.json"):
+        other.unlink()
     ui = dest / "polyglass-ui.cdx.json"
     run(["npx", "--yes", CYCLONEDX_NPM, "--omit", "dev", "--spec-version", CYCLONEDX_SPEC,
          "--output-reproducible", "--output-format", "JSON", "--output-file", str(ui)], APP)
