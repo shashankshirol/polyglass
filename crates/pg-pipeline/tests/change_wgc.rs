@@ -277,20 +277,32 @@ fn settled(cap: &mut WgcCapturer, win: &SceneWindow) -> Frame {
     cap.capture(win.rect).unwrap()
 }
 
-/// Where the test windows go: the primary monitor, which must fit a 200% lens plus margins.
-fn origin(scale: f64) -> (i32, i32) {
-    let primary = monitors()
+fn primary() -> PhysRect {
+    monitors()
         .unwrap()
         .into_iter()
         .find(|m| m.rect.x == 0 && m.rect.y == 0)
-        .expect("a primary monitor at (0, 0)");
+        .expect("a primary monitor at (0, 0)")
+        .rect
+}
+
+/// Whether the primary monitor fits the lens at `scale` plus margins. GitHub's Windows runners
+/// have a 1024×768 screen: enough for 100%, not for the 1200×600 lens of 200%.
+fn fits(scale: f64) -> bool {
     let (w, h) = lens_px(LENS, scale);
+    let primary = primary();
+    primary.width >= w + 100 && primary.height >= h + 100
+}
+
+/// Where the test windows go: the primary monitor, which must fit the lens plus margins.
+fn origin(scale: f64) -> (i32, i32) {
     assert!(
-        primary.rect.width >= w + 100 && primary.rect.height >= h + 100,
+        fits(scale),
         "the primary monitor is too small for a {}% lens",
         scale * 100.0
     );
-    (primary.rect.x + 40, primary.rect.y + 40)
+    let primary = primary();
+    (primary.x + 40, primary.y + 40)
 }
 
 fn lens_px((w, h): (u32, u32), scale: f64) -> (u32, u32) {
@@ -553,11 +565,19 @@ fn measure(scale: f64, detail: bool) -> Vec<Case> {
 
 /// CAP-03 on real captures: a caret blink (after the text or inside a word) never counts as a
 /// change, while an edited digit, a typed letter or word, any scroll and video always do, at
-/// sampled alignments of the cell grid, at 100% and 200%.
+/// sampled alignments of the cell grid, at 100% and 200% (200% only where the screen fits it).
 #[test]
 fn cap03_real_captures_ignore_the_caret_and_see_edits() {
     let _screen = SCREEN.lock().unwrap_or_else(|e| e.into_inner());
     for scale in [1.0, 2.0] {
+        // 100% must always run; a larger scale needs a monitor that fits its lens.
+        if scale > 1.0 && !fits(scale) {
+            eprintln!(
+                "skipped {}%: the primary monitor is too small for its lens",
+                scale * 100.0
+            );
+            continue;
+        }
         for c in measure(scale, false) {
             let want = match c.name.split(" @").next().unwrap() {
                 "static (12 captures)" | "caret blink" | "caret in a word" => 0,

@@ -461,6 +461,11 @@ These are verified with mocks. Each requirement is fully met only once real engi
 
 Newest first. Keep each entry short: what changed, what's verified, what's next, gotchas.
 
+### 2026-11-11 — Session 18, first manual CI run on Windows (owner's results)
+- The owner ran the manual CI job on `230b0fe`. **`bench` passed** (the QUAL-02 gate's first run on GitHub). **`test` failed** in `crates/pg-pipeline/tests/change_wgc.rs`: `cap03_real_captures_ignore_the_caret_and_see_edits` panicked with "the primary monitor is too small for a 200% lens". GitHub's Windows runner has a 1024×768 screen; the 100% half had passed, so **Windows Graphics Capture works on the runners** (the open question in Known follow-ups about the WGC tests). Fixed: the test always runs 100% and skips a larger scale with a message when the screen doesn't fit its lens (`fits`); here both scales still run (test green, 26 s). `cargo test` stops at the first failing test binary, so the crates after `pg-pipeline` haven't run on a runner yet: the next manual run will show.
+- **OSS-03 checked by the owner:** in the release app started normally, Settings → Privacy policy… opened the policy as a text file in Notepad ("Looks good"). That closes the check session 18 couldn't do from a virtualized shell.
+- Not reported: the `msrv` job's result.
+
 ### 2026-11-11 — Session 18, later the same day (owner decisions D-20..D-23; pushed)
 - The owner answered session 18's open points (quotes in the decisions): RES-05 skipped for v1 (D-20), the updater is v2 with its plan as scaffolding (D-21), release builds start by hand only (D-22), and the memory figure was left to the session: private working set (D-23). SPEC v0.10 records all four; M5-5 is `[x]`.
 - Changed: `release.yml` runs on `workflow_dispatch` with a `tag` input instead of a tag push; `docs/RELEASING.md` (manual start, "Updater (planned for v2)"); PRIVACY.md no longer mentions update checks (there are none). No code changed.
