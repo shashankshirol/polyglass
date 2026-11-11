@@ -1,8 +1,10 @@
 # Polyglass — Product Specification
 
-> **Version:** 0.9 (draft) · **Date:** 2026-11-10 · **Companion:** [`PLAN.md`](./PLAN.md)
+> **Version:** 0.10 (draft) · **Date:** 2026-11-11 · **Companion:** [`PLAN.md`](./PLAN.md)
 > Priorities use MoSCoW: **MUST** (blocks 1.0), **SHOULD** (expected in 1.0), **COULD** (nice to have).
 > Each requirement has an ID; acceptance criteria (AC) are written so they can be checked by a test or a reviewer.
+
+**Changes in v0.10:** Three owner decisions of 2026-11-11. Unloading idle models (RES-05) is out of scope for v1 (D-20). v1 has no updater, so SEC-04 applies once one exists (v2, D-21). Memory for RES-03 and RES-04 is counted as private working set (D-23, §7.2). Releases are still built only in CI from signed tags (OSS-02); the build is started by hand (D-22).
 
 **Changes in v0.9:** v1 translates on-device only (decision D-18). Online translation backends are out of scope for v1 (§8): the LibreTranslate, DeepL and Google clauses of TR-01, TR-05, the online-failure clause of TR-06, SET-02, PRIV-03, PRIV-04, PRIV-08, SV-10 and the "online" half of PRIV-05 apply only once online backends are back in scope. The IDs and texts are kept as that target.
 
@@ -409,7 +411,9 @@ Online backend round trips are excluded from PERF-01 and PERF-06.
 | RES-02 | CPU, lens visible over static content | < 3% of one core (5-min average) | MUST |
 | RES-03 | Memory, all app processes incl. webview, no model loaded | < 150 MB | MUST |
 | RES-04 | Memory, sv→en and en→sv both loaded | < 400 MB | MUST |
-| RES-05 | Unused models unloaded after 10 min idle | Memory returns within 10% of RES-03 | SHOULD |
+| RES-05 | Unused models unloaded after 10 min idle | Memory returns within 10% of RES-03 | SHOULD (post-v1, D-20) |
+
+Memory (RES-03, RES-04) is the sum of the **private working set** of all app processes, the figure Task Manager shows as "Memory": the physical memory only this app uses. Committed private bytes and the plain working-set sum (which counts shared pages once per process) are not the measure (D-23).
 
 ### 7.3 Size (SIZE)
 
@@ -426,7 +430,7 @@ Online backend round trips are excluded from PERF-01 and PERF-06.
 - **SEC-01 — MUST:** Tauri capabilities are least-privilege; only commands the UI needs are exposed, and every IPC input is validated in Rust.
 - **SEC-02 — MUST:** The webview loads only bundled assets with a strict Content-Security-Policy (no remote scripts, styles or frames).
 - **SEC-03 — MUST:** All HTTP uses TLS (rustls); certificate validation can't be disabled from the UI.
-- **SEC-04 — MUST:** Updates are opt-in and signed (Tauri updater signatures); unsigned updates are rejected.
+- **SEC-04 — MUST (once an updater exists; v1 has none, D-21):** Updates are opt-in and signed (Tauri updater signatures); unsigned updates are rejected.
 - **SEC-05 — MUST:** CI runs `cargo deny` (advisories + licenses) and `npm audit`; release is blocked on unresolved high/critical advisories.
 
 ### 7.5 Accessibility and localization (A11Y, I18N)
@@ -454,6 +458,8 @@ Online backend round trips are excluded from PERF-01 and PERF-06.
 - A translated user interface: UI string externalization (I18N-01), the Swedish UI and a Swedish PRIVACY.md (SV-08, OSS-03) (D-17). The v1 UI is in English.
 - Screen-reader read-out of translations (REN-06) and verified screen-reader support with NVDA or Narrator (the screen-reader half of A11Y-02) (D-16). Controls keep their accessible names and keyboard operation (LENS-02, A11Y-01, A11Y-02).
 - Online translation backends (LibreTranslate, DeepL, Google) and what exists only for them: API-key storage (SET-02), consent dialogs (PRIV-04), text-only payloads (PRIV-03), the network activity log (PRIV-08), batching (TR-05), the online-to-on-device fallback (TR-06) and SV-10 (D-18). v1 translates on-device only.
+- Unloading models that haven't been used for a while (RES-05) (D-20). v1 keeps the installed models of the selected pair in memory while it runs.
+- An in-app updater and update checks (SEC-04 is its requirement) (D-21). v1 never checks for updates; new versions come from the releases page or winget.
 - Replacing text inside other applications.
 - Required GPU acceleration.
 - macOS and Linux (D-15; post-v1 targets in §4).
@@ -471,6 +477,7 @@ Online backend round trips are excluded from PERF-01 and PERF-06.
 | Post-v1 (D-16) | REN-06, A11Y-02 (screen-reader support) |
 | Post-v1 (D-17) | I18N-01, SV-08, OSS-03 (Swedish PRIVACY.md), A11Y-02 (Swedish UI) |
 | Post-v1 platforms | macOS: CAP-02/05 (mac), SV-02 (mac), SIZE-02, REF-B targets. Linux: CAP-02 (X11), CAP-05 (Wayland), HK-03, SV-02 (Linux), SIZE-03, SIZE-04 |
+| Post-v1 (D-20, D-21) | RES-05; SEC-04 (with the updater, v2) |
 | Post-v1 (D-18) online backends | TR-01 (online), TR-05, TR-06 (online failure), SET-02, PRIV-03, PRIV-04, PRIV-08, SV-10 |
 | M4 Polish | LENS-07, HK-01, HK-02, SV-06, A11Y-01, A11Y-02, MDL-04 |
 | M5 1.0 | All MUSTs; SV-07; TR-03; PERF-*, RES-*, SIZE-*, SEC-*, OSS-*, QUAL-* |

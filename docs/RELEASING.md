@@ -1,8 +1,9 @@
 # Releasing Polyglass
 
 Releases are built by GitHub Actions from a signed version tag and nowhere else (SPEC OSS-02).
-`.github/workflows/release.yml` does the work; this page says what the maintainer does around it
-and how code signing is set up.
+`.github/workflows/release.yml` does the work, and only when a maintainer starts it by hand:
+pushing a tag starts nothing. This page says what the maintainer does around it and how code
+signing is set up.
 
 ## Making a release
 
@@ -18,16 +19,19 @@ and how code signing is set up.
    git push origin main v0.1.0
    ```
 
-4. The workflow checks the tag's signature and the version, runs `cargo deny` and `npm audit`,
+4. Start the build: GitHub → Actions → Release → Run workflow, and type the tag (`v0.1.0`) in
+   the "tag" box. From a terminal: `gh workflow run release.yml -f tag=v0.1.0`.
+5. The workflow checks out that tag, checks its signature and the version, runs `cargo deny` and `npm audit`,
    builds the MSI and NSIS installers on `windows-latest`, signs them if signing is set up
    (below), and stages a **draft** release with the installers, `THIRD_PARTY_NOTICES.md`, two
    CycloneDX SBOMs, the winget manifest files and `SHA256SUMS`. GitHub stores build-provenance
    and SBOM attestations for the installers.
-5. If signing is on, approve the signing request in SignPath when it arrives (the build job
+6. If signing is on, approve the signing request in SignPath when it arrives (the build job
    waits up to four hours for it).
-6. Read the draft release, then publish it by hand.
+7. Read the draft release, then publish it by hand.
 
-A tag with a hyphen (`v0.2.0-beta.1`) becomes a pre-release. A release is never replaced: fix
+The workflow file that runs is the one on the branch it is started from (normally `main`); the
+code it builds is the tag's. A tag with a hyphen (`v0.2.0-beta.1`) becomes a pre-release. A release is never replaced: fix
 forward with a new version.
 
 To rehearse the staging locally (nothing is uploaded):
@@ -120,7 +124,34 @@ the unsigned ones. Hashes, SBOM subjects, the winget manifests and the attestati
 from the signed files. The steps have not run yet: expect to adjust them on the first signed
 release.
 
-Signed updates (SEC-04) are a separate thing: Polyglass has no updater yet.
+## Updater (planned for v2)
+
+v1 has no updater and never checks for updates (owner decision D-21): new versions come from
+the releases page or `winget upgrade`. Nothing for it is compiled into the app, on purpose: a
+dormant updater would be network code in an app whose promise is that it makes no connections.
+What is prepared is the plan, so that v2 only has to follow it (SPEC SEC-04: opt-in, signed,
+unsigned updates rejected):
+
+1. **Key pair.** `npm run tauri signer generate` makes the updater's own key pair (minisign;
+   this is not the code-signing certificate). The public key goes into `tauri.conf.json`
+   (`plugins.updater.pubkey`); the private key and its password become the repository secrets
+   `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`, entered by the
+   maintainer.
+2. **App.** Add `tauri-plugin-updater` (a new dependency: check it with `cargo deny` and add it
+   to the notices), register it in `main.rs`, and give no window its permissions: the check
+   runs from Rust only, like the hotkeys. Add `[updates] check = false` to `settings.toml`
+   (`settings.rs`) and a switch in Settings; with it off, no request is made. The endpoint is
+   `https://github.com/shashankshirol/polyglass/releases/latest/download/latest.json`.
+3. **Build.** Set `bundle.createUpdaterArtifacts: true`; `tauri build` then writes a `.sig` next
+   to each installer when the two secrets are in the build job's environment. If SignPath
+   signing is on, the `.sig` must be made **after** the signed installers come back
+   (`npm run tauri signer sign <file>`), or it won't match the published file.
+4. **Release.** `scripts/release_assets.py stage` adds the `.sig` files and writes `latest.json`
+   (version, notes, date, and per platform the installer URL and signature); both go into
+   `SHA256SUMS`.
+5. **Docs and tests.** PRIVACY.md gets the update check back (what is requested, from GitHub,
+   only when switched on); a test that an update with a wrong signature is refused; a
+   `lens-net.ps1` run with the switch off.
 
 ## winget
 

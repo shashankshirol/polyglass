@@ -4,7 +4,7 @@
     python scripts/release_assets.py check-version --tag v0.1.0
     python scripts/release_assets.py stage --tag v0.1.0
 
-The release workflow (`.github/workflows/release.yml`) runs both when a `v*` tag is pushed,
+The release workflow (`.github/workflows/release.yml`) runs both when a maintainer starts it for a `v*` tag,
 after `npm run tauri build` and `python scripts/notices.py --out <dest>/THIRD_PARTY_NOTICES.md`.
 Running them locally gives the same layout, for a check before tagging; nothing is uploaded or
 submitted from here.

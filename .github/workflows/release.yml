@@ -1,13 +1,16 @@
 name: Release
 
 # Builds the Windows installers from a version tag and stages a draft GitHub release (OSS-02,
-# M5-2). Releases are built here and nowhere else. To release 0.1.0:
+# M5-2). Releases are built here and nowhere else, and only when a maintainer starts this
+# workflow by hand: pushing a tag starts nothing (owner decision D-22). To release 0.1.0:
 #
 #   1. Set the version (Cargo.toml [workspace.package], apps/desktop/src-tauri/tauri.conf.json,
 #      apps/desktop/package.json) and commit. Run the manual Windows CI job on that commit.
 #   2. git tag -s v0.1.0 -m "Polyglass 0.1.0"      (a signed tag: -s, with a key GitHub knows)
 #      git push origin main v0.1.0
-#   3. Check the draft release this workflow creates, then publish it by hand.
+#   3. Actions → Release → Run workflow, with the tag (v0.1.0) in the "tag" box
+#      (or `gh workflow run release.yml -f tag=v0.1.0`).
+#   4. Check the draft release this workflow creates, then publish it by hand.
 #
 # What is attached: the MSI and NSIS installers, THIRD_PARTY_NOTICES.md (OSS-01), two
 # CycloneDX SBOMs (Rust crates, npm packages), the winget manifest files (not submitted
@@ -22,8 +25,17 @@ name: Release
 # exist. docs/RELEASING.md lists what the owner sets up.
 
 on:
-  push:
-    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "The signed version tag to release, already pushed (for example v0.1.0)"
+        required: true
+        type: string
+
+# One release at a time; a second start for the same tag waits instead of racing.
+concurrency:
+  group: release-${{ inputs.tag }}
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -39,12 +51,15 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          # The tag, not the branch the workflow was started from. A name that isn't an
+          # existing tag fails here.
+          ref: refs/tags/${{ inputs.tag }}
           persist-credentials: false
       - name: The tag is annotated, signed and names the app's version
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          TAG: ${{ github.ref_name }}
+          TAG: ${{ inputs.tag }}
           # Repository variable; set it to "true" only to rehearse a release with an unsigned tag.
           ALLOW_UNSIGNED_TAG: ${{ vars.ALLOW_UNSIGNED_TAG }}
         run: |
@@ -88,6 +103,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          # The tag, not the branch the workflow was started from. A name that isn't an
+          # existing tag fails here.
+          ref: refs/tags/${{ inputs.tag }}
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@stable
       - uses: actions/setup-node@v7
@@ -175,7 +193,7 @@ jobs:
       # SIZE-01 (15 MB).
       - name: Stage the release assets
         env:
-          TAG: ${{ github.ref_name }}
+          TAG: ${{ inputs.tag }}
         run: python scripts/release_assets.py stage --tag "$TAG" --bundle target/release/bundle --dest release ${{ env.SIGNING == 'true' && '--signed' || '' }}
       - uses: actions/upload-artifact@v7
         with:
@@ -224,7 +242,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          TAG: ${{ github.ref_name }}
+          TAG: ${{ inputs.tag }}
         run: |
           if gh release view "$TAG" > /dev/null 2>&1; then
             echo "::error::release $TAG already exists; app releases are never replaced"

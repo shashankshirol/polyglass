@@ -13,8 +13,8 @@ Polyglass has no online translation services: version 1 translates only on your 
 - Screen images are **never saved to disk**. The only exception is a developer option
   (`--debug-dump-frames`) that shows a red banner the whole time it is on.
 - Translations are cached **in memory only** and forgotten when you quit.
-- Network traffic happens only when **you** download a translation model, or if you turn on
-  update checks. Model downloads come only from addresses listed in the app's built-in
+- Network traffic happens only when **you** download a translation model. Polyglass never
+  checks for updates. Model downloads come only from addresses listed in the app's built-in
   manifest and are checked against a fingerprint (SHA-256) before use.
 - The translation models are downloaded from **GitHub**: the releases of the Polyglass
   repository (`github.com`), which hands the file over to GitHub's download servers. Like any
