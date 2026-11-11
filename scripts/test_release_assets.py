@@ -103,6 +103,9 @@ class Sums(unittest.TestCase):
         for want in ["`P-setup.exe` installs for the current user", "sha256sum --check SHA256SUMS",
                      "gh attestation verify P-setup.exe", "signed tag `v0.1.0`", "not code-signed yet"]:
             self.assertIn(want, text)
+        signed = ra.notes("0.1.0", "v0.1.0", {"msi": "P.msi", "nsis": "P-setup.exe"}, signed=True)
+        self.assertNotIn("not code-signed", signed)
+        self.assertIn("certificate by SignPath Foundation", signed)
 
 
 if __name__ == "__main__":

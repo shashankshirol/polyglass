@@ -102,7 +102,7 @@ v1 is Windows only (D-15, 2026-11-03). What the D-15 cleanup removed, and what t
 - [x] D-1 Final project name. **Decided (2026-11-01): "Polyglass is good for now"**; the `pg-` crate prefix stays.
 - [x] D-2 License. **Decided (2026-11-01): "Use the APACHE-2.0 license"**. Done in session 7: `LICENSE` (Apache-2.0 text), workspace `license = "Apache-2.0"`, `apps/desktop/package.json`, README, PLAN §8. `THIRD_PARTY_NOTICES` via `cargo-about` is still M5-2.
 - [x] D-3 Minimum OS versions. **Decided (2026-11-01): the proposed versions (Win10 2004, macOS 13, Ubuntu 22.04); "I don't care about supporting old OSes".** Recorded in SPEC §4.
-- [-] D-4 Code-signing budget (Apple Developer Program, SignPath). **Deferred by the owner (2026-11-01)**; revisit before the first public beta (M5-1).
+- [x] D-4 Code signing. **Decided by the owner (2026-11-10): "Yes, SignPath"** (asked: "Use SignPath Foundation (free) for code signing?"). Windows installers are signed through SignPath Foundation, the free program for open-source projects; `release.yml` has the steps, off until the SignPath secrets exist, and `docs/RELEASING.md` lists what the owner sets up (M5-1). Was deferred on 2026-11-01. Apple signing is post-v1 (D-15).
 - [x] D-5 SPEC §10 open questions 1–6. **Decided (2026-11-01)**, written into SPEC v0.3:
   1. Default direction **Swedish → English**, "for now"; keep pairs modular so users can set up their own languages (SV-01, new MDL-07 → M3-8).
   2. Next pair **German → English** (main audience is English speakers) (§3 → M3-9).
@@ -412,7 +412,9 @@ These are verified with mocks. Each requirement is fully met only once real engi
   - *Not done: dropping a folder was not tried with a real mouse drag (the drop handler is Tauri's documented event; the field path is the keyboard-accessible one); no native folder picker (it needs `tauri-plugin-dialog`, a new dependency: owner, or COM code); UIA's Invoke on the Import button didn't trigger it in this session, while keyboard Enter/Space did (not investigated further).*
 
 ## M5 — 1.0 hardening
-- [ ] M5-1 Windows code signing (OSS-04; macOS notarization post-v1), signed opt-in updater (SEC-04).
+- [~] M5-1 Windows code signing (OSS-04; macOS notarization post-v1), signed opt-in updater (SEC-04).
+  - *Session 18: D-4 decided (SignPath Foundation). `release.yml`'s build job uploads the unsigned installers as an artifact, submits a SignPath signing request (`signpath/github-action-submit-signing-request@v3`), waits up to 4 h for the approval, checks both Authenticode signatures and swaps the signed files in before anything is hashed or attested. All of it is skipped until the repository secrets `SIGNPATH_API_TOKEN`, `SIGNPATH_ORGANIZATION_ID` and `SIGNPATH_PROJECT_SLUG` exist. `docs/RELEASING.md` has the owner's steps (public repository, the Foundation's conditions incl. a "Code signing policy" README section, the application, a starting artifact configuration, the secrets).*
+  - *Left: the owner's setup; the first signed run (the steps never ran); `polyglass.exe` inside the installers stays unsigned with the starting configuration. **No updater exists** (SEC-04): no `tauri-plugin-updater`, no update check; PRIVACY.md's "if you turn on update checks" describes something the app can't do yet.*
 - [~] M5-2 Release pipeline: signed tags, SHA256SUMS, CycloneDX SBOM, provenance (OSS-02).
 - [~] M5-3 `pg-bench` regression gate (>20% p50) in CI (QUAL-02); coverage ≥70% (QUAL-03).
 - [~] M5-4 Packaging: MSI/NSIS, winget; size gate SIZE-01 (DMG, .deb, .rpm, AppImage, Homebrew and SIZE-02..04 post-v1, D-15).

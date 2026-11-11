@@ -183,7 +183,14 @@ def sums(files: list[Path]) -> str:
     return "".join(f"{sha256(p)} *{p.name}\n" for p in sorted(files, key=lambda p: p.name))
 
 
-def notes(version: str, tag: str, names: dict[str, str]) -> str:
+def notes(version: str, tag: str, names: dict[str, str], signed: bool = False) -> str:
+    signing = (
+        "The installers are code-signed (free code signing provided by SignPath.io, certificate "
+        "by SignPath Foundation)."
+        if signed else
+        "The installers are not code-signed yet, so Windows SmartScreen may warn about an unknown "
+        "publisher."
+    )
     return f"""\
 Polyglass {version} for Windows 10 (2004 or later) and Windows 11, x64.
 
@@ -192,9 +199,10 @@ Polyglass {version} for Windows 10 (2004 or later) and Windows 11, x64.
 - `{names["nsis"]}` installs for the current user and needs no administrator rights.
 - `{names["msi"]}` installs for all users (asks for administrator rights).
 
-The installers are not code-signed yet, so Windows SmartScreen may warn about an unknown
-publisher. The translation models are not included: Polyglass offers to download them on first
-run (about 160 MB for Swedish ↔ English).
+{signing}
+
+The translation models are not included: Polyglass offers to download them on first run
+(about 160 MB for Swedish ↔ English).
 
 ## Verify
 
@@ -238,7 +246,7 @@ def sboms(dest: Path) -> list[Path]:
     return [rust, ui]
 
 
-def stage(tag: str, bundle: Path, dest: Path, with_sbom: bool) -> None:
+def stage(tag: str, bundle: Path, dest: Path, with_sbom: bool, signed: bool = False) -> None:
     version = version_of(tag, versions())
     found = installers(bundle, version)
     dest.mkdir(parents=True, exist_ok=True)
@@ -260,7 +268,7 @@ def stage(tag: str, bundle: Path, dest: Path, with_sbom: bool) -> None:
         assets.append(path)
     (dest / "SHA256SUMS").write_text(sums(assets), encoding="utf-8", newline="\n")
     (dest / "RELEASE_NOTES.md").write_text(
-        notes(version, tag, {kind: path.name for kind, path in found.items()}),
+        notes(version, tag, {kind: path.name for kind, path in found.items()}, signed),
         encoding="utf-8", newline="\n")
     log(f"staged {len(assets)} assets + SHA256SUMS in {dest}")
 
@@ -275,12 +283,14 @@ def main() -> None:
     st.add_argument("--bundle", type=Path, default=REPO / "target" / "release" / "bundle")
     st.add_argument("--dest", type=Path)
     st.add_argument("--no-sbom", action="store_true", help="leave the SBOMs out (local check)")
+    st.add_argument("--signed", action="store_true",
+                    help="the installers are code-signed (the release notes say so)")
     args = ap.parse_args()
     if args.command == "check-version":
         log(f"{args.tag}: version {version_of(args.tag, versions())} in every file")
     else:
         dest = args.dest or REPO / "target" / "release-assets" / args.tag
-        stage(args.tag, args.bundle.resolve(), dest.resolve(), not args.no_sbom)
+        stage(args.tag, args.bundle.resolve(), dest.resolve(), not args.no_sbom, args.signed)
 
 
 if __name__ == "__main__":
