@@ -96,6 +96,7 @@ is captured.
 |---|---|
 | [docs/DEVELOPMENT.md](./docs/DEVELOPMENT.md) | Building, models, tests, developer flags, troubleshooting |
 | [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | How the code is organized |
+| [docs/RELEASING.md](./docs/RELEASING.md) | How releases are built, signed and verified |
 | [SPEC.md](./SPEC.md) | Product requirements with IDs and acceptance criteria |
 | [PLAN.md](./PLAN.md) | Architecture, decisions, roadmap |
 | [CHECKLIST.md](./CHECKLIST.md) | Development tracker and session log |

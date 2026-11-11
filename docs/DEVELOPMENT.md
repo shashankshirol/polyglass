@@ -72,10 +72,9 @@ finishes, without a restart. Later, ⬇ in the lens toolbar while the models are
 "Translation models…" in Settings (⚙) or in the tray menu opens the model manager: download with progress,
 cancel and resume, delete, licenses and disk usage.
 
-The repository is private until the first app release, so the models release can't be
-downloaded without a GitHub login: after a download attempt the window and the lens say the
-release isn't reachable and show the install command instead. Until then, install the models
-with the script below.
+The models are assets of a GitHub release of this repository. If that release can't be reached
+(no network, or GitHub answers "not found"), the window and the lens say so after a download
+attempt and show the install command instead: the script below builds the same files.
 
 To build the same files yourself (offline install, or a check of the release), run this from
 the repository root:
@@ -200,8 +199,11 @@ npm run tauri build -- --no-bundle
 This builds the UI and an optimized app binary, `target\release\polyglass.exe` at the
 repository root, which runs on its own: double-click it, or run it from a terminal. Add `--demo`
 for demo mode. Running `npm run tauri build` without `--no-bundle` also creates the MSI and NSIS
-installers under `target\release\bundle\`. The Tauri CLI downloads WiX and NSIS for that step,
-which hasn't been tested yet.
+installers under `target\release\bundle\` (about 6.5 MB and 4.7 MB). The Tauri CLI downloads
+WiX and NSIS for that step. The NSIS installer (`Polyglass_<version>_x64-setup.exe`) installs for
+the current user without administrator rights; the MSI installs for all users. Uninstalling
+keeps your settings and models unless you tick the box to delete them. Releases themselves are
+built by GitHub Actions: see [RELEASING.md](./RELEASING.md).
 
 ### 6. Tests and benchmarks
 
@@ -223,7 +225,13 @@ cargo run --release -p pg-bench -- --fixture tests/fixtures/ui-dialog-sv
 - `--eval tests/eval/sv-en --translator ct2` translates an evaluation set instead and prints its
   chrF score (SV-07, `tests/eval/README.md`);
 - it renders the fixture image from `truth.json` at `--scale` and `--theme`, and with
-  `--ocr windows` it also prints OCR accuracy (CER, WER, å/ä/ö).
+  `--ocr windows` it also prints OCR accuracy (CER, WER, å/ä/ö);
+- `--json > base.json` saves a run, and `--baseline base.json` on a later build compares with it
+  and fails when the whole cycle's p50 got more than 20% slower (QUAL-02).
+  `scripts/bench-gate.sh <old pg-bench> <new pg-bench>` does that for two builds on this
+  machine; CI's manual `bench` job runs it against `main`.
+
+`python -m unittest discover -s scripts -p "test_*.py"` runs the release scripts' tests.
 
 Tests against the real translation models need the converted models, so they're ignored by
 default. Convert them first (they're imported into a test store, not the app's):
